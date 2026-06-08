@@ -28,8 +28,18 @@ This API is a **long-running Express server** with MongoDB, background token ref
 
 ### Render deploy steps
 
+**Option A — Blueprint (recommended)**
+
 1. [render.com](https://render.com) → **New** → **Blueprint**
 2. Connect `https://github.com/najmus-dev/oraia-mobile-app`
+
+**Option B — Web Service (Docker)**
+
+1. **New** → **Web Service** → connect the repo
+2. Runtime: **Docker** (uses root `Dockerfile`)
+3. Or set **Root Directory** to `apps/api` if you prefer the API-local Dockerfile
+
+Both options:
 3. Set secret env vars from `apps/api/.env.example` (copy from your local `apps/api/.env`)
 4. Required production values:
    - `MONGODB_URI` — MongoDB Atlas
