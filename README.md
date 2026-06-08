@@ -7,6 +7,9 @@ Monorepo for the ORAIA CRM mobile app and its backend API (BFF for GoHighLevel A
 | API | `apps/api` | Express + MongoDB BFF |
 | Mobile | `apps/mobile` | Expo / React Native (Android-first) |
 
+**Production API:** https://oraia-mobile-app.onrender.com  
+**Health check:** https://oraia-mobile-app.onrender.com/health
+
 ## Local development
 
 ```bash
@@ -24,11 +27,11 @@ This API is a **long-running Express server** with MongoDB, background token ref
 | **Render** | Best — Docker web service, always-on, cron-friendly, custom domain |
 | **Vercel** | Poor fit — serverless; no persistent process, cold starts, cron/webhooks awkward |
 
-`render.yaml` is included for one-click deploy from this repo.
+`render.yaml` and a root `Dockerfile` are included for deploy from this repo.
 
 ### Render deploy steps
 
-**Option A — Blueprint (recommended)**
+**Option A — Blueprint**
 
 1. [render.com](https://render.com) → **New** → **Blueprint**
 2. Connect `https://github.com/najmus-dev/oraia-mobile-app`
@@ -37,36 +40,43 @@ This API is a **long-running Express server** with MongoDB, background token ref
 
 1. **New** → **Web Service** → connect the repo
 2. Runtime: **Docker** (uses root `Dockerfile`)
-3. Or set **Root Directory** to `apps/api` if you prefer the API-local Dockerfile
+3. Or set **Root Directory** to `apps/api` to use the API-local Dockerfile
 
-Both options:
-3. Set secret env vars from `apps/api/.env.example` (copy from your local `apps/api/.env`)
-4. Required production values:
-   - `MONGODB_URI` — MongoDB Atlas
-   - `JWT_SECRET`, `ENCRYPTION_KEY`
-   - `GHL_CLIENT_ID`, `GHL_CLIENT_SECRET`, `GHL_COMPANY_ID`
-   - `GHL_COMPANY_ACCESS_TOKEN`, `GHL_COMPANY_REFRESH_TOKEN`
-   - `GHL_OAUTH_REDIRECT_URI` → `https://YOUR_API_HOST/api/oauth/callback`
-   - `BOOTSTRAP_ADMIN_PASSWORD`
-5. Add custom domain (e.g. `api.oraiacrm.com`) → DNS CNAME to Render
-6. Verify: `curl https://YOUR_API_HOST/health`
+**Environment variables** (from `apps/api/.env.example`):
+
+- `MONGODB_URI` — MongoDB Atlas
+- `JWT_SECRET`, `ENCRYPTION_KEY`
+- `GHL_CLIENT_ID`, `GHL_CLIENT_SECRET`, `GHL_COMPANY_ID`
+- `GHL_COMPANY_ACCESS_TOKEN`, `GHL_COMPANY_REFRESH_TOKEN`
+- `GHL_OAUTH_REDIRECT_URI` → `https://oraia-mobile-app.onrender.com/api/oauth/callback`
+- `BOOTSTRAP_ADMIN_PASSWORD`
+- `NODE_ENV` → `production`
+
+Verify after deploy:
+
+```bash
+curl https://oraia-mobile-app.onrender.com/health
+```
+
+Optional: add custom domain `api.oraiacrm.com` in Render → point DNS CNAME to Render.
 
 ### GHL marketplace app
 
-- **Redirect URI**: `https://YOUR_API_HOST/api/oauth/callback`
-- **Webhook URL**: `https://YOUR_API_HOST/webhooks/ghl`
+- **Redirect URI**: `https://oraia-mobile-app.onrender.com/api/oauth/callback`
+- **Webhook URL**: `https://oraia-mobile-app.onrender.com/webhooks/ghl`
 
 ## Mobile release builds (EAS)
 
-After the API is live, set the host in `apps/mobile/eas.json`:
+Release builds use the live API via `EXPO_PUBLIC_API_URL` in `apps/mobile/eas.json`:
 
 ```json
-"EXPO_PUBLIC_API_URL": "https://api.oraiacrm.com"
+"EXPO_PUBLIC_API_URL": "https://oraia-mobile-app.onrender.com"
 ```
 
 ```bash
 cd apps/mobile
-npm run build:preview      # internal APK
+eas login          # once
+npm run build:preview      # internal APK for testers
 npm run build:production   # Play Store AAB
 ```
 
