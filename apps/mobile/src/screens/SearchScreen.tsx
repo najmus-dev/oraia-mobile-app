@@ -21,9 +21,16 @@ import {
 import { contactDisplayName } from '../lib/contacts';
 import type { ContactsListResponse } from '../lib/contacts';
 import {
+  appointmentSearchDetail,
+  filterAppointmentsByQuery,
+  taskSearchDetail,
+  type CalendarSearchEvent,
+} from '../lib/appointmentSearch';
+import {
   buildConversationsQuery,
   type ConversationsListResponse,
 } from '../lib/conversations';
+import { endOfDay, startOfDay, toIso } from '../lib/dates';
 import { formatError } from '../lib/errors';
 import {
   contactSearchDetail,
@@ -33,8 +40,9 @@ import {
   type GlobalSearchResults,
   type SearchScope,
 } from '../lib/globalSearch';
+import { navigateToAppointmentDetail, navigateToContactDetail } from '../lib/navigation';
 import { type OpportunitiesListResponse } from '../lib/opportunities';
-import { navigateToContactDetail } from '../lib/navigation';
+import { type TasksSearchResponse } from '../lib/tasks';
 import { TAB_LIST_BOTTOM_PADDING, useHeaderTopPadding } from '../lib/safeArea';
 import { useAppState } from '../state/AppState';
 import { theme } from '../theme';
@@ -62,6 +70,8 @@ export function SearchScreen({ navigation }: Props) {
     contacts: [],
     conversations: [],
     opportunities: [],
+    tasks: [],
+    appointments: [],
   });
   const [locationSheetOpen, setLocationSheetOpen] = useState(false);
   const parentNav = navigation.getParent();
@@ -80,7 +90,14 @@ export function SearchScreen({ navigation }: Props) {
 
   const runSearch = useCallback(async () => {
     if (!token || !locationId || !trimmedQuery) {
-      setResults({ apps: [], contacts: [], conversations: [], opportunities: [] });
+      setResults({
+        apps: [],
+        contacts: [],
+        conversations: [],
+        opportunities: [],
+        tasks: [],
+        appointments: [],
+      });
       setError(null);
       setLoading(false);
       return;
@@ -92,7 +109,13 @@ export function SearchScreen({ navigation }: Props) {
       const contactQs = `limit=${GLOBAL_SEARCH_LIMIT}&query=${encodeURIComponent(trimmedQuery)}`;
       const convoQs = buildConversationsQuery({ limit: GLOBAL_SEARCH_LIMIT, query: trimmedQuery });
       const oppQs = `limit=${GLOBAL_SEARCH_LIMIT}&query=${encodeURIComponent(trimmedQuery)}`;
-      const [contactsRes, convosRes, oppsRes] = await Promise.all([
+      const searchStart = new Date();
+      searchStart.setDate(searchStart.getDate() - 30);
+      const searchEnd = new Date();
+      searchEnd.setDate(searchEnd.getDate() + 90);
+      const eventsQs = `startTime=${encodeURIComponent(toIso(startOfDay(searchStart)))}&endTime=${encodeURIComponent(toIso(endOfDay(searchEnd)))}`;
+
+      const [contactsRes, convosRes, oppsRes, tasksRes, eventsRes] = await Promise.all([
         api.getJson<ContactsListResponse>(`/api/contacts?${contactQs}`, {
           headers: withAuthHeaders({ token, locationId }),
         }),
@@ -102,21 +125,45 @@ export function SearchScreen({ navigation }: Props) {
         api.getJson<OpportunitiesListResponse>(`/api/opportunities?${oppQs}`, {
           headers: withAuthHeaders({ token, locationId }),
         }),
+        api.postJson<TasksSearchResponse>(
+          '/api/tasks/search',
+          { query: trimmedQuery, limit: GLOBAL_SEARCH_LIMIT },
+          { headers: withAuthHeaders({ token, locationId }) },
+        ),
+        api.getJson<{ events: CalendarSearchEvent[] }>(`/api/calendar/events?${eventsQs}`, {
+          headers: withAuthHeaders({ token, locationId }),
+        }),
       ]);
+
+      const matchedAppointments = filterAppointmentsByQuery(eventsRes.events ?? [], trimmedQuery).slice(
+        0,
+        GLOBAL_SEARCH_LIMIT,
+      );
 
       const partial: GlobalSearchResults = {
         apps: filterAppsByQuery(crmAppList().filter((a) => a.available), trimmedQuery),
         contacts: contactsRes.contacts ?? [],
         conversations: convosRes.conversations ?? [],
         opportunities: oppsRes.opportunities ?? [],
+        tasks: tasksRes.tasks ?? [],
+        appointments: matchedAppointments,
         contactsTotal: contactsRes.meta?.total,
         conversationsTotal: convosRes.total,
         opportunitiesTotal: oppsRes.meta?.total,
+        tasksTotal: tasksRes.tasks?.length,
+        appointmentsTotal: matchedAppointments.length,
       };
       setResults(mergeGlobalSearchResults(scope, partial));
     } catch (e) {
       setError(formatError(e));
-      setResults({ apps: [], contacts: [], conversations: [], opportunities: [] });
+      setResults({
+        apps: [],
+        contacts: [],
+        conversations: [],
+        opportunities: [],
+        tasks: [],
+        appointments: [],
+      });
     } finally {
       setLoading(false);
     }
@@ -124,7 +171,14 @@ export function SearchScreen({ navigation }: Props) {
 
   useEffect(() => {
     if (!isSearching) {
-      setResults({ apps: [], contacts: [], conversations: [], opportunities: [] });
+      setResults({
+        apps: [],
+        contacts: [],
+        conversations: [],
+        opportunities: [],
+        tasks: [],
+        appointments: [],
+      });
       setError(null);
       setLoading(false);
       return;
@@ -178,9 +232,32 @@ export function SearchScreen({ navigation }: Props) {
     );
   }
 
+  function openTask(task: (typeof results.tasks)[number]) {
+    if (!task.contactId?.trim()) {
+      parentNav?.navigate('AppsTab' as never, { screen: 'TasksHome' } as never);
+      return;
+    }
+    parentNav?.navigate(
+      'AppsTab' as never,
+      {
+        screen: 'TaskForm',
+        params: {
+          taskId: task.id,
+          contactId: task.contactId,
+          initialTask: task,
+        },
+      } as never,
+    );
+  }
+
   const scopeLabel = scope ? CRM_APPS[scope]?.label : null;
   const hasResults =
-    results.apps.length > 0 || results.contacts.length > 0 || results.conversations.length > 0;
+    results.apps.length > 0 ||
+    results.contacts.length > 0 ||
+    results.conversations.length > 0 ||
+    results.opportunities.length > 0 ||
+    results.tasks.length > 0 ||
+    results.appointments.length > 0;
 
   return (
     <View style={styles.container}>
@@ -401,6 +478,68 @@ export function SearchScreen({ navigation }: Props) {
                     </View>
                     <View style={styles.resultTextCol}>
                       <Text style={styles.resultTitle}>{opp.name?.trim() || 'Opportunity'}</Text>
+                      {detail ? (
+                        <Text style={styles.resultSubtitle} numberOfLines={1}>
+                          {detail}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
+        {isSearching && results.tasks.length > 0 ? (
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Tasks</Text>
+            <View style={styles.resultList}>
+              {results.tasks.map((task) => {
+                const detail = taskSearchDetail(task);
+                return (
+                  <Pressable
+                    key={task.id}
+                    style={styles.resultRow}
+                    onPress={() => openTask(task)}
+                  >
+                    <View style={styles.resultIconWrap}>
+                      <Ionicons name="checkbox-outline" size={18} color={theme.colors.link} />
+                    </View>
+                    <View style={styles.resultTextCol}>
+                      <Text style={styles.resultTitle}>{task.title?.trim() || 'Task'}</Text>
+                      {detail ? (
+                        <Text style={styles.resultSubtitle} numberOfLines={1}>
+                          {detail}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
+        {isSearching && results.appointments.length > 0 ? (
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Appointments</Text>
+            <View style={styles.resultList}>
+              {results.appointments.map((event) => {
+                const detail = appointmentSearchDetail(event);
+                return (
+                  <Pressable
+                    key={event.id}
+                    style={styles.resultRow}
+                    onPress={() =>
+                      navigateToAppointmentDetail(navigation, event.id, event.title)
+                    }
+                  >
+                    <View style={styles.resultIconWrap}>
+                      <Ionicons name="calendar-outline" size={18} color={theme.colors.link} />
+                    </View>
+                    <View style={styles.resultTextCol}>
+                      <Text style={styles.resultTitle}>{event.title?.trim() || 'Appointment'}</Text>
                       {detail ? (
                         <Text style={styles.resultSubtitle} numberOfLines={1}>
                           {detail}

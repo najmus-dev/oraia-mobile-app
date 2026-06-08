@@ -8,17 +8,21 @@ import { OpportunityCard } from './OpportunityCard';
 
 type Props = {
   stageName: string;
+  stageId: string;
   opportunities: Opportunity[];
   onCreate: () => void;
   onOpen: (opportunity: Opportunity) => void;
+  onMove?: (opportunity: Opportunity) => void;
   height?: number;
 };
 
 export function OpportunityKanbanColumn({
   stageName,
+  stageId,
   opportunities,
   onCreate,
   onOpen,
+  onMove,
   height = Dimensions.get('window').height * 0.58,
 }: Props) {
   const stats = computeStageStats(opportunities);
@@ -45,7 +49,12 @@ export function OpportunityKanbanColumn({
         nestedScrollEnabled
       >
         {opportunities.map((opp) => (
-          <OpportunityCard key={opp.id} opportunity={opp} onPress={() => onOpen(opp)} />
+          <OpportunityCard
+            key={opp.id}
+            opportunity={opp}
+            onPress={() => onOpen(opp)}
+            onLongPress={onMove ? () => onMove(opp) : undefined}
+          />
         ))}
       </ScrollView>
     </View>

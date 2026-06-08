@@ -44,8 +44,23 @@ export const config = {
   oauth: {
     redirectUri: process.env.GHL_OAUTH_REDIRECT_URI?.trim(),
   },
+  cors: {
+    /** Comma-separated allowed origins. Empty in production denies cross-origin requests. */
+    allowedOrigins: (process.env.CORS_ALLOWED_ORIGINS ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  },
   webhooks: {
-    /** Optional shared secret to verify GHL webhook signatures */
+    /** Legacy shared secret header (x-ghl-webhook-secret) — prefer Ed25519/RSA keys */
     secret: process.env.GHL_WEBHOOK_SECRET?.trim(),
+    /** Ed25519 public key for x-ghl-signature (WEBHOOK_SIGNATURE_PUBLIC_KEY) */
+    ed25519PublicKey: process.env.WEBHOOK_SIGNATURE_PUBLIC_KEY?.trim(),
+    /** RSA public key for legacy x-wh-signature (WEBHOOK_PUBLIC_KEY) */
+    rsaPublicKey: process.env.WEBHOOK_PUBLIC_KEY?.trim(),
+  },
+  push: {
+    /** When false, inbound webhooks are accepted but no push is sent */
+    enabled: process.env.PUSH_NOTIFICATIONS_ENABLED !== 'false',
   },
 };

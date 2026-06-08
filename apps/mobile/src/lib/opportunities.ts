@@ -51,6 +51,23 @@ export type OpportunityFormValues = {
   assignedTo: string;
 };
 
+export function opportunityToFormValues(o: Opportunity): OpportunityFormValues {
+  const status = OPPORTUNITY_STATUS_OPTIONS.some((s) => s.id === o.status)
+    ? (o.status as OpportunityStatus)
+    : 'open';
+  return {
+    name: o.name?.trim() ?? '',
+    contactId: o.contactId?.trim() ?? '',
+    monetaryValue: o.monetaryValue != null ? String(o.monetaryValue) : '',
+    pipelineId: o.pipelineId?.trim() ?? '',
+    pipelineStageId: o.pipelineStageId?.trim() ?? '',
+    status,
+    source: o.source?.trim() ?? '',
+    businessName: o.companyName?.trim() ?? '',
+    assignedTo: o.assignedTo?.trim() ?? '',
+  };
+}
+
 export function emptyOpportunityFormValues(
   defaults?: Partial<OpportunityFormValues>,
 ): OpportunityFormValues {

@@ -28,6 +28,31 @@ Only when **GoHighLevel’s servers** must reach your API (production, or you wa
 
 Your endpoint: **`POST /webhooks/ghl`**
 
+### Webhook authentication (production)
+
+GHL signs webhook payloads. Configure on the API:
+
+| Env var | Header | Scheme |
+|---------|--------|--------|
+| `WEBHOOK_SIGNATURE_PUBLIC_KEY` | `x-ghl-signature` | Ed25519 (preferred) |
+| `WEBHOOK_PUBLIC_KEY` | `x-wh-signature` | RSA-SHA256 (legacy) |
+| `GHL_WEBHOOK_SECRET` | `x-ghl-webhook-secret` | Shared secret fallback |
+
+Copy the public keys from **Marketplace → My Apps → Advanced settings**.  
+Local dev: omit all three to allow unsigned `curl` testing.
+
+**Important:** Company tokens in `.env` are only loaded via `npm run seed` when MongoDB is empty — server boot no longer overwrites OAuth-refreshed tokens on redeploy.
+
+### Push notifications (Build 3)
+
+In **Marketplace → My Apps → Advanced settings → Webhooks**, enable:
+
+- **InboundMessage** — sends a push to registered mobile devices when a contact messages in
+
+The mobile app registers an Expo push token per user + location via `POST /api/push-tokens/register`.
+
+Set `PUSH_NOTIFICATIONS_ENABLED=false` on the API to accept webhooks without sending pushes (useful in dev).
+
 ---
 
 ## Production setup (later)

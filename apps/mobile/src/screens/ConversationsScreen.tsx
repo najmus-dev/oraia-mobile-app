@@ -30,6 +30,7 @@ import { theme } from '../theme';
 import { useAppState } from '../state/AppState';
 import { ContactSearchBar } from '../components/contacts/ContactSearchBar';
 import { EmptyState } from '../components/EmptyState';
+import { ErrorBanner } from '../components/ErrorBanner';
 import { FloatingActionButton } from '../components/FloatingActionButton';
 import { ListBusyState } from '../components/ListBusyState';
 import { LocationSelectSheet } from '../components/LocationSelectSheet';
@@ -46,7 +47,7 @@ import type { InboxStackParamList } from '../navigation/InboxStack';
 
 type Props = NativeStackScreenProps<InboxStackParamList, 'InboxList'>;
 
-export function ConversationsScreen({ navigation }: Props) {
+export function ConversationsScreen({ navigation, route }: Props) {
   const { token, locationId, locationName, locationAddress, locationLogoUrl, user } =
     useAppState();
   const [initialLoading, setInitialLoading] = useState(true);
@@ -58,8 +59,11 @@ export function ConversationsScreen({ navigation }: Props) {
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [locationSheetOpen, setLocationSheetOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const loadSeq = useRef(0);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | undefined>();
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const searchPlaceholder =
     inboxTab === 'team'
@@ -76,46 +80,65 @@ export function ConversationsScreen({ navigation }: Props) {
   });
 
   const load = useCallback(
-    async (opts?: { pull?: boolean }) => {
+    async (opts?: { pull?: boolean; more?: boolean }) => {
       if (!token || !locationId) return;
 
       const seq = ++loadSeq.current;
       if (opts?.pull) setRefreshing(true);
+      else if (opts?.more) setLoadingMore(true);
       else if (!hasLoaded) setInitialLoading(true);
+      if (!opts?.pull && !opts?.more) setLoadError(null);
 
       if (inboxTab === 'mine' && !myAssigneeId) {
         if (seq === loadSeq.current) {
           setConversations([]);
+          setNextCursor(undefined);
           setHasLoaded(true);
           setInitialLoading(false);
           setRefreshing(false);
+          setLoadingMore(false);
         }
+        return;
+      }
+
+      const cursor = opts?.more ? nextCursor : undefined;
+      if (opts?.more && !cursor) {
+        if (seq === loadSeq.current) setLoadingMore(false);
         return;
       }
 
       try {
         const assignedTo = inboxTab === 'mine' ? myAssigneeId : undefined;
         const res = await api.getJson<ConversationsListResponse>(
-          `/api/conversations?${buildConversationsQuery({ limit: 60, query, filter, assignedTo })}`,
+          `/api/conversations?${buildConversationsQuery({
+            limit: 60,
+            query,
+            filter,
+            assignedTo,
+            startAfterDate: cursor,
+          })}`,
           { headers: withAuthHeaders({ token, locationId }) },
         );
         if (seq !== loadSeq.current) return;
         const list = res.conversations ?? [];
-        setConversations(list);
+        setConversations((prev) => (opts?.more ? [...prev, ...list] : list));
+        setNextCursor(res.nextStartAfterDate);
         setHasLoaded(true);
+        setLoadError(null);
         const ids = list.map((c) => c.contactId).filter((id): id is string => Boolean(id?.trim()));
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
         prefetchContactChannels({ token, locationId }, ids);
       } catch (e) {
-        if (seq === loadSeq.current) Alert.alert('Inbox', formatError(e));
+        if (seq === loadSeq.current) setLoadError(formatError(e));
       } finally {
         if (seq === loadSeq.current) {
           setInitialLoading(false);
           setRefreshing(false);
+          setLoadingMore(false);
         }
       }
     },
-    [token, locationId, query, filter, hasLoaded, inboxTab, myAssigneeId],
+    [token, locationId, query, filter, hasLoaded, inboxTab, myAssigneeId, nextCursor],
   );
 
   useEffect(() => {
@@ -134,6 +157,12 @@ export function ConversationsScreen({ navigation }: Props) {
       }
     }, [load, hasLoaded]),
   );
+
+  useEffect(() => {
+    if (!route.params?.openCompose) return;
+    setComposeOpen(true);
+    navigation.setParams({ openCompose: undefined });
+  }, [route.params?.openCompose, navigation]);
 
   const patchConversation = useCallback((id: string, patch: Partial<Conversation>) => {
     setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
@@ -269,6 +298,10 @@ export function ConversationsScreen({ navigation }: Props) {
         />
       </View>
 
+      {loadError ? (
+        <ErrorBanner message={loadError} onRetry={() => load()} onDismiss={() => setLoadError(null)} />
+      ) : null}
+
       <View style={styles.listBody}>
         {initialLoading && !hasLoaded ? (
           <ListBusyState
@@ -283,6 +316,13 @@ export function ConversationsScreen({ navigation }: Props) {
             contentContainerStyle={styles.listContent}
             refreshing={refreshing}
             onRefresh={() => load({ pull: true })}
+            onEndReached={() => {
+              if (nextCursor && !loadingMore && !initialLoading) {
+                // eslint-disable-next-line @typescript-eslint/no-floating-promises
+                load({ more: true });
+              }
+            }}
+            onEndReachedThreshold={0.4}
             initialNumToRender={12}
             renderItem={({ item }) => (
               <ConversationListRow

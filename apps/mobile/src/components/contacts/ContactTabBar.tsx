@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { theme } from '../../theme';
 
-export type ContactTab = 'details' | 'tasks' | 'notes';
+export type ContactTab = 'details' | 'tasks' | 'notes' | 'opportunities';
 
 type TabDef = {
   id: ContactTab;
@@ -14,12 +14,19 @@ type Props = {
   active: ContactTab;
   onChange: (tab: ContactTab) => void;
   taskCount?: number;
+  opportunityCount?: number;
 };
 
-export function ContactTabBar({ active, onChange, taskCount = 0 }: Props) {
+export function ContactTabBar({
+  active,
+  onChange,
+  taskCount = 0,
+  opportunityCount = 0,
+}: Props) {
   const tabs: TabDef[] = [
     { id: 'details', label: 'Details' },
     { id: 'tasks', label: 'Tasks', badge: taskCount > 0 ? taskCount : undefined },
+    { id: 'opportunities', label: 'Deals', badge: opportunityCount > 0 ? opportunityCount : undefined },
     { id: 'notes', label: 'Notes' },
   ];
 

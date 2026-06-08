@@ -1,20 +1,24 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { type Opportunity, formatOpportunityMoney } from '../../lib/opportunities';
 import { theme } from '../../theme';
 
 type Props = {
   opportunity: Opportunity;
   onPress: () => void;
+  onLongPress?: () => void;
 };
 
-export const OpportunityCard = React.memo(function OpportunityCard({ opportunity, onPress }: Props) {
+export const OpportunityCard = React.memo(function OpportunityCard({
+  opportunity,
+  onPress,
+  onLongPress,
+}: Props) {
   const valueLabel =
     opportunity.monetaryValue != null ? formatOpportunityMoney(opportunity.monetaryValue) : null;
 
   return (
-    <Pressable style={styles.card} onPress={onPress}>
+    <Pressable style={styles.card} onPress={onPress} onLongPress={onLongPress}>
       <Text style={styles.title} numberOfLines={2}>
         {opportunity.name ?? 'Untitled'}
       </Text>

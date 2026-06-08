@@ -50,8 +50,32 @@ Set `GHL_OAUTH_REDIRECT_URI` to match your GHL app redirect URI. Stores agency t
 |--------|------|
 | POST | `/webhooks/ghl` |
 
-Handles `INSTALL` (provision location token) and `UNINSTALL` (remove cached token).  
-Configure in GHL app: `https://your-api.com/webhooks/ghl`
+Handles `INSTALL` (provision location token), `UNINSTALL` (remove cached token), and **`InboundMessage`** (push to registered devices).  
+Configure in GHL app: `https://your-api.com/webhooks/ghl`  
+Verify with `WEBHOOK_SIGNATURE_PUBLIC_KEY` (Ed25519) or legacy `WEBHOOK_PUBLIC_KEY` / `GHL_WEBHOOK_SECRET`.  
+Enable **InboundMessage** under Advanced settings → Webhooks for push notifications.
+
+---
+
+## Push tokens (mobile)
+
+| Method | Path | Auth |
+|--------|------|------|
+| POST | `/api/push-tokens/register` | JWT + location |
+| POST | `/api/push-tokens/unregister` | JWT + location |
+
+**Register body:** `{ "token": "<ExpoPushToken>", "platform": "ios"|"android"|"web", "deviceName?": "..." }`
+
+---
+
+## Dashboard
+
+| Method | Path | Auth |
+|--------|------|------|
+| GET | `/api/dashboard/summary?tzOffset=` | JWT + location |
+
+**Response:** `{ todayEvents[], todayAppointmentCount, unreadCount, pipelineValue, pendingTasks }`  
+`tzOffset` is the client timezone offset in minutes (same as `Date.getTimezoneOffset() * -1`).
 
 ---
 

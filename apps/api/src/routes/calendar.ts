@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { AppError } from '../lib/errors';
 import { parseFreeSlotsQuery } from '../lib/calendarFreeSlots';
+import { listAllCalendarEvents } from '../lib/ghlAggregates';
 import {
   validateAppointmentCreateBody,
   validateAppointmentUpdateBody,
@@ -95,12 +96,23 @@ locationGet(calendarRouter, '/events', async (req, res) => {
   const ghl = getLocationGhlClient(locationId);
 
   if (!calendarId && !userId && !groupId) {
+    const events = await listAllCalendarEvents(ghl, locationId, { startTime, endTime });
     const { calendars } = await ghl.listCalendars(locationId);
-    calendarId = calendars?.[0]?.id;
-    if (!calendarId) {
-      res.json({ locationId, events: [], calendars: [] });
-      return;
-    }
+    res.json({
+      locationId,
+      calendarId: null,
+      calendars: (calendars ?? []).map((c) => ({ id: c.id, name: c.name })),
+      events: events.map((e) => ({
+        id: e.id,
+        title: e.title,
+        calendarId: e.calendarId,
+        contactId: e.contactId,
+        startTime: e.startTime,
+        endTime: e.endTime,
+        appointmentStatus: e.appointmentStatus,
+      })),
+    });
+    return;
   }
 
   const data = await ghl.listCalendarEvents(locationId, {

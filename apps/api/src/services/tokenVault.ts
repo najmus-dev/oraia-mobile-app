@@ -8,6 +8,7 @@ import { GhlClient } from './ghl/ghlClient';
 import type { GhlOAuthTokenResponse } from './ghl/types';
 
 let companyGhlClient: GhlClient | null = null;
+let companyRefreshPromise: Promise<void> | null = null;
 
 export function getGhlClient(): GhlClient {
   if (!companyGhlClient) {
@@ -81,6 +82,13 @@ export const tokenVault = {
     return true;
   },
 
+  /** Seeds from .env only when no company token exists in MongoDB. */
+  async seedFromEnvIfEmpty(): Promise<boolean> {
+    const existing = await CompanyToken.findOne({ companyId: config.ghl.companyId });
+    if (existing) return false;
+    return this.seedFromEnvIfPresent();
+  },
+
   async getCompanyAccessToken(): Promise<string> {
     const record = await CompanyToken.findOne({ companyId: config.ghl.companyId });
     if (!record) {
@@ -128,6 +136,20 @@ export const tokenVault = {
   },
 
   async refreshCompanyToken(record: {
+    companyId: string;
+    refreshTokenEncrypted: string;
+  }): Promise<void> {
+    if (companyRefreshPromise) {
+      await companyRefreshPromise;
+      return;
+    }
+    companyRefreshPromise = this.doRefreshCompanyToken(record).finally(() => {
+      companyRefreshPromise = null;
+    });
+    await companyRefreshPromise;
+  },
+
+  async doRefreshCompanyToken(record: {
     companyId: string;
     refreshTokenEncrypted: string;
   }): Promise<void> {

@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   parseMonetaryValue,
   validateOpportunityCreateBody,
+  validateOpportunityUpdateBody,
 } from '../src/lib/opportunityValidation';
 
 describe('validateOpportunityCreateBody', () => {
@@ -93,5 +94,28 @@ describe('validateOpportunityCreateBody', () => {
 describe('parseMonetaryValue', () => {
   it('parses currency strings', () => {
     assert.equal(parseMonetaryValue('$1,250.50'), 1250.5);
+  });
+});
+
+describe('validateOpportunityUpdateBody', () => {
+  it('accepts partial updates', () => {
+    const body = validateOpportunityUpdateBody({
+      name: 'Updated deal',
+      monetaryValue: 9000,
+    });
+    assert.equal(body.name, 'Updated deal');
+    assert.equal(body.monetaryValue, 9000);
+    assert.equal(body.pipelineId, undefined);
+  });
+
+  it('rejects empty name on update', () => {
+    assert.throws(
+      () => validateOpportunityUpdateBody({ name: '   ' }),
+      /name cannot be empty/,
+    );
+  });
+
+  it('rejects non-object body', () => {
+    assert.throws(() => validateOpportunityUpdateBody(null), /JSON object/);
   });
 });

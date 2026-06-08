@@ -14,7 +14,7 @@ type Props = NativeStackScreenProps<HomeStackParamList, 'Settings'>;
 
 export function SettingsScreen({ navigation }: Props) {
   const bodyBottom = useFullScreenBottomInset();
-  const { user, locationId, apiBaseUrl, setApiBaseUrl, setLocationId, clearSession } = useAppState();
+  const { user, locationId, locationName, apiBaseUrl, setApiBaseUrl, setLocationId, clearSession } = useAppState();
   const [draftBaseUrl, setDraftBaseUrl] = useState(apiBaseUrl);
 
   function save() {
@@ -70,7 +70,10 @@ export function SettingsScreen({ navigation }: Props) {
 
         <Button title="Switch location" variant="ghost" onPress={switchLocation} />
         <Text style={styles.locationLabel}>Current location</Text>
-        <Text style={styles.locationValue}>{locationId ?? 'None'}</Text>
+        <Text style={styles.locationValue}>{locationName?.trim() || locationId || 'None'}</Text>
+        {locationName?.trim() && locationId ? (
+          <Text style={styles.locationIdHint}>{locationId}</Text>
+        ) : null}
 
         <View style={styles.divider} />
 
@@ -97,6 +100,12 @@ const styles = StyleSheet.create({
     color: theme.colors.textOnDark,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
+  },
+  locationIdHint: {
+    marginTop: theme.spacing.xs,
+    color: theme.colors.mutedTextOnDark,
+    fontFamily: theme.typography.fontFamily.regular,
+    fontSize: theme.typography.fontSize.xs,
   },
   hint: {
     marginTop: theme.spacing.md,

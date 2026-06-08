@@ -84,6 +84,14 @@ export function SelectAssigneesScreen({ navigation, route }: Props) {
         });
         return;
       }
+      if (returnTo === 'ContactForm') {
+        navigation.navigate({
+          name: 'ContactForm',
+          params: { pickedAssignee: { id, name } },
+          merge: true,
+        });
+        return;
+      }
       if (returnTo === 'TaskFilters' && route.params.filters) {
         navigation.navigate('TaskFilters', {
           filters: route.params.filters,

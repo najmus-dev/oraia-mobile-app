@@ -20,8 +20,15 @@
 
 ## Not started
 
-- Webhook → push (FCM)
-- Contact tasks (P1)
+- Contact tasks (P1) — partial via Tasks app
+
+## Build 3 — Push notifications ✅
+
+- Mobile registers Expo push token per user + location (`expo-notifications`)
+- API stores tokens in MongoDB (`PushToken` model)
+- GHL **InboundMessage** webhook → Expo push to devices on that location
+- Tap notification opens Inbox conversation thread
+- See `docs/ghl-webhook-setup.md` to enable InboundMessage in GHL app settings
 
 ## Mobile (in progress)
 
@@ -130,11 +137,16 @@ Roadmap is delivered **step-by-step** (see Phase 1 below).
 - **Long-press row**: mark read / mark unread, star or unstar (optimistic list update)
 - **Contact prefetch**: inbox warms phone/email cache so threads can send SMS immediately
 
+### Inbox — push notifications ✅
+
+- Expo push token registration on login + location select
+- GHL InboundMessage webhook triggers push via `expo-server-sdk`
+- Tap opens conversation thread in Inbox tab
+
 ### Inbox — not yet (needs API / infra)
 
 - Video/docs attachments, scheduled send
 - Group SMS, internal team chat
-- Real-time push (FCM) for new messages
 
 ### Phase 1 — complete ✅
 

@@ -10,6 +10,8 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { Button } from '../components/Button';
 import { ChipSelect } from '../components/ChipSelect';
 import { DetailRow } from '../components/DetailRow';
+import { contactDisplayName, type Contact, type ContactResponse } from '../lib/contacts';
+import { navigateToContactDetail } from '../lib/navigation';
 import {
   type Opportunity,
   type Pipeline,
@@ -30,6 +32,7 @@ export function OpportunityDetailScreen({ navigation, route }: Props) {
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [stageId, setStageId] = useState('');
+  const [contactName, setContactName] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token || !locationId) return;
@@ -47,6 +50,19 @@ export function OpportunityDetailScreen({ navigation, route }: Props) {
       setOpportunity(opp);
       setPipelines(pipeRes.pipelines ?? []);
       setStageId(opp?.pipelineStageId ?? '');
+      const cid = opp?.contactId?.trim();
+      if (cid) {
+        try {
+          const contactRes = await api.getJson<ContactResponse>(`/api/contacts/${cid}`, {
+            headers: withAuthHeaders({ token, locationId }),
+          });
+          setContactName(contactDisplayName(contactRes.contact));
+        } catch {
+          setContactName(null);
+        }
+      } else {
+        setContactName(null);
+      }
     } catch (e) {
       Alert.alert('Opportunity', formatError(e));
     } finally {
@@ -118,11 +134,24 @@ export function OpportunityDetailScreen({ navigation, route }: Props) {
         title={title}
         subtitle={loading ? 'Loading…' : (opportunity?.status ?? 'open')}
         onBack={() => navigation.goBack()}
+        actionIcon="create-outline"
+        onAction={() =>
+          navigation.navigate('OpportunityForm', { opportunityId })
+        }
+        actionAccessibilityLabel="Edit opportunity"
       />
 
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: scrollBottom }]}>
         <DetailRow label="Value" value={formatOpportunityMoney(opportunity?.monetaryValue)} />
-        <DetailRow label="Contact" value={opportunity?.contactId} />
+        <DetailRow
+          label="Contact"
+          value={contactName ?? opportunity?.contactId ?? undefined}
+          onPress={
+            opportunity?.contactId?.trim()
+              ? () => navigateToContactDetail(navigation, opportunity.contactId!.trim())
+              : undefined
+          }
+        />
 
         <Text style={styles.sectionTitle}>Move to stage</Text>
         {stages.length > 0 ? (

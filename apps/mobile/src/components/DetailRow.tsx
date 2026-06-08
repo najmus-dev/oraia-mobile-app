@@ -1,15 +1,34 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { theme } from '../theme';
 
-export function DetailRow({ label, value }: { label: string; value?: string }) {
+export function DetailRow({
+  label,
+  value,
+  onPress,
+}: {
+  label: string;
+  value?: string;
+  onPress?: () => void;
+}) {
   if (!value?.trim()) return null;
-  return (
-    <View style={styles.row}>
+
+  const content = (
+    <View style={[styles.row, onPress && styles.rowPressable]}>
       <Text style={styles.label}>{label}</Text>
-      <Text style={styles.value}>{value}</Text>
+      <Text style={[styles.value, onPress && styles.valueLink]}>{value}</Text>
     </View>
   );
+
+  if (onPress) {
+    return (
+      <Pressable onPress={onPress} accessibilityRole="button">
+        {content}
+      </Pressable>
+    );
+  }
+
+  return content;
 }
 
 const styles = StyleSheet.create({
@@ -19,6 +38,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: theme.spacing.lg,
     backgroundColor: theme.colors.surface,
+  },
+  rowPressable: {
+    borderColor: theme.colors.link,
   },
   label: {
     color: theme.colors.mutedTextOnDark,
@@ -33,5 +55,9 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.md,
     lineHeight: theme.typography.lineHeight.md,
+  },
+  valueLink: {
+    color: theme.colors.link,
+    fontFamily: theme.typography.fontFamily.semiBold,
   },
 });

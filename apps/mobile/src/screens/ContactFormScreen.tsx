@@ -35,6 +35,7 @@ import { TextField } from '../components/TextField';
 import { FormPickerField } from '../components/FormPickerField';
 import { ContactFormDndSection } from '../components/contacts/ContactFormDndSection';
 import { ContactPhoneField } from '../components/contacts/ContactPhoneField';
+import { ContactTagsField } from '../components/contacts/ContactTagsField';
 import { FormFieldLabel } from '../components/contacts/FormFieldLabel';
 import { OptionPickerSheet } from '../components/contacts/OptionPickerSheet';
 import { TimezonePickerSheet } from '../components/contacts/TimezonePickerSheet';
@@ -57,6 +58,15 @@ export function ContactFormScreen({ navigation, route }: Props) {
   const [countryCodeOpen, setCountryCodeOpen] = useState(false);
   const [contactTypeOpen, setContactTypeOpen] = useState(false);
   const [timezoneOpen, setTimezoneOpen] = useState(false);
+  const [assigneeLabel, setAssigneeLabel] = useState('Unassigned');
+
+  useEffect(() => {
+    const picked = route.params?.pickedAssignee;
+    if (!picked) return;
+    setAssigneeLabel(picked.name);
+    setValues((prev) => ({ ...prev, assignedTo: picked.id, assigneeName: picked.name }));
+    navigation.setParams({ pickedAssignee: undefined });
+  }, [route.params?.pickedAssignee, navigation]);
 
   const load = useCallback(async () => {
     if (!isEdit || !contactId || !token || !locationId) return;
@@ -65,7 +75,24 @@ export function ContactFormScreen({ navigation, route }: Props) {
       const res = await api.getJson<ContactResponse>(`/api/contacts/${contactId}`, {
         headers: withAuthHeaders({ token, locationId }),
       });
-      setValues(contactToFormValues(res.contact));
+      const next = contactToFormValues(res.contact);
+      setValues(next);
+      const aid = res.contact.assignedTo?.trim();
+      if (aid) {
+        try {
+          const assignees = await api.getJson<{ users: Array<{ id: string; name: string }> }>(
+            '/api/tasks/assignees',
+            { headers: withAuthHeaders({ token, locationId }) },
+          );
+          const owner = (assignees.users ?? []).find((u) => u.id === aid);
+          setAssigneeLabel(owner?.name ?? 'Assignee');
+          setValues((prev) => ({ ...prev, assigneeName: owner?.name ?? '' }));
+        } catch {
+          setAssigneeLabel('Assignee');
+        }
+      } else {
+        setAssigneeLabel('Unassigned');
+      }
     } catch (e) {
       Alert.alert('Contact', formatError(e), [{ text: 'OK', onPress: () => navigation.goBack() }]);
     } finally {
@@ -191,6 +218,25 @@ export function ContactFormScreen({ navigation, route }: Props) {
               onChangeText={(t) => patch({ companyName: t })}
               placeholder="Company name"
               autoCapitalize="words"
+            />
+
+            <FormPickerField
+              label="Owner"
+              value={assigneeLabel}
+              onPress={() =>
+                navigation.navigate('SelectAssignees', {
+                  mode: 'single',
+                  selectedIds: values.assignedTo ? [values.assignedTo] : [],
+                  returnTo: 'ContactForm',
+                })
+              }
+            />
+
+            <ContactTagsField
+              token={token}
+              locationId={locationId}
+              selected={values.tags}
+              onChange={(tags) => patch({ tags })}
             />
 
             <ContactFormDndSection values={values} onChange={patch} />

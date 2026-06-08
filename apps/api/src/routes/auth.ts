@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { AppError } from '../lib/errors';
 import type { AuthenticatedRequest } from '../middleware/auth';
 import { requireAuth } from '../middleware/auth';
@@ -13,6 +14,14 @@ import {
 } from '../services/authService';
 import { resolveAndPersistGhlUserId } from '../services/ghlUserResolver';
 export const authRouter = Router();
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts. Try again later.' },
+});
 
 function readLocationId(req: { headers: Record<string, string | string[] | undefined> }): string | undefined {
   return typeof req.headers['x-location-id'] === 'string'
@@ -75,7 +84,7 @@ authRouter.post('/users', requireAuth, requireAgencyAdmin, async (req, res, next
   }
 });
 
-authRouter.post('/login', async (req, res, next) => {
+authRouter.post('/login', loginLimiter, async (req, res, next) => {
   try {
     const { email, password } = req.body as { email?: string; password?: string };
     if (!email?.trim() || !password) {

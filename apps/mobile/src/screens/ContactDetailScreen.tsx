@@ -42,7 +42,8 @@ import { ContactAvatar } from '../components/contacts/ContactAvatar';
 import { ContactQuickActions } from '../components/contacts/ContactQuickActions';
 import { ContactTabBar, type ContactTab } from '../components/contacts/ContactTabBar';
 import { TaskRow } from '../components/tasks/TaskRow';
-import type { Task } from '../lib/tasks';
+import type { Task, AssigneesResponse } from '../lib/tasks';
+import { type Opportunity, formatOpportunityMoney } from '../lib/opportunities';
 import type { AppsStackParamList } from '../navigation/AppsStack';
 
 type Props = NativeStackScreenProps<AppsStackParamList, 'ContactDetail'>;
@@ -56,12 +57,21 @@ function AccordionSection({ title }: { title: string }) {
   );
 }
 
-function DetailField({ label, value }: { label: string; value?: string }) {
-  if (!value?.trim()) return null;
+function DetailField({
+  label,
+  value,
+  hideEmpty,
+}: {
+  label: string;
+  value?: string;
+  hideEmpty: boolean;
+}) {
+  const trimmed = value?.trim();
+  if (hideEmpty && !trimmed) return null;
   return (
     <View style={styles.detailField}>
       <Text style={styles.detailLabel}>{label}</Text>
-      <Text style={styles.detailValue}>{value}</Text>
+      <Text style={styles.detailValue}>{trimmed || '—'}</Text>
     </View>
   );
 }
@@ -82,6 +92,9 @@ export function ContactDetailScreen({ navigation, route }: Props) {
   const [noteDraft, setNoteDraft] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [assigneeName, setAssigneeName] = useState<string | null>(null);
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [opportunitiesLoading, setOpportunitiesLoading] = useState(true);
 
   const load = useCallback(async () => {
     if (!token || !locationId) return;
@@ -91,6 +104,19 @@ export function ContactDetailScreen({ navigation, route }: Props) {
         headers: withAuthHeaders({ token, locationId }),
       });
       setContact(res.contact);
+      const aid = res.contact.assignedTo?.trim();
+      if (aid) {
+        try {
+          const assignees = await api.getJson<AssigneesResponse>('/api/tasks/assignees', {
+            headers: withAuthHeaders({ token, locationId }),
+          });
+          setAssigneeName((assignees.users ?? []).find((u) => u.id === aid)?.name ?? null);
+        } catch {
+          setAssigneeName(null);
+        }
+      } else {
+        setAssigneeName(null);
+      }
     } catch (e) {
       Alert.alert('Contact', formatError(e));
     } finally {
@@ -130,6 +156,22 @@ export function ContactDetailScreen({ navigation, route }: Props) {
     }
   }, [token, locationId, contactId]);
 
+  const loadOpportunities = useCallback(async () => {
+    if (!token || !locationId) return;
+    setOpportunitiesLoading(true);
+    try {
+      const res = await api.getJson<{ opportunities: Opportunity[] }>(
+        `/api/opportunities?contactId=${encodeURIComponent(contactId)}&limit=50`,
+        { headers: withAuthHeaders({ token, locationId }) },
+      );
+      setOpportunities(res.opportunities ?? []);
+    } catch {
+      setOpportunities([]);
+    } finally {
+      setOpportunitiesLoading(false);
+    }
+  }, [token, locationId, contactId]);
+
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
     load();
@@ -137,7 +179,9 @@ export function ContactDetailScreen({ navigation, route }: Props) {
     loadNotes();
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
     loadTasks();
-  }, [load, loadNotes, loadTasks]);
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    loadOpportunities();
+  }, [load, loadNotes, loadTasks, loadOpportunities]);
 
   const displayName = contact ? contactDisplayName(contact) : 'Contact';
   const pendingTasks = tasks.filter((t) => !t.completed).length;
@@ -345,6 +389,7 @@ export function ContactDetailScreen({ navigation, route }: Props) {
                 active={activeTab}
                 onChange={setActiveTab}
                 taskCount={pendingTasks}
+                opportunityCount={opportunities.length}
               />
             </View>
 
@@ -361,22 +406,27 @@ export function ContactDetailScreen({ navigation, route }: Props) {
                 </View>
                 <AccordionSection title="Contact" />
                 <View style={styles.sectionBody}>
-                  <DetailField label="First name" value={contact.firstName} />
-                  <DetailField label="Last name" value={contact.lastName} />
-                  <DetailField label="Email" value={contact.email} />
-                  <DetailField label="Phone" value={contact.phone} />
-                  <DetailField label="Company" value={contact.companyName} />
-                  <DetailField label="Type" value={contact.type} />
-                  <DetailField label="Timezone" value={contact.timezone} />
+                  <DetailField label="First name" value={contact.firstName} hideEmpty={hideEmpty} />
+                  <DetailField label="Last name" value={contact.lastName} hideEmpty={hideEmpty} />
+                  <DetailField label="Email" value={contact.email} hideEmpty={hideEmpty} />
+                  <DetailField label="Phone" value={contact.phone} hideEmpty={hideEmpty} />
+                  <DetailField label="Company" value={contact.companyName} hideEmpty={hideEmpty} />
+                  <DetailField label="Type" value={contact.type} hideEmpty={hideEmpty} />
+                  <DetailField label="Owner" value={assigneeName ?? undefined} hideEmpty={hideEmpty} />
+                  <DetailField label="Timezone" value={contact.timezone} hideEmpty={hideEmpty} />
                 </View>
                 <AccordionSection title="General info" />
                 <View style={styles.sectionBody}>
-                  <DetailField label="Website" value={contact.website} />
-                  <DetailField label="Address" value={contactAddressLine(contact)} />
+                  <DetailField label="Website" value={contact.website} hideEmpty={hideEmpty} />
+                  <DetailField label="Address" value={contactAddressLine(contact)} hideEmpty={hideEmpty} />
                 </View>
                 <AccordionSection title="DND" />
                 <View style={styles.sectionBody}>
-                  <DetailField label="DND all channels" value={contact.dnd ? 'Yes' : 'No'} />
+                  <DetailField
+                    label="DND all channels"
+                    value={contact.dnd ? 'Yes' : 'No'}
+                    hideEmpty={hideEmpty}
+                  />
                 </View>
               </View>
             ) : null}
@@ -390,6 +440,37 @@ export function ContactDetailScreen({ navigation, route }: Props) {
                 ) : (
                   tasks.map((task) => (
                     <TaskRow key={task.id} task={task} onPress={() => openTask(task)} />
+                  ))
+                )}
+              </View>
+            ) : null}
+
+            {activeTab === 'opportunities' ? (
+              <View style={styles.tabBody}>
+                {opportunitiesLoading ? (
+                  <ListBusyState message="Loading deals…" />
+                ) : opportunities.length === 0 ? (
+                  <Text style={styles.emptyTab}>No opportunities linked to this contact.</Text>
+                ) : (
+                  opportunities.map((opp) => (
+                    <Pressable
+                      key={opp.id}
+                      style={styles.oppRow}
+                      onPress={() =>
+                        navigation.navigate('OpportunityDetail', {
+                          opportunityId: opp.id,
+                          title: opp.name,
+                        })
+                      }
+                    >
+                      <Text style={styles.oppTitle} numberOfLines={2}>
+                        {opp.name ?? 'Untitled'}
+                      </Text>
+                      <Text style={styles.oppMeta}>
+                        {formatOpportunityMoney(opp.monetaryValue) || '$0.00'}
+                        {opp.status ? ` · ${opp.status}` : ''}
+                      </Text>
+                    </Pressable>
                   ))
                 )}
               </View>
@@ -595,6 +676,22 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
     lineHeight: theme.typography.lineHeight.md,
+  },
+  oppRow: {
+    paddingVertical: theme.spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.colors.border,
+  },
+  oppTitle: {
+    color: theme.colors.textOnDark,
+    fontFamily: theme.typography.fontFamily.semiBold,
+    fontSize: theme.typography.fontSize.sm,
+  },
+  oppMeta: {
+    marginTop: theme.spacing.xs,
+    color: theme.colors.mutedTextOnDark,
+    fontFamily: theme.typography.fontFamily.regular,
+    fontSize: theme.typography.fontSize.xs,
   },
   emptyTab: {
     color: theme.colors.mutedTextOnDark,

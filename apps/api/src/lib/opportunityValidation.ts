@@ -62,3 +62,60 @@ export function validateOpportunityCreateBody(body: unknown): OpportunityCreateB
     ...(assignedTo ? { assignedTo } : {}),
   };
 }
+
+export function validateOpportunityUpdateBody(body: unknown): Record<string, unknown> {
+  if (!body || typeof body !== 'object') {
+    throw new Error('Request body must be a JSON object');
+  }
+  const record = body as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+
+  if ('name' in record) {
+    const name = typeof record.name === 'string' ? record.name.trim() : '';
+    if (!name) throw new Error('name cannot be empty');
+    out.name = name;
+  }
+  if ('pipelineId' in record) {
+    const pipelineId = typeof record.pipelineId === 'string' ? record.pipelineId.trim() : '';
+    if (!pipelineId) throw new Error('pipelineId cannot be empty');
+    out.pipelineId = pipelineId;
+  }
+  if ('pipelineStageId' in record) {
+    const pipelineStageId =
+      typeof record.pipelineStageId === 'string' ? record.pipelineStageId.trim() : '';
+    if (!pipelineStageId) throw new Error('pipelineStageId cannot be empty');
+    out.pipelineStageId = pipelineStageId;
+  }
+  if ('contactId' in record) {
+    const contactId = typeof record.contactId === 'string' ? record.contactId.trim() : '';
+    if (!contactId) throw new Error('contactId cannot be empty');
+    out.contactId = contactId;
+  }
+  if ('status' in record) {
+    const status = typeof record.status === 'string' ? record.status.trim() : '';
+    if (!status) throw new Error('status cannot be empty');
+    out.status = status;
+  }
+  if ('monetaryValue' in record) {
+    if (record.monetaryValue == null || record.monetaryValue === '') {
+      out.monetaryValue = 0;
+    } else {
+      out.monetaryValue = parseMonetaryValue(record.monetaryValue);
+    }
+  }
+  if ('source' in record) {
+    out.source = typeof record.source === 'string' ? record.source.trim() : '';
+  }
+  if ('companyName' in record) {
+    out.companyName = typeof record.companyName === 'string' ? record.companyName.trim() : '';
+  }
+  if ('assignedTo' in record) {
+    out.assignedTo = typeof record.assignedTo === 'string' ? record.assignedTo.trim() : '';
+  }
+
+  if (Object.keys(out).length === 0) {
+    throw new Error('At least one field is required to update');
+  }
+
+  return out;
+}

@@ -20,6 +20,7 @@ export type Conversation = {
 export type ConversationsListResponse = {
   conversations: Conversation[];
   total?: number;
+  nextStartAfterDate?: string;
 };
 
 export type ConversationLookupResponse = {
@@ -66,6 +67,7 @@ export function buildConversationsQuery(params: {
   query?: string;
   filter?: InboxFilter;
   assignedTo?: string;
+  startAfterDate?: string;
 }): string {
   const limit = Math.min(Math.max(params.limit ?? 60, 1), 100);
   const parts = [`limit=${limit}`];
@@ -76,6 +78,9 @@ export function buildConversationsQuery(params: {
   else if (params.filter === 'recents') parts.push('status=recents');
   if (params.assignedTo?.trim()) {
     parts.push(`assignedTo=${encodeURIComponent(params.assignedTo.trim())}`);
+  }
+  if (params.startAfterDate?.trim()) {
+    parts.push(`startAfterDate=${encodeURIComponent(params.startAfterDate.trim())}`);
   }
   return parts.join('&');
 }

@@ -100,6 +100,9 @@ export function CalendarScreen({ navigation }: Props) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [viewSheetOpen, setViewSheetOpen] = useState(false);
   const [newSheetOpen, setNewSheetOpen] = useState(false);
+  const [calendarSheetOpen, setCalendarSheetOpen] = useState(false);
+  const [calendars, setCalendars] = useState<Array<{ id: string; name?: string }>>([]);
+  const [calendarId, setCalendarId] = useState<string | null>(null);
 
   const range = useMemo(() => {
     if (viewMode === 'monthly' || viewMode === 'list') {
@@ -124,8 +127,9 @@ export function CalendarScreen({ navigation }: Props) {
       else if (!hasLoaded) setInitialLoading(true);
       setLoadError(null);
       try {
+        const calQs = calendarId ? `&calendarId=${encodeURIComponent(calendarId)}` : '';
         const res = await api.getJson<{ events: CalendarEvent[] }>(
-          `/api/calendar/events?startTime=${encodeURIComponent(toIso(range.start))}&endTime=${encodeURIComponent(toIso(range.end))}`,
+          `/api/calendar/events?startTime=${encodeURIComponent(toIso(range.start))}&endTime=${encodeURIComponent(toIso(range.end))}${calQs}`,
           { headers: withAuthHeaders({ token, locationId }) },
         );
         setEvents(res.events ?? []);
@@ -138,8 +142,27 @@ export function CalendarScreen({ navigation }: Props) {
         setRefreshing(false);
       }
     },
-    [token, locationId, range.start, range.end, hasLoaded],
+    [token, locationId, range.start, range.end, hasLoaded, calendarId],
   );
+
+  useEffect(() => {
+    if (!token || !locationId) return;
+    let alive = true;
+    (async () => {
+      try {
+        const res = await api.getJson<{ calendars: Array<{ id: string; name?: string }> }>(
+          '/api/calendar/calendars',
+          { headers: withAuthHeaders({ token, locationId }) },
+        );
+        if (alive) setCalendars(res.calendars ?? []);
+      } catch {
+        if (alive) setCalendars([]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [token, locationId]);
 
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
@@ -181,6 +204,15 @@ export function CalendarScreen({ navigation }: Props) {
       <AppBar title="Appointments" onRefresh={() => load({ pull: true })} />
 
       <View style={styles.toolbar}>
+        <Pressable style={styles.viewBtn} onPress={() => setCalendarSheetOpen(true)}>
+          <Ionicons name="calendar-outline" size={18} color={theme.colors.textOnDark} />
+          <Text style={styles.viewBtnText} numberOfLines={1}>
+            {calendarId
+              ? calendars.find((c) => c.id === calendarId)?.name ?? 'Calendar'
+              : 'All calendars'}
+          </Text>
+          <Ionicons name="chevron-down" size={16} color={theme.colors.mutedTextOnDark} />
+        </Pressable>
         <Pressable style={styles.viewBtn} onPress={() => setViewSheetOpen(true)}>
           <Ionicons
             name={viewMode === 'weekly' ? 'grid-outline' : 'list-outline'}
@@ -292,6 +324,38 @@ export function CalendarScreen({ navigation }: Props) {
             }}
           >
             <Text style={styles.sheetRowText}>{VIEW_LABELS[mode]}</Text>
+          </Pressable>
+        ))}
+      </BottomSheet>
+
+      <BottomSheet
+        visible={calendarSheetOpen}
+        onClose={() => setCalendarSheetOpen(false)}
+        title="Calendars"
+      >
+        <Pressable
+          style={styles.sheetRow}
+          onPress={() => {
+            setCalendarId(null);
+            setCalendarSheetOpen(false);
+          }}
+        >
+          <Text style={styles.sheetRowText}>All calendars</Text>
+          {!calendarId ? <Ionicons name="checkmark" size={20} color={theme.colors.link} /> : null}
+        </Pressable>
+        {calendars.map((cal) => (
+          <Pressable
+            key={cal.id}
+            style={styles.sheetRow}
+            onPress={() => {
+              setCalendarId(cal.id);
+              setCalendarSheetOpen(false);
+            }}
+          >
+            <Text style={styles.sheetRowText}>{cal.name ?? cal.id}</Text>
+            {calendarId === cal.id ? (
+              <Ionicons name="checkmark" size={20} color={theme.colors.link} />
+            ) : null}
           </Pressable>
         ))}
       </BottomSheet>

@@ -45,7 +45,7 @@ function mapConversation(
   };
 }
 
-locationGet(conversationsRouter, '/phone-numbers', async (req, res) => {
+locationGet(conversationsRouter, '/phone-numbers', async (req, res, next) => {
   const locationId = req.locationId!;
   const searchFilter = typeof req.query.search === 'string' ? req.query.search : undefined;
   const ghl = getLocationGhlClient(locationId);
@@ -68,8 +68,8 @@ locationGet(conversationsRouter, '/phone-numbers', async (req, res) => {
       };
     }).filter((n) => n.phoneNumber);
     res.json({ locationId, numbers });
-  } catch {
-    res.json({ locationId, numbers: [] });
+  } catch (err) {
+    next(err);
   }
 });
 
@@ -102,17 +102,31 @@ locationGet(conversationsRouter, '/', async (req, res) => {
     typeof req.query.assignedTo === 'string' && req.query.assignedTo.trim()
       ? req.query.assignedTo.trim()
       : undefined;
+  const startAfterDate =
+    typeof req.query.startAfterDate === 'string' && req.query.startAfterDate.trim()
+      ? req.query.startAfterDate.trim()
+      : undefined;
   const ghl = getLocationGhlClient(locationId);
-  const data = await ghl.searchConversations(locationId, { limit, status, query, contactId, assignedTo });
+  const data = await ghl.searchConversations(locationId, {
+    limit,
+    status,
+    query,
+    contactId,
+    assignedTo,
+    startAfterDate,
+  });
   const raw = data.conversations ?? [];
   const assigneeIds = raw
     .map((c) => c.assignedTo)
     .filter((id): id is string => Boolean(id?.trim()));
   const assigneeNames = await enrichConversationAssignees(locationId, assigneeIds);
+  const last = raw[raw.length - 1];
   res.json({
     locationId,
     conversations: raw.map((c) => mapConversation(c, assigneeNames)),
     total: data.total,
+    nextStartAfterDate:
+      raw.length >= limit && last?.lastMessageDate ? last.lastMessageDate : undefined,
   });
 });
 
@@ -209,7 +223,17 @@ locationPost(conversationsRouter, '/messages', async (req, res) => {
   if (!messageText && attachments.length === 0) {
     throw new AppError(400, 'message or attachments is required', 'VALIDATION_ERROR');
   }
-  const payload: Record<string, unknown> = { ...body, message: messageText || ' ' };
+  const payload: Record<string, unknown> = {
+    type: body.type,
+    contactId: body.contactId,
+    message: messageText || ' ',
+  };
+  if (typeof body.conversationId === 'string' && body.conversationId.trim()) {
+    payload.conversationId = body.conversationId.trim();
+  }
+  if (typeof body.conversationProviderId === 'string' && body.conversationProviderId.trim()) {
+    payload.conversationProviderId = body.conversationProviderId.trim();
+  }
   if (attachments.length > 0) payload.attachments = attachments;
   const ghl = getLocationGhlClient(locationId);
   const result = await ghl.sendMessage(locationId, payload);

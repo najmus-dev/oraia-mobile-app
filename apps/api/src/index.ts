@@ -5,11 +5,9 @@ import { connectDb } from './db/connect';
 import { logger } from './lib/logger';
 import { ensureBootstrapAdmin } from './services/authService';
 import { startTokenRefreshJob } from './jobs/tokenRefresh';
-import { tokenVault } from './services/tokenVault';
 
 async function main(): Promise<void> {
   await connectDb();
-  await tokenVault.seedFromEnvIfPresent();
   await ensureBootstrapAdmin();
   startTokenRefreshJob();
 

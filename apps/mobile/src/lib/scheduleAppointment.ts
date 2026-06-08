@@ -102,6 +102,7 @@ export function parseFreeSlotsForDate(raw: unknown, dateKey: string): Appointmen
 }
 
 import type { PickedContact } from '../lib/contacts';
+import type { Appointment } from './appointments';
 
 export type ScheduleContact = PickedContact;
 
@@ -128,6 +129,33 @@ export function defaultScheduleFormState(calendarId = ''): ScheduleFormState {
     mode: 'standard',
     customStartTime: '10:00',
     customEndTime: '10:45',
+  };
+}
+
+export function appointmentToScheduleFormState(
+  appointment: Appointment,
+  calendars: { id: string }[],
+): ScheduleFormState {
+  const start = appointment.startTime ? new Date(appointment.startTime) : new Date();
+  const end = appointment.endTime
+    ? new Date(appointment.endTime)
+    : new Date(start.getTime() + 45 * 60 * 1000);
+  const selectedDate = new Date(start);
+  selectedDate.setHours(0, 0, 0, 0);
+  const calendarId = appointment.calendarId?.trim() || calendars[0]?.id || '';
+  return {
+    calendarId,
+    selectedDate,
+    slot: {
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
+      label: formatSlotLabel(start, end),
+    },
+    title: appointment.title?.trim() ?? '',
+    notes: appointment.notes?.trim() ?? '',
+    mode: 'standard',
+    customStartTime: `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`,
+    customEndTime: `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`,
   };
 }
 

@@ -39,6 +39,7 @@ export function ContactsScreen({ navigation, route }: Props) {
   const paddingTop = useHeaderTopPadding();
   const { token, locationId } = useAppState();
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -69,12 +70,15 @@ export function ContactsScreen({ navigation, route }: Props) {
   const loadPage = useCallback(
     async (opts?: {
       reset?: boolean;
+      pull?: boolean;
       nextPage?: number;
       cursor?: { startAfterId?: string; startAfter?: number };
     }) => {
       if (!token || !locationId) return;
       const reset = opts?.reset ?? false;
-      if (reset) setLoading(true);
+      const pull = opts?.pull ?? false;
+      if (reset && pull) setRefreshing(true);
+      else if (reset) setLoading(true);
       else setLoadingMore(true);
       if (reset) setLoadError(null);
 
@@ -129,6 +133,7 @@ export function ContactsScreen({ navigation, route }: Props) {
       } finally {
         setLoading(false);
         setLoadingMore(false);
+        setRefreshing(false);
       }
     },
     [token, locationId, query, filterId, pageBased],
@@ -186,8 +191,8 @@ export function ContactsScreen({ navigation, route }: Props) {
           data={contacts}
           keyExtractor={(c) => c.id}
           contentContainerStyle={styles.list}
-          refreshing={loading}
-          onRefresh={() => loadPage({ reset: true })}
+          refreshing={refreshing}
+          onRefresh={() => loadPage({ reset: true, pull: true })}
           onEndReached={loadMore}
           onEndReachedThreshold={0.4}
           renderItem={({ item }) => (

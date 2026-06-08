@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -30,6 +31,7 @@ import { theme } from '../theme';
 import { useAppState } from '../state/AppState';
 import { AppBar } from '../components/AppBar';
 import { BottomSheet } from '../components/BottomSheet';
+import { ErrorBanner } from '../components/ErrorBanner';
 import { EmptyState } from '../components/EmptyState';
 import { FloatingActionButton } from '../components/FloatingActionButton';
 import { ListBusyState } from '../components/ListBusyState';
@@ -54,6 +56,10 @@ export function PipelineScreen({ navigation }: Props) {
   const [pipelineSheetOpen, setPipelineSheetOpen] = useState(false);
   const [sortSheetOpen, setSortSheetOpen] = useState(false);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  const [moveOpp, setMoveOpp] = useState<Opportunity | null>(null);
+  const [movingStage, setMovingStage] = useState(false);
+  const [pipelinesError, setPipelinesError] = useState<string | null>(null);
+  const [dealsError, setDealsError] = useState<string | null>(null);
 
   const activePipeline = useMemo(
     () => pipelines.find((p) => p.id === pipelineId),
@@ -64,6 +70,7 @@ export function PipelineScreen({ navigation }: Props) {
   const loadPipelines = useCallback(async () => {
     if (!token || !locationId) return;
     setPipelinesLoading(true);
+    setPipelinesError(null);
     try {
       const res = await api.getJson<{ pipelines: Pipeline[] }>('/api/opportunities/pipelines', {
         headers: withAuthHeaders({ token, locationId }),
@@ -72,7 +79,7 @@ export function PipelineScreen({ navigation }: Props) {
       setPipelines(list);
       setPipelineId((prev) => prev || list[0]?.id || '');
     } catch (e) {
-      Alert.alert('Pipelines', formatError(e));
+      setPipelinesError(formatError(e));
     } finally {
       setPipelinesLoading(false);
     }
@@ -83,6 +90,7 @@ export function PipelineScreen({ navigation }: Props) {
       if (!token || !locationId || !pipelineId) return;
       if (pull) setDealsRefreshing(true);
       else setDealsLoading(true);
+      if (!pull) setDealsError(null);
       try {
         const statusQs = statusFilter ? `&status=${encodeURIComponent(statusFilter)}` : '';
         const res = await api.getJson<{ opportunities: Opportunity[] }>(
@@ -90,8 +98,9 @@ export function PipelineScreen({ navigation }: Props) {
           { headers: withAuthHeaders({ token, locationId }) },
         );
         setDeals(res.opportunities ?? []);
+        setDealsError(null);
       } catch (e) {
-        Alert.alert('Opportunities', formatError(e));
+        setDealsError(formatError(e));
       } finally {
         setDealsLoading(false);
         setDealsRefreshing(false);
@@ -132,6 +141,28 @@ export function PipelineScreen({ navigation }: Props) {
     });
   }
 
+  async function moveOpportunityToStage(targetStageId: string) {
+    if (!moveOpp || !token || !locationId || !targetStageId) return;
+    if (moveOpp.pipelineStageId === targetStageId) {
+      setMoveOpp(null);
+      return;
+    }
+    setMovingStage(true);
+    try {
+      await api.putJson(
+        `/api/opportunities/${moveOpp.id}`,
+        { pipelineStageId: targetStageId },
+        { headers: withAuthHeaders({ token, locationId }) },
+      );
+      setMoveOpp(null);
+      await loadDeals(true);
+    } catch (e) {
+      Alert.alert('Move failed', formatError(e));
+    } finally {
+      setMovingStage(false);
+    }
+  }
+
   return (
     <View style={styles.container}>
       <AppBar
@@ -169,6 +200,21 @@ export function PipelineScreen({ navigation }: Props) {
         onSortPress={() => setSortSheetOpen(true)}
       />
 
+      {pipelinesError ? (
+        <ErrorBanner
+          message={pipelinesError}
+          onRetry={() => loadPipelines()}
+          onDismiss={() => setPipelinesError(null)}
+        />
+      ) : null}
+      {dealsError ? (
+        <ErrorBanner
+          message={dealsError}
+          onRetry={() => loadDeals()}
+          onDismiss={() => setDealsError(null)}
+        />
+      ) : null}
+
       {pipelinesLoading ? (
         <ListBusyState blocking message="Loading pipelines…" />
       ) : pipelines.length === 0 ? (
@@ -186,15 +232,27 @@ export function PipelineScreen({ navigation }: Props) {
         </View>
       ) : (
         <ScrollView
-          horizontal
-          style={styles.board}
-          contentContainerStyle={[styles.boardContent, { paddingBottom: FAB_LIST_PADDING_BOTTOM }]}
-          showsHorizontalScrollIndicator={false}
-          nestedScrollEnabled
+          style={styles.boardWrap}
+          contentContainerStyle={{ flexGrow: 1 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={dealsRefreshing}
+              onRefresh={() => loadDeals(true)}
+              tintColor={theme.colors.secondary}
+            />
+          }
         >
+          <ScrollView
+            horizontal
+            style={styles.board}
+            contentContainerStyle={[styles.boardContent, { paddingBottom: FAB_LIST_PADDING_BOTTOM }]}
+            showsHorizontalScrollIndicator={false}
+            nestedScrollEnabled
+          >
           {stages.map((stage) => (
             <OpportunityKanbanColumn
               key={stage.id}
+              stageId={stage.id}
               stageName={stage.name}
               opportunities={dealsByStage.get(stage.id) ?? []}
               onCreate={() => openCreate(stage.id)}
@@ -204,8 +262,10 @@ export function PipelineScreen({ navigation }: Props) {
                   title: opp.name,
                 })
               }
+              onMove={(opp) => setMoveOpp(opp)}
             />
           ))}
+          </ScrollView>
         </ScrollView>
       )}
 
@@ -306,6 +366,30 @@ export function PipelineScreen({ navigation }: Props) {
           <Text style={styles.applyBtnText}>Apply</Text>
         </Pressable>
       </BottomSheet>
+
+      <BottomSheet
+        visible={Boolean(moveOpp)}
+        onClose={() => !movingStage && setMoveOpp(null)}
+        title={moveOpp ? `Move “${moveOpp.name ?? 'deal'}”` : 'Move deal'}
+      >
+        {stages.map((stage) => {
+          const selected = moveOpp?.pipelineStageId === stage.id;
+          return (
+            <Pressable
+              key={stage.id}
+              style={[styles.sheetRow, selected && styles.sheetRowActive]}
+              disabled={movingStage}
+              onPress={() => {
+                // eslint-disable-next-line @typescript-eslint/no-floating-promises
+                moveOpportunityToStage(stage.id);
+              }}
+            >
+              <Text style={styles.sheetRowText}>{stage.name}</Text>
+              {selected ? <Ionicons name="checkmark" size={20} color={theme.colors.link} /> : null}
+            </Pressable>
+          );
+        })}
+      </BottomSheet>
     </View>
   );
 }
@@ -332,6 +416,7 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.fontFamily.regular,
     paddingVertical: theme.spacing.md,
   },
+  boardWrap: { flex: 1 },
   board: { flex: 1 },
   boardContent: {
     paddingHorizontal: theme.spacing.lg,

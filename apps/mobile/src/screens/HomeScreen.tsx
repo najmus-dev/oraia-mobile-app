@@ -4,6 +4,7 @@ import {
   Alert,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,7 +15,7 @@ import { TAB_LIST_BOTTOM_PADDING, useHeaderTopPadding } from '../lib/safeArea';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { api, withAuthHeaders } from '../lib/api';
-import { endOfDay, formatEventRange, startOfDay, toIso } from '../lib/dates';
+import { formatEventRange } from '../lib/dates';
 import { formatError } from '../lib/errors';
 import { navigateToAppointmentDetail } from '../lib/navigation';
 import { useAppState } from '../state/AppState';
@@ -24,7 +25,6 @@ import { ErrorBanner } from '../components/ErrorBanner';
 import { DashboardHeader } from '../components/DashboardHeader';
 import {
   CRM_APPS,
-  DEFAULT_PINNED_APP_IDS,
   openCrmApp,
 } from '../lib/crmApps';
 import { DEFAULT_TASK_FILTERS } from '../lib/tasks';
@@ -55,8 +55,10 @@ export function HomeScreen({ navigation }: Props) {
     setPinnedAppIds,
   } = useAppState();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([]);
+  const [todayAppointmentCount, setTodayAppointmentCount] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
   const [pipelineValue, setPipelineValue] = useState(0);
   const [pendingTasks, setPendingTasks] = useState(0);
@@ -65,46 +67,37 @@ export function HomeScreen({ navigation }: Props) {
   const [pinnedSearch, setPinnedSearch] = useState('');
   const modalHeaderTop = useHeaderTopPadding(true);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { pull?: boolean }) => {
     if (!token || !locationId) return;
-    setLoading(true);
+    if (opts?.pull) setRefreshing(true);
+    else setLoading(true);
     setLoadError(null);
     try {
-      const [eventsRes, convosRes, dealsRes, tasksRes] = await Promise.all([
-        api.getJson<{ events: CalendarEvent[] }>(
-          `/api/calendar/events?startTime=${encodeURIComponent(toIso(startOfDay()))}&endTime=${encodeURIComponent(toIso(endOfDay()))}`,
-          { headers: withAuthHeaders({ token, locationId }) },
-        ),
-        api.getJson<{ conversations: { unreadCount?: number }[] }>('/api/conversations?limit=30', {
-          headers: withAuthHeaders({ token, locationId }),
-        }),
-        api.getJson<{ opportunities: { monetaryValue?: number }[] }>('/api/opportunities?limit=30', {
-          headers: withAuthHeaders({ token, locationId }),
-        }),
-        api.getJson<{ count: number }>('/api/tasks/pending-count', {
-          headers: withAuthHeaders({ token, locationId }),
-        }),
-      ]);
-      const events = (eventsRes.events ?? [])
-        .slice()
-        .sort((a, b) => new Date(a.startTime ?? 0).getTime() - new Date(b.startTime ?? 0).getTime())
-        .slice(0, 3);
-      setTodayEvents(events);
-      setUnreadCount(
-        (convosRes.conversations ?? []).reduce((sum, c) => sum + (c.unreadCount ?? 0), 0),
-      );
-      setPipelineValue(
-        (dealsRes.opportunities ?? []).reduce((sum, o) => sum + (o.monetaryValue ?? 0), 0),
-      );
-      setPendingTasks(tasksRes.count ?? 0);
+      const tzOffset = -new Date().getTimezoneOffset();
+      const summary = await api.getJson<{
+        todayEvents: CalendarEvent[];
+        todayAppointmentCount: number;
+        unreadCount: number;
+        pipelineValue: number;
+        pendingTasks: number;
+      }>(`/api/dashboard/summary?tzOffset=${tzOffset}`, {
+        headers: withAuthHeaders({ token, locationId }),
+      });
+      setTodayEvents(summary.todayEvents ?? []);
+      setTodayAppointmentCount(summary.todayAppointmentCount ?? summary.todayEvents?.length ?? 0);
+      setUnreadCount(summary.unreadCount ?? 0);
+      setPipelineValue(summary.pipelineValue ?? 0);
+      setPendingTasks(summary.pendingTasks ?? 0);
     } catch (e) {
       setLoadError(formatError(e));
       setTodayEvents([]);
+      setTodayAppointmentCount(0);
       setUnreadCount(0);
       setPipelineValue(0);
       setPendingTasks(0);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [token, locationId]);
 
@@ -182,14 +175,21 @@ export function HomeScreen({ navigation }: Props) {
         id: 'new-message',
         label: 'New Message',
         icon: 'chatbubble-ellipses-outline',
-        onPress: () => parentNav?.navigate('InboxTab' as never),
+        onPress: () =>
+          parentNav?.navigate(
+            'InboxTab' as never,
+            { screen: 'InboxList', params: { openCompose: true } } as never,
+          ),
       },
       {
         id: 'new-opportunity',
         label: 'New Opportunity',
         icon: 'git-network-outline',
         onPress: () =>
-          parentNav?.navigate('AppsTab' as never, { screen: 'PipelineHome' } as never),
+          parentNav?.navigate('AppsTab' as never, {
+            screen: 'PickContact',
+            params: { flow: 'opportunity', pipelineId: undefined },
+          } as never),
       },
       {
         id: 'schedule',
@@ -250,6 +250,9 @@ export function HomeScreen({ navigation }: Props) {
       <ScrollView
         contentContainerStyle={[styles.body, { paddingBottom: scrollBottomPad }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => load({ pull: true })} />
+        }
       >
         {loadError ? (
           <ErrorBanner message={loadError} onRetry={load} onDismiss={() => setLoadError(null)} />
@@ -274,7 +277,7 @@ export function HomeScreen({ navigation }: Props) {
             />
             <StatCard
               title="Pipeline Value"
-              period="Last 30 days"
+              period="Open deals"
               value={pipelineDisplay}
               icon="cash-outline"
               accent="#22C55E"
@@ -286,7 +289,7 @@ export function HomeScreen({ navigation }: Props) {
           <View style={styles.statsRow}>
             <StatCard
               title="Unread Messages"
-              period="Last 30 days"
+              period="All conversations"
               value={loading ? '—' : unreadCount}
               icon="chatbubble-ellipses-outline"
               accent="#60A5FA"
@@ -295,7 +298,7 @@ export function HomeScreen({ navigation }: Props) {
             <StatCard
               title="Appointments"
               period="Today"
-              value={loading ? '—' : todayEvents.length}
+              value={loading ? '—' : todayAppointmentCount}
               icon="calendar-outline"
               accent="#F59E0B"
               onPress={() => parentNav?.navigate('CalendarTab' as never)}
@@ -353,6 +356,11 @@ export function HomeScreen({ navigation }: Props) {
         <View style={styles.panel}>
           <View style={styles.panelHead}>
             <Text style={styles.panelTitle}>Today&apos;s schedule</Text>
+            {todayAppointmentCount > todayEvents.length ? (
+              <Pressable onPress={() => parentNav?.navigate('CalendarTab' as never)}>
+                <Text style={styles.viewAllLink}>View all ({todayAppointmentCount})</Text>
+              </Pressable>
+            ) : null}
           </View>
           {loading ? (
             <ActivityIndicator color={theme.colors.secondary} style={{ marginVertical: theme.spacing.lg }} />
@@ -573,6 +581,11 @@ const styles = StyleSheet.create({
     color: theme.colors.textOnDark,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.lg,
+  },
+  viewAllLink: {
+    color: theme.colors.link,
+    fontFamily: theme.typography.fontFamily.medium,
+    fontSize: theme.typography.fontSize.sm,
   },
   editBtn: {
     width: 36,

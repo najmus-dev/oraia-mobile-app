@@ -43,10 +43,21 @@ describe('globalSearch', () => {
       contacts: [{ id: 'c1' }],
       conversations: [{ id: 'v1' }],
       opportunities: [{ id: 'o1', name: 'Deal' }],
+      tasks: [{ id: 't1', title: 'Follow up', completed: false }],
+      appointments: [{ id: 'e1', title: 'Consult' }],
     });
     assert.equal(merged.contacts.length, 0);
     assert.equal(merged.conversations.length, 1);
     assert.equal(merged.opportunities.length, 0);
+    assert.equal(merged.tasks.length, 0);
+    assert.equal(merged.appointments.length, 0);
     assert.equal(merged.apps.length, 0);
+  });
+
+  it('scopes tasks and appointments sections', () => {
+    assert.equal(shouldShowSearchSection('tasks', 'tasks'), true);
+    assert.equal(shouldShowSearchSection('tasks', 'contacts'), false);
+    assert.equal(shouldShowSearchSection('calendar', 'appointments'), true);
+    assert.equal(shouldShowSearchSection('calendar', 'tasks'), false);
   });
 });

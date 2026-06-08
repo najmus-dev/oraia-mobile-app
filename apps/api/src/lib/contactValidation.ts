@@ -15,6 +15,7 @@ export type ContactWriteBody = {
   dnd?: boolean;
   dndSettings?: ContactDndSettings;
   tags?: string[];
+  assignedTo?: string;
 };
 
 export function hasContactIdentifier(body: ContactWriteBody): boolean {
@@ -75,6 +76,7 @@ export function validateContactCreateBody(body: unknown, partial = false): Conta
     dnd: readBoolean(record, 'dnd'),
     dndSettings: readDndSettings(record.dndSettings),
     tags: readTags(record.tags),
+    assignedTo: readString(record, 'assignedTo'),
   };
   if (!partial && !hasContactIdentifier(normalized)) {
     throw new Error('Provide at least firstName, lastName, email, or phone');

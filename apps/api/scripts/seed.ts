@@ -11,9 +11,11 @@ import mongoose from 'mongoose';
 
 async function run(): Promise<void> {
   await connectDb();
-  const seeded = await tokenVault.seedFromEnvIfPresent();
+  const seeded = await tokenVault.seedFromEnvIfEmpty();
   if (!seeded) {
-    logger.warn('No GHL_COMPANY_ACCESS_TOKEN / GHL_COMPANY_REFRESH_TOKEN in .env — skipped token seed');
+    logger.warn(
+      'Skipped token seed — DB already has a company token or GHL_COMPANY_ACCESS_TOKEN / GHL_COMPANY_REFRESH_TOKEN missing in .env',
+    );
   }
   await ensureBootstrapAdmin();
   if (!config.bootstrap.password) {

@@ -221,7 +221,14 @@ export class GhlClient {
 
   async searchConversations(
     locationId: string,
-    params?: { limit?: number; status?: string; query?: string; contactId?: string; assignedTo?: string },
+    params?: {
+      limit?: number;
+      status?: string;
+      query?: string;
+      contactId?: string;
+      assignedTo?: string;
+      startAfterDate?: string;
+    },
   ): Promise<GhlConversationsSearchResponse> {
     const headers = await this.authHeaders();
     const { data } = await this.http.get<GhlConversationsSearchResponse>('/conversations/search', {
@@ -233,6 +240,7 @@ export class GhlClient {
         query: params?.query,
         contactId: params?.contactId,
         assignedTo: params?.assignedTo,
+        startAfterDate: params?.startAfterDate,
       },
     });
     return data;
@@ -467,7 +475,14 @@ export class GhlClient {
 
   async searchOpportunities(
     locationId: string,
-    params?: { limit?: number; pipelineId?: string; status?: string; q?: string },
+    params?: {
+      limit?: number;
+      pipelineId?: string;
+      status?: string;
+      q?: string;
+      startAfterId?: string;
+      contactId?: string;
+    },
   ): Promise<GhlOpportunitiesSearchResponse> {
     const headers = await this.authHeaders();
     const { data } = await this.http.get<GhlOpportunitiesSearchResponse>('/opportunities/search', {
@@ -478,6 +493,8 @@ export class GhlClient {
         pipeline_id: params?.pipelineId,
         status: params?.status,
         q: params?.q?.trim() || undefined,
+        startAfterId: params?.startAfterId,
+        contact_id: params?.contactId,
       },
     });
     return data;

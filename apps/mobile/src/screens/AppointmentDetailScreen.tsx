@@ -2,9 +2,11 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { api, withAuthHeaders } from '../lib/api';
-import { normalizeAppointment, type Appointment } from '../lib/appointments';
+import { normalizeAppointment, type Appointment, type CalendarOption } from '../lib/appointments';
+import { contactDisplayName, type Contact, type ContactResponse } from '../lib/contacts';
 import { formatEventRange } from '../lib/dates';
 import { formatError } from '../lib/errors';
+import { navigateToContactDetail } from '../lib/navigation';
 import { useFullScreenBottomInset } from '../lib/safeArea';
 import { theme } from '../theme';
 import { useAppState } from '../state/AppState';
@@ -22,6 +24,8 @@ export function AppointmentDetailScreen({ navigation, route }: Props) {
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [appointment, setAppointment] = useState<Appointment | null>(null);
+  const [contactName, setContactName] = useState<string | null>(null);
+  const [calendarName, setCalendarName] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token || !locationId) return;
@@ -43,6 +47,51 @@ export function AppointmentDetailScreen({ navigation, route }: Props) {
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
     load();
   }, [load]);
+
+  useEffect(() => {
+    const contactId = appointment?.contactId?.trim();
+    if (!contactId || !token || !locationId) {
+      setContactName(null);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      try {
+        const res = await api.getJson<ContactResponse>(`/api/contacts/${contactId}`, {
+          headers: withAuthHeaders({ token, locationId }),
+        });
+        if (alive) setContactName(contactDisplayName(res.contact as Contact));
+      } catch {
+        if (alive) setContactName(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [appointment?.contactId, token, locationId]);
+
+  useEffect(() => {
+    const calendarId = appointment?.calendarId?.trim();
+    if (!calendarId || !token || !locationId) {
+      setCalendarName(null);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      try {
+        const res = await api.getJson<{ calendars: CalendarOption[] }>('/api/calendar/calendars', {
+          headers: withAuthHeaders({ token, locationId }),
+        });
+        const match = (res.calendars ?? []).find((c) => c.id === calendarId);
+        if (alive) setCalendarName(match?.name?.trim() || null);
+      } catch {
+        if (alive) setCalendarName(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [appointment?.calendarId, token, locationId]);
 
   function cancel() {
     Alert.alert('Cancel appointment', 'This cannot be undone.', [
@@ -71,6 +120,21 @@ export function AppointmentDetailScreen({ navigation, route }: Props) {
 
   const title = appointment?.title ?? routeTitle ?? 'Appointment';
 
+  function openReschedule() {
+    const contactId = appointment?.contactId?.trim();
+    if (!contactId) {
+      Alert.alert('Reschedule', 'This appointment has no linked contact.');
+      return;
+    }
+    navigation.navigate('ScheduleAppointment', {
+      eventId,
+      contact: {
+        id: contactId,
+        name: contactName ?? 'Contact',
+      },
+    });
+  }
+
   return (
     <View style={styles.container}>
       <ScreenHeader
@@ -78,7 +142,7 @@ export function AppointmentDetailScreen({ navigation, route }: Props) {
         subtitle={loading ? 'Loading…' : (appointment?.appointmentStatus ?? 'Scheduled')}
         onBack={() => navigation.goBack()}
         actionIcon="create-outline"
-        onAction={() => navigation.navigate('AppointmentForm', { eventId })}
+        onAction={openReschedule}
         actionAccessibilityLabel="Reschedule appointment"
       />
 
@@ -88,8 +152,16 @@ export function AppointmentDetailScreen({ navigation, route }: Props) {
           value={formatEventRange(appointment?.startTime, appointment?.endTime)}
         />
         <DetailRow label="Status" value={appointment?.appointmentStatus} />
-        <DetailRow label="Contact ID" value={appointment?.contactId} />
-        <DetailRow label="Calendar ID" value={appointment?.calendarId} />
+        <DetailRow
+          label="Contact"
+          value={contactName ?? appointment?.contactId ?? undefined}
+          onPress={
+            appointment?.contactId?.trim()
+              ? () => navigateToContactDetail(navigation, appointment.contactId!.trim())
+              : undefined
+          }
+        />
+        <DetailRow label="Calendar" value={calendarName ?? appointment?.calendarId ?? undefined} />
         <DetailRow label="Address" value={appointment?.address} />
         <DetailRow label="Notes" value={appointment?.notes} />
 
@@ -97,7 +169,7 @@ export function AppointmentDetailScreen({ navigation, route }: Props) {
           <View style={styles.actions}>
             <Button
               title="Reschedule"
-              onPress={() => navigation.navigate('AppointmentForm', { eventId })}
+              onPress={openReschedule}
               variant="dark"
               style={styles.actionBtn}
             />

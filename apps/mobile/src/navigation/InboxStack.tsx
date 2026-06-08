@@ -7,7 +7,7 @@ import { theme } from '../theme';
 import type { MessageChannel } from '../lib/conversations';
 
 export type InboxStackParamList = {
-  InboxList: undefined;
+  InboxList: { openCompose?: boolean } | undefined;
   PickContactForMessage: { channel: MessageChannel };
   ConversationThread: {
     conversationId?: string;

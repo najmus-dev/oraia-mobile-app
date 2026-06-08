@@ -15,7 +15,7 @@ export type CalendarStackParamList = {
   /** Edit / reschedule (legacy form) */
   AppointmentForm: { eventId?: string; pickedContact?: PickedContact } | undefined;
   PickContact: PickContactParams;
-  ScheduleAppointment: { contact: PickedContact };
+  ScheduleAppointment: { contact: PickedContact; eventId?: string };
 };
 
 const Stack = createNativeStackNavigator<CalendarStackParamList>();

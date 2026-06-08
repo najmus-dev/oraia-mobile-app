@@ -11,12 +11,13 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { api, withAuthHeaders } from '../lib/api';
-import { type CalendarOption } from '../lib/appointments';
+import { type CalendarOption, normalizeAppointment } from '../lib/appointments';
 import { formatShortDate, toDateKey, unixMillis } from '../lib/dates';
 import { formatError } from '../lib/errors';
 import { useFullScreenBottomInset } from '../lib/safeArea';
 import {
   type AppointmentSlot,
+  appointmentToScheduleFormState,
   defaultScheduleFormState,
   parseFreeSlotsForDate,
   scheduleFormToPayload,
@@ -26,6 +27,7 @@ import { theme } from '../theme';
 import { useAppState } from '../state/AppState';
 import { AppBar } from '../components/AppBar';
 import { BottomSheet } from '../components/BottomSheet';
+import { ErrorBanner } from '../components/ErrorBanner';
 import { FormPickerField } from '../components/FormPickerField';
 import { LocationAvatar } from '../components/LocationAvatar';
 import { MonthCalendar } from '../components/MonthCalendar';
@@ -36,7 +38,8 @@ type Props = NativeStackScreenProps<CalendarStackParamList, 'ScheduleAppointment
 
 export function ScheduleAppointmentScreen({ navigation, route }: Props) {
   const scrollBottom = useFullScreenBottomInset();
-  const { contact } = route.params;
+  const { contact, eventId } = route.params;
+  const isReschedule = Boolean(eventId);
   const { token, locationId } = useAppState();
 
   const [loading, setLoading] = useState(true);
@@ -45,6 +48,7 @@ export function ScheduleAppointmentScreen({ navigation, route }: Props) {
   const [form, setForm] = useState(defaultScheduleFormState());
   const [slots, setSlots] = useState<AppointmentSlot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
+  const [slotsError, setSlotsError] = useState<string | null>(null);
 
   const [calendarSheet, setCalendarSheet] = useState(false);
   const [dateSheet, setDateSheet] = useState(false);
@@ -65,20 +69,32 @@ export function ScheduleAppointmentScreen({ navigation, route }: Props) {
       });
       const list = res.calendars ?? [];
       setCalendars(list);
-      setForm((prev) => ({ ...prev, calendarId: prev.calendarId || list[0]?.id || '' }));
+      if (isReschedule && eventId) {
+        const apptRes = await api.getJson<{ appointment: unknown }>(
+          `/api/calendar/appointments/${eventId}`,
+          { headers: withAuthHeaders({ token, locationId }) },
+        );
+        setForm(appointmentToScheduleFormState(normalizeAppointment(apptRes.appointment), list));
+      } else {
+        setForm((prev) => ({ ...prev, calendarId: prev.calendarId || list[0]?.id || '' }));
+      }
     } catch (e) {
-      Alert.alert('Calendars', formatError(e), [{ text: 'OK', onPress: () => navigation.goBack() }]);
+      Alert.alert(isReschedule ? 'Appointment' : 'Calendars', formatError(e), [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
     } finally {
       setLoading(false);
     }
-  }, [token, locationId, navigation]);
+  }, [token, locationId, navigation, isReschedule, eventId]);
 
   const loadSlots = useCallback(async () => {
     if (!token || !locationId || !form.calendarId || form.mode !== 'standard') {
       setSlots([]);
+      setSlotsError(null);
       return;
     }
     setSlotsLoading(true);
+    setSlotsError(null);
     try {
       const dayStart = new Date(form.selectedDate);
       dayStart.setHours(0, 0, 0, 0);
@@ -90,18 +106,25 @@ export function ScheduleAppointmentScreen({ navigation, route }: Props) {
       );
       const parsed = parseFreeSlotsForDate(res.slots, toDateKey(form.selectedDate));
       setSlots(parsed);
-      setForm((prev) => ({
-        ...prev,
-        slot: parsed.find((s) => s.startTime === prev.slot?.startTime) ?? parsed[0] ?? null,
-      }));
+      setForm((prev) => {
+        if (isReschedule && prev.slot) {
+          const matched = parsed.find((s) => s.startTime === prev.slot?.startTime);
+          return { ...prev, slot: matched ?? prev.slot };
+        }
+        return {
+          ...prev,
+          slot: parsed.find((s) => s.startTime === prev.slot?.startTime) ?? parsed[0] ?? null,
+        };
+      });
+      setSlotsError(null);
     } catch (e) {
       setSlots([]);
       setForm((prev) => ({ ...prev, slot: null }));
-      if (__DEV__) console.warn('free-slots', formatError(e));
+      setSlotsError(formatError(e));
     } finally {
       setSlotsLoading(false);
     }
-  }, [token, locationId, form.calendarId, form.selectedDate, form.mode]);
+  }, [token, locationId, form.calendarId, form.selectedDate, form.mode, isReschedule]);
 
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
@@ -127,15 +150,27 @@ export function ScheduleAppointmentScreen({ navigation, route }: Props) {
     }
     setSaving(true);
     try {
+      if (isReschedule && eventId) {
+        await api.putJson(
+          `/api/calendar/appointments/${eventId}`,
+          payload,
+          { headers: withAuthHeaders({ token, locationId }) },
+        );
+        navigation.replace('AppointmentDetail', {
+          eventId,
+          title: payload.title,
+        });
+        return;
+      }
       const res = await api.postJson<{ appointment: { id?: string; title?: string } }>(
         '/api/calendar/appointments',
         payload,
         { headers: withAuthHeaders({ token, locationId }) },
       );
-      const eventId = res.appointment?.id;
-      if (eventId) {
+      const createdEventId = res.appointment?.id;
+      if (createdEventId) {
         navigation.replace('AppointmentDetail', {
-          eventId,
+          eventId: createdEventId,
           title: res.appointment?.title ?? payload.title,
         });
       } else {
@@ -143,7 +178,7 @@ export function ScheduleAppointmentScreen({ navigation, route }: Props) {
         navigation.popToTop();
       }
     } catch (e) {
-      Alert.alert('Create failed', formatError(e));
+      Alert.alert(isReschedule ? 'Update failed' : 'Create failed', formatError(e));
     } finally {
       setSaving(false);
     }
@@ -152,7 +187,10 @@ export function ScheduleAppointmentScreen({ navigation, route }: Props) {
   if (loading) {
     return (
       <View style={styles.container}>
-        <AppBar title="Schedule Appointment" onBack={() => navigation.goBack()} />
+        <AppBar
+          title={isReschedule ? 'Reschedule Appointment' : 'Schedule Appointment'}
+          onBack={() => navigation.goBack()}
+        />
         <ActivityIndicator color={theme.colors.secondary} style={{ marginTop: theme.spacing.xl }} />
       </View>
     );
@@ -161,7 +199,7 @@ export function ScheduleAppointmentScreen({ navigation, route }: Props) {
   return (
     <View style={styles.container}>
       <AppBar
-        title="Schedule Appointment"
+        title={isReschedule ? 'Reschedule Appointment' : 'Schedule Appointment'}
         onBack={() => navigation.goBack()}
         rightLabel="Save"
         onRightPress={save}
@@ -226,6 +264,10 @@ export function ScheduleAppointmentScreen({ navigation, route }: Props) {
             setDateSheet(true);
           }}
         />
+
+        {slotsError ? (
+          <ErrorBanner message={slotsError} onRetry={() => loadSlots()} onDismiss={() => setSlotsError(null)} />
+        ) : null}
 
         {form.mode === 'standard' ? (
           <FormPickerField

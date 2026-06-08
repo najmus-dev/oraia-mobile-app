@@ -5,6 +5,8 @@ import type { RootStackParamList } from './types';
 import { AppLoadingScreen } from '../components/AppLoadingScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { LocationPickerScreen } from '../screens/LocationPickerScreen';
+import { usePushNotifications } from '../hooks/usePushNotifications';
+import { navigationRef } from '../lib/navigationRef';
 import { useAppState } from '../state/AppState';
 import { MainTabs } from './MainTabs';
 import { theme } from '../theme';
@@ -30,6 +32,7 @@ const navTheme: Theme = {
 
 export function AppNavigator() {
   const { hydrated, token, locationId } = useAppState();
+  usePushNotifications();
 
   if (!hydrated) {
     return <AppLoadingScreen message="Verifying session…" />;
@@ -38,7 +41,7 @@ export function AppNavigator() {
   const navKey = !token ? 'guest' : !locationId ? 'pick-location' : 'main';
 
   return (
-    <NavigationContainer key={navKey} theme={navTheme}>
+    <NavigationContainer ref={navigationRef} key={navKey} theme={navTheme}>
       <Stack.Navigator
         screenOptions={{
           headerShown: false,

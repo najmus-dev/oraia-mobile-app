@@ -22,11 +22,12 @@ export type AppsStackParamList = {
   AppsHome: undefined;
   ContactsList: { initialQuery?: string } | undefined;
   ContactDetail: { contactId: string };
-  ContactForm: { contactId?: string } | undefined;
+  ContactForm: { contactId?: string; pickedAssignee?: { id: string; name: string } } | undefined;
   ScanBusinessCard: undefined;
   PipelineHome: undefined;
   OpportunityDetail: { opportunityId: string; title?: string };
   OpportunityForm: {
+    opportunityId?: string;
     pipelineId?: string;
     pipelineStageId?: string;
     pickedContact?: PickedContact;
@@ -50,7 +51,7 @@ export type AppsStackParamList = {
   SelectAssignees: {
     mode: 'single' | 'multi';
     selectedIds?: string[];
-    returnTo?: 'TaskForm' | 'TaskFilters' | 'OpportunityForm';
+    returnTo?: 'TaskForm' | 'TaskFilters' | 'OpportunityForm' | 'ContactForm';
     filters?: TaskFilters;
   };
 };

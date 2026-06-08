@@ -57,6 +57,9 @@ export type ContactFormValues = {
   companyName: string;
   contactType: string;
   timezone: string;
+  tags: string[];
+  assignedTo: string;
+  assigneeName: string;
   dndAll: boolean;
   dndEmail: boolean;
   dndSms: boolean;
@@ -169,6 +172,9 @@ export function contactToFormValues(c: Contact): ContactFormValues {
     companyName: c.companyName?.trim() ?? '',
     contactType: formatContactType(c.type) || 'Lead',
     timezone: c.timezone?.trim() || 'America/New_York',
+    tags: [...(c.tags ?? [])],
+    assignedTo: c.assignedTo?.trim() ?? '',
+    assigneeName: '',
     dndAll: c.dnd === true,
     dndEmail: c.dndSettings?.Email?.status === 'active',
     dndSms: c.dndSettings?.SMS?.status === 'active',
@@ -187,6 +193,9 @@ export function emptyContactFormValues(timezone = 'America/New_York'): ContactFo
     companyName: '',
     contactType: 'Lead',
     timezone,
+    tags: [],
+    assignedTo: '',
+    assigneeName: '',
     dndAll: false,
     dndEmail: false,
     dndSms: false,
@@ -227,6 +236,9 @@ export function formValuesToPayload(values: ContactFormValues): Record<string, u
   if (values.companyName.trim()) payload.companyName = values.companyName.trim();
   if (values.timezone.trim()) payload.timezone = values.timezone.trim();
   if (values.contactType.trim()) payload.type = contactTypeToApi(values.contactType);
+  payload.tags = values.tags.map((t) => t.trim()).filter(Boolean);
+  const assignedTo = values.assignedTo.trim();
+  if (assignedTo) payload.assignedTo = assignedTo;
   payload.dnd = values.dndAll;
   const dndSettings = buildDndSettings(values);
   if (dndSettings) payload.dndSettings = dndSettings;

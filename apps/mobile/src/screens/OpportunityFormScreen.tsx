@@ -12,10 +12,11 @@ import {
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { api, withAuthHeaders } from '../lib/api';
-import { type PickedContact } from '../lib/contacts';
+import { type ContactResponse, type PickedContact, contactToPicked } from '../lib/contacts';
 import { formatError } from '../lib/errors';
 import { useFullScreenBottomInset } from '../lib/safeArea';
 import {
+  type Opportunity,
   type OpportunityResponse,
   type PipelinesResponse,
   type Pipeline,
@@ -23,6 +24,7 @@ import {
   defaultStageIdForPipeline,
   emptyOpportunityFormValues,
   formValuesToOpportunityPayload,
+  opportunityToFormValues,
   stagesForPipeline,
   validateOpportunityForm,
 } from '../lib/opportunities';
@@ -40,6 +42,8 @@ type PickerKind = 'pipeline' | 'stage' | 'status' | 'contact' | null;
 export function OpportunityFormScreen({ navigation, route }: Props) {
   const scrollBottom = useFullScreenBottomInset();
   const { token, locationId } = useAppState();
+  const opportunityId = route.params?.opportunityId;
+  const isEdit = Boolean(opportunityId);
   const initialPipelineId = route.params?.pipelineId ?? '';
   const initialStageId = route.params?.pipelineStageId ?? '';
 
@@ -86,26 +90,60 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
     if (!token || !locationId) return;
     setLoading(true);
     try {
-      const res = await api.getJson<PipelinesResponse>('/api/opportunities/pipelines', {
+      const pipeRes = await api.getJson<PipelinesResponse>('/api/opportunities/pipelines', {
         headers: withAuthHeaders({ token, locationId }),
       });
-      const list = res.pipelines ?? [];
+      const list = pipeRes.pipelines ?? [];
       setPipelines(list);
 
-      setValues((prev) => {
-        const pipelineId = prev.pipelineId || initialPipelineId || list[0]?.id || '';
-        const pipelineStageId =
-          prev.pipelineStageId ||
-          initialStageId ||
-          defaultStageIdForPipeline(list, pipelineId);
-        return { ...prev, pipelineId, pipelineStageId };
-      });
+      if (isEdit && opportunityId) {
+        const oppRes = await api.getJson<{ opportunity: Opportunity }>(
+          `/api/opportunities/${opportunityId}`,
+          { headers: withAuthHeaders({ token, locationId }) },
+        );
+        const opp = oppRes.opportunity;
+        setValues(opportunityToFormValues(opp));
+        if (opp.contactId?.trim()) {
+          try {
+            const contactRes = await api.getJson<ContactResponse>(
+              `/api/contacts/${opp.contactId.trim()}`,
+              { headers: withAuthHeaders({ token, locationId }) },
+            );
+            setPickedContact(contactToPicked(contactRes.contact));
+          } catch {
+            setPickedContact({ id: opp.contactId.trim(), name: 'Contact' });
+          }
+        }
+        if (opp.assignedTo?.trim()) {
+          try {
+            const assignees = await api.getJson<{ users: { id: string; name: string }[] }>(
+              '/api/tasks/assignees',
+              { headers: withAuthHeaders({ token, locationId }) },
+            );
+            const owner = (assignees.users ?? []).find((u) => u.id === opp.assignedTo);
+            setOwnerDisplayName(owner?.name ?? '');
+          } catch {
+            setOwnerDisplayName('');
+          }
+        }
+      } else {
+        setValues((prev) => {
+          const pipelineId = prev.pipelineId || initialPipelineId || list[0]?.id || '';
+          const pipelineStageId =
+            prev.pipelineStageId ||
+            initialStageId ||
+            defaultStageIdForPipeline(list, pipelineId);
+          return { ...prev, pipelineId, pipelineStageId };
+        });
+      }
     } catch (e) {
-      Alert.alert('Pipelines', formatError(e), [{ text: 'OK', onPress: () => navigation.goBack() }]);
+      Alert.alert(isEdit ? 'Opportunity' : 'Pipelines', formatError(e), [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
     } finally {
       setLoading(false);
     }
-  }, [token, locationId, navigation, initialPipelineId, initialStageId]);
+  }, [token, locationId, navigation, initialPipelineId, initialStageId, isEdit, opportunityId]);
 
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
@@ -113,14 +151,13 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
   }, [loadPipelines]);
 
   useEffect(() => {
-    if (!pickedContact && !loading) {
-      navigation.replace('PickContact', {
-        flow: 'opportunity',
-        pipelineId: initialPipelineId || undefined,
-        pipelineStageId: initialStageId || undefined,
-      });
-    }
-  }, [pickedContact, loading, navigation, initialPipelineId, initialStageId]);
+    if (isEdit || pickedContact || loading) return;
+    navigation.replace('PickContact', {
+      flow: 'opportunity',
+      pipelineId: initialPipelineId || undefined,
+      pipelineStageId: initialStageId || undefined,
+    });
+  }, [pickedContact, loading, navigation, initialPipelineId, initialStageId, isEdit]);
 
   const stages = useMemo(
     () => stagesForPipeline(pipelines, values.pipelineId),
@@ -165,6 +202,19 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
 
     setSaving(true);
     try {
+      const payload = formValuesToOpportunityPayload(values);
+      if (isEdit && opportunityId) {
+        await api.putJson(
+          `/api/opportunities/${opportunityId}`,
+          payload,
+          { headers: withAuthHeaders({ token, locationId }) },
+        );
+        navigation.replace('OpportunityDetail', {
+          opportunityId,
+          title: values.name.trim(),
+        });
+        return;
+      }
       const res = await api.postJson<OpportunityResponse>(
         '/api/opportunities',
         formValuesToOpportunityPayload(values),
@@ -187,12 +237,12 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
     }
   }
 
-  if (!pickedContact && !loading) return null;
+  if (!isEdit && !pickedContact && !loading) return null;
 
   return (
     <View style={styles.container}>
       <AppBar
-        title="Add Opportunity"
+        title={isEdit ? 'Edit Opportunity' : 'Add Opportunity'}
         onBack={() => navigation.goBack()}
         rightLabel="Save"
         onRightPress={save}

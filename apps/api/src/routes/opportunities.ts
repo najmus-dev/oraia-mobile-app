@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { AppError } from '../lib/errors';
-import { validateOpportunityCreateBody } from '../lib/opportunityValidation';
+import { validateOpportunityCreateBody, validateOpportunityUpdateBody } from '../lib/opportunityValidation';
 import { param } from '../lib/params';
 import { locationDelete, locationGet, locationPost, locationPut } from '../middleware/locationRoute';
 import { getLocationGhlClient } from '../services/tokenVault';
@@ -55,16 +55,25 @@ locationGet(opportunitiesRouter, '/', async (req, res) => {
   const pipelineId = typeof req.query.pipelineId === 'string' ? req.query.pipelineId : undefined;
   const status = typeof req.query.status === 'string' ? req.query.status : undefined;
   const query = typeof req.query.query === 'string' ? req.query.query.trim() : undefined;
+  const contactId =
+    typeof req.query.contactId === 'string' && req.query.contactId.trim()
+      ? req.query.contactId.trim()
+      : undefined;
   const ghl = getLocationGhlClient(locationId);
   const data = await ghl.searchOpportunities(locationId, {
     limit,
     pipelineId,
     status,
     q: query || undefined,
+    contactId,
   });
+  let opportunities = data.opportunities ?? [];
+  if (contactId) {
+    opportunities = opportunities.filter((o) => o.contactId === contactId);
+  }
   res.json({
     locationId,
-    opportunities: (data.opportunities ?? []).map((o) => mapOpportunity(o)),
+    opportunities: opportunities.map((o) => mapOpportunity(o)),
     meta: data.meta,
   });
 });
@@ -96,11 +105,21 @@ locationPost(opportunitiesRouter, '/', async (req, res) => {
 
 locationPut(opportunitiesRouter, '/:opportunityId', async (req, res) => {
   const locationId = req.locationId!;
+  let body: Record<string, unknown>;
+  try {
+    body = validateOpportunityUpdateBody(req.body);
+  } catch (e) {
+    throw new AppError(
+      400,
+      e instanceof Error ? e.message : 'Invalid opportunity body',
+      'VALIDATION_ERROR',
+    );
+  }
   const ghl = getLocationGhlClient(locationId);
   const result = await ghl.updateOpportunity(
     param(req.params, 'opportunityId'),
     locationId,
-    req.body as Record<string, unknown>,
+    body,
   );
   res.json({ locationId, opportunity: unwrapOpportunity(result) });
 });

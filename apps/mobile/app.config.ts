@@ -35,6 +35,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     '@react-native-community/datetimepicker',
     [
+      'expo-notifications',
+      {
+        icon: './assets/oraia logo.png',
+        color: '#0E1323',
+      },
+    ],
+    [
       'expo-image-picker',
       {
         photosPermission: 'Allow ORAIA CRM to access your photos to attach images to messages.',
