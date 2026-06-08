@@ -1,0 +1,49 @@
+{
+  "name": "oraia-api",
+  "version": "1.0.0",
+  "description": "ORAIA mobile BFF — Express + GHL API v2",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "nodemon",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "seed": "ts-node scripts/seed.ts",
+    "test": "tsx --test test/crypto.test.ts test/locationAccess.test.ts test/contactsValidation.test.ts test/contactSmartLists.test.ts test/opportunityValidation.test.ts test/appointmentValidation.test.ts test/calendarFreeSlots.test.ts test/attachmentUrls.test.ts test/taskValidation.test.ts test/taskMapping.test.ts test/webhookAuth.test.ts test/ghlUserResolver.test.ts",
+    "test:integration": "tsx --test test/health.test.ts",
+    "test:ghl": "node scripts/test-ghl-locations.mjs",
+    "smoke": "node scripts/smoke-api.mjs",
+    "provision:location": "node scripts/provision-location.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "axios": "^1.16.1",
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
+    "form-data": "^4.0.5",
+    "helmet": "^8.2.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.6.2",
+    "multer": "^2.1.1",
+    "node-cron": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.1.0",
+    "@types/node": "^25.3.3",
+    "@types/supertest": "^7.2.0",
+    "nodemon": "^3.1.14",
+    "supertest": "^7.2.2",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.22.3",
+    "typescript": "^5.9.3"
+  }
+}

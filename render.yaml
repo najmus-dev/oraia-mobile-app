@@ -1,0 +1,43 @@
+# Render Blueprint — deploy the API from GitHub.
+# Dashboard: New → Blueprint → connect repo → apply this file.
+# Then set secret env vars in the Render service (see apps/api/.env.example).
+
+services:
+  - type: web
+    name: oraia-api
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: ./apps/api
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: GHL_CLIENT_ID
+        sync: false
+      - key: GHL_CLIENT_SECRET
+        sync: false
+      - key: GHL_COMPANY_ID
+        sync: false
+      - key: GHL_COMPANY_ACCESS_TOKEN
+        sync: false
+      - key: GHL_COMPANY_REFRESH_TOKEN
+        sync: false
+      - key: GHL_API_VERSION
+        value: 2021-07-28
+      - key: GHL_OAUTH_REDIRECT_URI
+        sync: false
+      - key: GHL_WEBHOOK_SECRET
+        sync: false
+      - key: BOOTSTRAP_ADMIN_EMAIL
+        value: admin@oraiacrm.com
+      - key: BOOTSTRAP_ADMIN_PASSWORD
+        sync: false

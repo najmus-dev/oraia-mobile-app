@@ -1,0 +1,64 @@
+export type OpportunityCreateBody = {
+  name: string;
+  pipelineId: string;
+  pipelineStageId: string;
+  contactId: string;
+  status: string;
+  monetaryValue?: number;
+  source?: string;
+  companyName?: string;
+  assignedTo?: string;
+};
+
+export function parseMonetaryValue(value: unknown): number | undefined {
+  if (value == null || value === '') return undefined;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value.trim().replace(/[$,]/g, ''));
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  throw new Error('monetaryValue must be a valid number');
+}
+
+export function validateOpportunityCreateBody(body: unknown): OpportunityCreateBody {
+  if (!body || typeof body !== 'object') {
+    throw new Error('Request body must be a JSON object');
+  }
+  const record = body as Record<string, unknown>;
+
+  const name = typeof record.name === 'string' ? record.name.trim() : '';
+  const pipelineId = typeof record.pipelineId === 'string' ? record.pipelineId.trim() : '';
+  const pipelineStageId =
+    typeof record.pipelineStageId === 'string' ? record.pipelineStageId.trim() : '';
+  const contactId = typeof record.contactId === 'string' ? record.contactId.trim() : '';
+  const status =
+    typeof record.status === 'string' && record.status.trim()
+      ? record.status.trim()
+      : 'open';
+
+  if (!name) throw new Error('name is required');
+  if (!pipelineId) throw new Error('pipelineId is required');
+  if (!pipelineStageId) throw new Error('pipelineStageId is required');
+  if (!contactId) throw new Error('contactId is required');
+
+  let monetaryValue: number | undefined;
+  if (record.monetaryValue != null && record.monetaryValue !== '') {
+    monetaryValue = parseMonetaryValue(record.monetaryValue);
+  }
+
+  const source = typeof record.source === 'string' ? record.source.trim() : '';
+  const companyName = typeof record.companyName === 'string' ? record.companyName.trim() : '';
+  const assignedTo = typeof record.assignedTo === 'string' ? record.assignedTo.trim() : '';
+
+  return {
+    name,
+    pipelineId,
+    pipelineStageId,
+    contactId,
+    status,
+    monetaryValue,
+    ...(source ? { source } : {}),
+    ...(companyName ? { companyName } : {}),
+    ...(assignedTo ? { assignedTo } : {}),
+  };
+}

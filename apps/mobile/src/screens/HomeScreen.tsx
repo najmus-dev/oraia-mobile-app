@@ -1,0 +1,764 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { TAB_LIST_BOTTOM_PADDING, useHeaderTopPadding } from '../lib/safeArea';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
+import { api, withAuthHeaders } from '../lib/api';
+import { endOfDay, formatEventRange, startOfDay, toIso } from '../lib/dates';
+import { formatError } from '../lib/errors';
+import { navigateToAppointmentDetail } from '../lib/navigation';
+import { useAppState } from '../state/AppState';
+import { theme } from '../theme';
+import { ListRow } from '../components/ListRow';
+import { ErrorBanner } from '../components/ErrorBanner';
+import { DashboardHeader } from '../components/DashboardHeader';
+import {
+  CRM_APPS,
+  DEFAULT_PINNED_APP_IDS,
+  openCrmApp,
+} from '../lib/crmApps';
+import { DEFAULT_TASK_FILTERS } from '../lib/tasks';
+import { LocationSelectSheet } from '../components/LocationSelectSheet';
+import type { HomeStackParamList } from '../navigation/HomeStack';
+
+type Props = NativeStackScreenProps<HomeStackParamList, 'HomeMain'>;
+
+type CalendarEvent = { id: string; title?: string; startTime?: string; endTime?: string };
+
+type QuickAction = {
+  id: string;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  onPress: () => void;
+};
+
+export function HomeScreen({ navigation }: Props) {
+  const {
+    user,
+    token,
+    locationId,
+    locationName,
+    locationAddress,
+    locationLogoUrl,
+    setLocation,
+    pinnedAppIds,
+    setPinnedAppIds,
+  } = useAppState();
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [pipelineValue, setPipelineValue] = useState(0);
+  const [pendingTasks, setPendingTasks] = useState(0);
+  const [locationSheetOpen, setLocationSheetOpen] = useState(false);
+  const [editPinnedOpen, setEditPinnedOpen] = useState(false);
+  const [pinnedSearch, setPinnedSearch] = useState('');
+  const modalHeaderTop = useHeaderTopPadding(true);
+
+  const load = useCallback(async () => {
+    if (!token || !locationId) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [eventsRes, convosRes, dealsRes, tasksRes] = await Promise.all([
+        api.getJson<{ events: CalendarEvent[] }>(
+          `/api/calendar/events?startTime=${encodeURIComponent(toIso(startOfDay()))}&endTime=${encodeURIComponent(toIso(endOfDay()))}`,
+          { headers: withAuthHeaders({ token, locationId }) },
+        ),
+        api.getJson<{ conversations: { unreadCount?: number }[] }>('/api/conversations?limit=30', {
+          headers: withAuthHeaders({ token, locationId }),
+        }),
+        api.getJson<{ opportunities: { monetaryValue?: number }[] }>('/api/opportunities?limit=30', {
+          headers: withAuthHeaders({ token, locationId }),
+        }),
+        api.getJson<{ count: number }>('/api/tasks/pending-count', {
+          headers: withAuthHeaders({ token, locationId }),
+        }),
+      ]);
+      const events = (eventsRes.events ?? [])
+        .slice()
+        .sort((a, b) => new Date(a.startTime ?? 0).getTime() - new Date(b.startTime ?? 0).getTime())
+        .slice(0, 3);
+      setTodayEvents(events);
+      setUnreadCount(
+        (convosRes.conversations ?? []).reduce((sum, c) => sum + (c.unreadCount ?? 0), 0),
+      );
+      setPipelineValue(
+        (dealsRes.opportunities ?? []).reduce((sum, o) => sum + (o.monetaryValue ?? 0), 0),
+      );
+      setPendingTasks(tasksRes.count ?? 0);
+    } catch (e) {
+      setLoadError(formatError(e));
+      setTodayEvents([]);
+      setUnreadCount(0);
+      setPipelineValue(0);
+      setPendingTasks(0);
+    } finally {
+      setLoading(false);
+    }
+  }, [token, locationId]);
+
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    load();
+  }, [load]);
+
+  useEffect(() => {
+    const needsEnrich =
+      !locationName?.trim() || !locationAddress?.trim() || !locationLogoUrl?.trim();
+    if (!token || !locationId || !needsEnrich) return;
+    let alive = true;
+    (async () => {
+      try {
+        const res = await api.getJson<{
+          locations: {
+            id: string;
+            name: string;
+            displayName?: string;
+            mainAddress?: string;
+            fullAddress?: string;
+            address?: string;
+            logoUrl?: string;
+          }[];
+        }>('/api/locations', {
+          headers: withAuthHeaders({ token, locationId }),
+        });
+        if (!alive) return;
+        const matched = (res.locations ?? []).find((x) => x.id === locationId);
+        if (!matched) return;
+        setLocation({
+          id: matched.id,
+          name: matched.displayName?.trim() || matched.name?.trim(),
+          address:
+            matched.fullAddress?.trim() ||
+            matched.mainAddress?.trim() ||
+            matched.address?.trim() ||
+            undefined,
+          logoUrl: matched.logoUrl,
+        });
+      } catch {
+        // best-effort lookup
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [token, locationId, locationName, locationAddress, locationLogoUrl, setLocation]);
+
+  const firstName = user?.email?.split('@')[0] ?? 'there';
+  const parentNav = navigation.getParent();
+  const scrollBottomPad = TAB_LIST_BOTTOM_PADDING;
+
+  const pinnedApps = useMemo(
+    () =>
+      pinnedAppIds
+        .map((id) => CRM_APPS[id as keyof typeof CRM_APPS])
+        .filter(Boolean),
+    [pinnedAppIds],
+  );
+
+  const allApps = useMemo(() => Object.values(CRM_APPS).filter((a) => a.available), []);
+
+  const quickActions = useMemo<QuickAction[]>(
+    () => [
+      {
+        id: 'add-contact',
+        label: 'Add Contact',
+        icon: 'person-add-outline',
+        onPress: () =>
+          parentNav?.navigate('AppsTab' as never, { screen: 'ContactForm' } as never),
+      },
+      {
+        id: 'new-message',
+        label: 'New Message',
+        icon: 'chatbubble-ellipses-outline',
+        onPress: () => parentNav?.navigate('InboxTab' as never),
+      },
+      {
+        id: 'new-opportunity',
+        label: 'New Opportunity',
+        icon: 'git-network-outline',
+        onPress: () =>
+          parentNav?.navigate('AppsTab' as never, { screen: 'PipelineHome' } as never),
+      },
+      {
+        id: 'schedule',
+        label: 'Schedule',
+        icon: 'calendar-outline',
+        onPress: () => parentNav?.navigate('CalendarTab' as never),
+      },
+    ],
+    [parentNav],
+  );
+
+  function togglePinned(appId: string) {
+    if (pinnedAppIds.includes(appId)) {
+      setPinnedAppIds(pinnedAppIds.filter((x) => x !== appId));
+      return;
+    }
+    if (pinnedAppIds.length >= 4) {
+      Alert.alert('Pinned Apps', 'You can select up to 4 apps.');
+      return;
+    }
+    setPinnedAppIds([...pinnedAppIds, appId]);
+  }
+
+  function movePinned(appId: string, dir: -1 | 1) {
+    const idx = pinnedAppIds.indexOf(appId);
+    if (idx < 0) return;
+    const nextIdx = idx + dir;
+    if (nextIdx < 0 || nextIdx >= pinnedAppIds.length) return;
+    const next = pinnedAppIds.slice();
+    const tmp = next[idx];
+    next[idx] = next[nextIdx];
+    next[nextIdx] = tmp;
+    setPinnedAppIds(next);
+  }
+
+  const visiblePinnedChoices = useMemo(() => {
+    const q = pinnedSearch.trim().toLowerCase();
+    if (!q) return allApps;
+    return allApps.filter((a) => a.label.toLowerCase().includes(q));
+  }, [allApps, pinnedSearch]);
+
+  const pipelineDisplay = loading
+    ? '—'
+    : `$${pipelineValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  return (
+    <View style={styles.container}>
+      <DashboardHeader
+        locationName={locationName}
+        locationAddress={locationAddress}
+        locationLogoUrl={locationLogoUrl}
+        onOpenLocation={() => setLocationSheetOpen(true)}
+        onRefresh={load}
+        onSettings={() => navigation.navigate('Settings')}
+        welcomeName={firstName}
+      />
+
+      <ScrollView
+        contentContainerStyle={[styles.body, { paddingBottom: scrollBottomPad }]}
+        showsVerticalScrollIndicator={false}
+      >
+        {loadError ? (
+          <ErrorBanner message={loadError} onRetry={load} onDismiss={() => setLoadError(null)} />
+        ) : null}
+
+        <View style={styles.statsGrid}>
+          <View style={styles.statsRow}>
+            <StatCard
+              title="Pending tasks"
+              period="Open now"
+              value={loading ? '—' : pendingTasks}
+              icon="checkbox-outline"
+              accent="#60A5FA"
+              onPress={() =>
+                parentNav?.navigate('AppsTab' as never, {
+                  screen: 'TasksHome',
+                  params: {
+                    appliedFilters: { ...DEFAULT_TASK_FILTERS, status: 'pending' },
+                  },
+                } as never)
+              }
+            />
+            <StatCard
+              title="Pipeline Value"
+              period="Last 30 days"
+              value={pipelineDisplay}
+              icon="cash-outline"
+              accent="#22C55E"
+              onPress={() =>
+                parentNav?.navigate('AppsTab' as never, { screen: 'PipelineHome' } as never)
+              }
+            />
+          </View>
+          <View style={styles.statsRow}>
+            <StatCard
+              title="Unread Messages"
+              period="Last 30 days"
+              value={loading ? '—' : unreadCount}
+              icon="chatbubble-ellipses-outline"
+              accent="#60A5FA"
+              onPress={() => parentNav?.navigate('InboxTab' as never)}
+            />
+            <StatCard
+              title="Appointments"
+              period="Today"
+              value={loading ? '—' : todayEvents.length}
+              icon="calendar-outline"
+              accent="#F59E0B"
+              onPress={() => parentNav?.navigate('CalendarTab' as never)}
+            />
+          </View>
+        </View>
+
+        <View style={styles.panel}>
+          <View style={styles.panelHead}>
+            <Text style={styles.panelTitle}>Pinned Apps</Text>
+            <Pressable onPress={() => setEditPinnedOpen(true)} hitSlop={8} style={styles.editBtn}>
+              <Ionicons name="create-outline" size={16} color={theme.colors.secondary} />
+            </Pressable>
+          </View>
+          <View style={styles.appsRow}>
+            {[0, 1, 2, 3].map((slotIdx) => {
+              const app = pinnedApps[slotIdx];
+              if (!app) return <View key={`slot-${slotIdx}`} style={styles.pinnedSlotPlaceholder} />;
+              return (
+                <Pressable
+                  key={app.id}
+                  style={styles.pinnedItem}
+                  onPress={() => openCrmApp(app.id, parentNav ?? undefined)}
+                >
+                  <View style={[styles.pinnedCircle, { borderColor: `${app.accent}44` }]}>
+                    <Ionicons name={app.icon} size={20} color={app.accent} />
+                  </View>
+                  <Text style={styles.pinnedText} numberOfLines={1}>
+                    {app.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.panel}>
+          <View style={styles.panelHead}>
+            <Text style={styles.panelTitle}>Quick Actions</Text>
+          </View>
+          <View style={styles.quickRow}>
+            {quickActions.map((action) => (
+              <Pressable key={action.id} style={styles.quickItem} onPress={action.onPress}>
+                <View style={styles.quickCircle}>
+                  <Ionicons name={action.icon} size={20} color={theme.colors.link} />
+                </View>
+                <Text style={styles.quickLabel} numberOfLines={2}>
+                  {action.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.panel}>
+          <View style={styles.panelHead}>
+            <Text style={styles.panelTitle}>Today&apos;s schedule</Text>
+          </View>
+          {loading ? (
+            <ActivityIndicator color={theme.colors.secondary} style={{ marginVertical: theme.spacing.lg }} />
+          ) : todayEvents.length === 0 ? (
+            <Text style={styles.noteText}>No appointments today.</Text>
+          ) : (
+            todayEvents.map((event) => (
+              <View key={event.id} style={styles.eventWrap}>
+                <ListRow
+                  title={event.title ?? 'Appointment'}
+                  subtitle={formatEventRange(event.startTime, event.endTime)}
+                  onPress={() => navigateToAppointmentDetail(navigation, event.id, event.title)}
+                />
+              </View>
+            ))
+          )}
+        </View>
+      </ScrollView>
+
+      <LocationSelectSheet
+        visible={locationSheetOpen}
+        onClose={() => setLocationSheetOpen(false)}
+        onSelected={() => setLocationSheetOpen(false)}
+      />
+
+      <Modal visible={editPinnedOpen} animationType="slide" onRequestClose={() => setEditPinnedOpen(false)}>
+        <View style={styles.modalWrap}>
+          <View style={[styles.modalHeader, { paddingTop: modalHeaderTop }]}>
+            <Pressable hitSlop={10} style={styles.modalHeaderBtn} onPress={() => setEditPinnedOpen(false)}>
+              <Ionicons name="close" size={22} color={theme.colors.white} />
+            </Pressable>
+            <Text style={styles.modalTitle}>Pinned Apps</Text>
+            <View style={styles.modalHeaderBtn} />
+          </View>
+
+          <View style={styles.modalBody}>
+            <View style={styles.infoBanner}>
+              <Ionicons name="information-circle-outline" size={16} color={theme.colors.mutedTextOnDark} />
+              <Text style={styles.infoText}>You can select up to 4 apps</Text>
+            </View>
+
+            <View style={styles.searchWrap}>
+              <Ionicons name="search" size={16} color={theme.colors.mutedTextOnDark} />
+              <TextInput
+                value={pinnedSearch}
+                onChangeText={setPinnedSearch}
+                placeholder="Search Apps"
+                placeholderTextColor={theme.colors.mutedTextOnDark}
+                style={styles.searchInput}
+              />
+            </View>
+
+            <View style={styles.modalSectionRow}>
+              <Text style={styles.modalSectionTitle}>Selected</Text>
+            </View>
+
+            <View style={styles.modalList}>
+              {pinnedApps.length === 0 ? (
+                <Text style={styles.modalEmpty}>No apps selected.</Text>
+              ) : (
+                pinnedApps.map((app) => (
+                  <View key={app.id} style={styles.modalItemRow}>
+                    <View style={styles.dragBox}>
+                      <Ionicons name="reorder-two" size={18} color={theme.colors.secondary} />
+                    </View>
+                    <Pressable style={styles.modalItem} onPress={() => togglePinned(app.id)}>
+                      <View style={styles.modalItemLeft}>
+                        <View style={styles.modalItemIcon}>
+                          <Ionicons name={app.icon} size={16} color={theme.colors.mutedTextOnDark} />
+                        </View>
+                        <Text style={styles.modalItemLabel}>{app.label}</Text>
+                      </View>
+                      <View style={styles.modalItemRight}>
+                        <View style={styles.reorderBtns}>
+                          <Pressable hitSlop={8} onPress={() => movePinned(app.id, -1)} style={styles.reorderBtn}>
+                            <Ionicons name="chevron-up" size={16} color={theme.colors.mutedTextOnDark} />
+                          </Pressable>
+                          <Pressable hitSlop={8} onPress={() => movePinned(app.id, 1)} style={styles.reorderBtn}>
+                            <Ionicons name="chevron-down" size={16} color={theme.colors.mutedTextOnDark} />
+                          </Pressable>
+                        </View>
+                        <View style={styles.checkPill}>
+                          <Ionicons name="checkmark" size={16} color={theme.colors.navy} />
+                        </View>
+                      </View>
+                    </Pressable>
+                  </View>
+                ))
+              )}
+            </View>
+
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>Unselected</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <View style={styles.modalList}>
+              {visiblePinnedChoices
+                .filter((a) => !pinnedAppIds.includes(a.id))
+                .map((app) => (
+                  <View key={app.id} style={styles.modalItemRow}>
+                    <View style={[styles.dragBox, { opacity: 0.35 }]}>
+                      <Ionicons name="reorder-two" size={18} color={theme.colors.secondary} />
+                    </View>
+                    <Pressable style={styles.modalItem} onPress={() => togglePinned(app.id)}>
+                      <View style={styles.modalItemLeft}>
+                        <View style={styles.modalItemIcon}>
+                          <Ionicons name={app.icon} size={16} color={theme.colors.mutedTextOnDark} />
+                        </View>
+                        <Text style={styles.modalItemLabel}>{app.label}</Text>
+                      </View>
+                      <View style={styles.checkBox} />
+                    </Pressable>
+                  </View>
+                ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+function StatCard({
+  title,
+  period,
+  value,
+  icon,
+  accent,
+  onPress,
+}: {
+  title: string;
+  period: string;
+  value: string | number;
+  icon: keyof typeof Ionicons.glyphMap;
+  accent: string;
+  onPress?: () => void;
+}) {
+  return (
+    <Pressable style={styles.statCard} onPress={onPress} disabled={!onPress}>
+      <View style={styles.statTopRow}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.statTitle} numberOfLines={1}>
+            {title}
+          </Text>
+          <Text style={styles.statPeriod}>{period}</Text>
+        </View>
+        <View style={[styles.statIconCircle, { backgroundColor: `${accent}22` }]}>
+          <Ionicons name={icon} size={18} color={accent} />
+        </View>
+      </View>
+      <Text style={styles.statValue}>{value}</Text>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.colors.shell },
+  body: { paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md, gap: theme.spacing.lg },
+  statsGrid: { gap: theme.spacing.sm },
+  statsRow: { flexDirection: 'row', gap: theme.spacing.sm },
+  statCard: {
+    flex: 1,
+    minWidth: 0,
+    borderRadius: 14,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: theme.spacing.md,
+  },
+  statTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: theme.spacing.sm,
+  },
+  statIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statTitle: {
+    color: theme.colors.textOnDark,
+    fontFamily: theme.typography.fontFamily.semiBold,
+    fontSize: theme.typography.fontSize.sm,
+  },
+  statPeriod: {
+    marginTop: 2,
+    color: theme.colors.mutedTextOnDark,
+    fontFamily: theme.typography.fontFamily.regular,
+    fontSize: theme.typography.fontSize.xs,
+  },
+  statValue: {
+    marginTop: theme.spacing.md,
+    color: theme.colors.textOnDark,
+    fontFamily: theme.typography.fontFamily.bold,
+    fontSize: theme.typography.fontSize.xl,
+    lineHeight: theme.typography.lineHeight.xl,
+  },
+  panel: {
+    borderRadius: 14,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.lg,
+  },
+  panelHead: {
+    marginBottom: theme.spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  panelTitle: {
+    color: theme.colors.textOnDark,
+    fontFamily: theme.typography.fontFamily.semiBold,
+    fontSize: theme.typography.fontSize.lg,
+  },
+  editBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#202B3D',
+    backgroundColor: '#0A1322',
+  },
+  appsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  pinnedItem: { alignItems: 'center', gap: theme.spacing.sm, width: '23%' },
+  pinnedSlotPlaceholder: { width: '23%' },
+  pinnedCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 1,
+    backgroundColor: theme.colors.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pinnedText: {
+    color: theme.colors.textOnDark,
+    fontFamily: theme.typography.fontFamily.medium,
+    fontSize: theme.typography.fontSize.xs,
+    textAlign: 'center',
+  },
+  quickRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.md,
+  },
+  quickItem: {
+    width: '22%',
+    minWidth: 72,
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  quickCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickLabel: {
+    color: theme.colors.textOnDark,
+    fontFamily: theme.typography.fontFamily.medium,
+    fontSize: theme.typography.fontSize.xs,
+    textAlign: 'center',
+  },
+  eventWrap: { marginTop: theme.spacing.xs },
+  noteText: {
+    color: theme.colors.mutedTextOnDark,
+    fontFamily: theme.typography.fontFamily.regular,
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: theme.typography.lineHeight.md,
+  },
+  modalWrap: { flex: 1, backgroundColor: theme.colors.background },
+  modalHeader: {
+    paddingHorizontal: theme.spacing.xl,
+    paddingBottom: theme.spacing.md,
+    backgroundColor: theme.colors.navy,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modalHeaderBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  modalTitle: {
+    color: theme.colors.white,
+    fontFamily: theme.typography.fontFamily.semiBold,
+    fontSize: theme.typography.fontSize.lg,
+  },
+  modalBody: { padding: theme.spacing.xl },
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: theme.spacing.md,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+  },
+  infoText: { color: theme.colors.mutedTextOnDark, fontFamily: theme.typography.fontFamily.medium },
+  searchWrap: {
+    marginTop: theme.spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.md,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+  },
+  searchInput: {
+    flex: 1,
+    color: theme.colors.textOnDark,
+    fontFamily: theme.typography.fontFamily.regular,
+  },
+  modalSectionRow: { marginTop: theme.spacing.lg },
+  modalSectionTitle: {
+    color: theme.colors.mutedTextOnDark,
+    fontFamily: theme.typography.fontFamily.semiBold,
+    fontSize: theme.typography.fontSize.sm,
+  },
+  modalList: { marginTop: theme.spacing.md, gap: theme.spacing.sm },
+  modalEmpty: { color: theme.colors.mutedTextOnDark, fontFamily: theme.typography.fontFamily.regular },
+  modalItemRow: { flexDirection: 'row', gap: theme.spacing.md, alignItems: 'center' },
+  dragBox: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalItem: {
+    flex: 1,
+    height: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: theme.spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modalItemLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  modalItemIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalItemLabel: {
+    color: theme.colors.textOnDark,
+    fontFamily: theme.typography.fontFamily.medium,
+  },
+  modalItemRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  reorderBtns: { flexDirection: 'row', alignItems: 'center' },
+  reorderBtn: { width: 26, height: 26, alignItems: 'center', justifyContent: 'center' },
+  checkPill: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: theme.colors.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  dividerRow: {
+    marginTop: theme.spacing.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+  },
+  dividerLine: { flex: 1, height: 1, backgroundColor: theme.colors.border },
+  dividerText: {
+    color: theme.colors.mutedTextOnDark,
+    fontFamily: theme.typography.fontFamily.medium,
+    fontSize: theme.typography.fontSize.xs,
+  },
+});

@@ -1,0 +1,43 @@
+# dependencies
+node_modules/
+
+# env / secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.p8
+*.p12
+*.jks
+*.mobileprovision
+
+# build output
+dist/
+web-build/
+.expo/
+.kotlin/
+*.tsbuildinfo
+
+# logs / debug
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.metro-health-check*
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.cursor/
+*.swp
+debug*.log
+
+# test / coverage
+coverage/
+
+# generated native (Expo prebuild)
+apps/mobile/ios/
+apps/mobile/android/

@@ -1,0 +1,191 @@
+import React, { useEffect, useState } from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { HomeStack } from './HomeStack';
+import { InboxStack } from './InboxStack';
+import { SearchStack } from './SearchStack';
+import { CalendarStack } from './CalendarStack';
+import { AppsStack } from './AppsStack';
+import { theme } from '../theme';
+import { shouldHideTabBar } from './tabBarVisibility';
+import { TAB_BAR_BASE_HEIGHT } from '../lib/safeArea';
+import { useAppState } from '../state/AppState';
+import { api, withAuthHeaders } from '../lib/api';
+
+export type MainTabParamList = {
+  HomeTab: undefined;
+  InboxTab: undefined;
+  SearchTab: undefined;
+  CalendarTab: undefined;
+  AppsTab: undefined;
+};
+
+const Tab = createBottomTabNavigator<MainTabParamList>();
+
+function TabIcon({
+  focused,
+  color,
+  name,
+  outlineName,
+}: {
+  focused: boolean;
+  color: string;
+  name: keyof typeof Ionicons.glyphMap;
+  outlineName: keyof typeof Ionicons.glyphMap;
+}) {
+  return (
+    <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+      <Ionicons name={focused ? name : outlineName} size={22} color={color} />
+    </View>
+  );
+}
+
+export function MainTabs() {
+  const { token, locationId } = useAppState();
+  const [unreadCount, setUnreadCount] = useState(0);
+  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    let alive = true;
+    async function loadUnread() {
+      if (!token || !locationId) return;
+      try {
+        const res = await api.getJson<{ conversations: { unreadCount?: number }[] }>(
+          '/api/conversations?limit=30',
+          { headers: withAuthHeaders({ token, locationId }) },
+        );
+        const unread = (res.conversations ?? []).reduce((sum, c) => sum + (c.unreadCount ?? 0), 0);
+        if (alive) setUnreadCount(unread);
+      } catch {
+        if (alive) setUnreadCount(0);
+      }
+    }
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    loadUnread();
+    const timer = setInterval(() => {
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      loadUnread();
+    }, 30000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [token, locationId]);
+
+  const tabBarHeight = TAB_BAR_BASE_HEIGHT + Math.max(insets.bottom, Platform.OS === 'android' ? 10 : 0);
+
+  const baseTabBarStyle = {
+    backgroundColor: theme.colors.tabBar,
+    borderTopColor: theme.colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingBottom: Math.max(insets.bottom, 8),
+    paddingTop: 6,
+    height: tabBarHeight,
+  } as const;
+
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => {
+        const hideTabBar = shouldHideTabBar(route.name, route);
+        return {
+        headerShown: false,
+        sceneStyle: { backgroundColor: theme.colors.shell },
+        lazy: true,
+        tabBarActiveTintColor: theme.colors.white,
+        tabBarInactiveTintColor: theme.colors.mutedTextOnDark,
+        tabBarStyle: hideTabBar ? { display: 'none' } : baseTabBarStyle,
+        tabBarLabelStyle: {
+          fontFamily: theme.typography.fontFamily.medium,
+          fontSize: 11,
+          marginTop: 2,
+          marginBottom: 2,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 2,
+        },
+      };
+      }}
+    >
+      <Tab.Screen
+        name="HomeTab"
+        component={HomeStack}
+        options={{
+          title: 'Home',
+          tabBarIcon: ({ focused, color }) => (
+            <TabIcon focused={focused} color={color} name="home" outlineName="home-outline" />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="InboxTab"
+        component={InboxStack}
+        options={{
+          title: 'Conversations',
+          tabBarBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
+          tabBarBadgeStyle: {
+            backgroundColor: theme.colors.danger,
+            color: theme.colors.white,
+            fontFamily: theme.typography.fontFamily.semiBold,
+            fontSize: 10,
+            minWidth: 18,
+            height: 18,
+            lineHeight: 18,
+          },
+          tabBarIcon: ({ focused, color }) => (
+            <TabIcon
+              focused={focused}
+              color={color}
+              name="chatbubble-ellipses"
+              outlineName="chatbubble-outline"
+            />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="SearchTab"
+        component={SearchStack}
+        options={{
+          title: 'Search',
+          tabBarIcon: ({ focused, color }) => (
+            <TabIcon focused={focused} color={color} name="search" outlineName="search-outline" />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="CalendarTab"
+        component={CalendarStack}
+        options={{
+          title: 'Calendar',
+          tabBarIcon: ({ focused, color }) => (
+            <TabIcon focused={focused} color={color} name="calendar" outlineName="calendar-outline" />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="AppsTab"
+        component={AppsStack}
+        options={{
+          title: 'Apps',
+          tabBarIcon: ({ focused, color }) => (
+            <TabIcon focused={focused} color={color} name="apps" outlineName="apps-outline" />
+          ),
+        }}
+      />
+    </Tab.Navigator>
+  );
+}
+
+const styles = StyleSheet.create({
+  iconWrap: {
+    width: 40,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+  },
+  iconWrapActive: {
+    backgroundColor: theme.colors.primary,
+  },
+});

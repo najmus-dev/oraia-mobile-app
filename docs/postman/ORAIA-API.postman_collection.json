@@ -1,0 +1,353 @@
+{
+  "info": {
+    "name": "ORAIA API (local)",
+    "description": "Import into Postman. Run **Auth → Login** first (saves `jwt`). Set `locationId` from **Locations → List**.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "jwt", "value": "" },
+    { "key": "locationId", "value": "3DJrkXHfHtMC0bCdn6wH" },
+    { "key": "contactId", "value": "" },
+    { "key": "conversationId", "value": "" },
+    { "key": "opportunityId", "value": "" },
+    { "key": "eventId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt}}" }],
+            "url": "{{baseUrl}}/api/auth/me"
+          }
+        },
+        {
+          "name": "Create staff user (admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"staff@example.com\",\n  \"password\": \"ChangeMe123!\",\n  \"role\": \"staff\",\n  \"allowedLocationIds\": [\"{{locationId}}\"]\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/users"
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  pm.collectionVariables.set('jwt', pm.response.json().token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@oraiacrm.com\",\n  \"password\": \"YOUR_PASSWORD\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Locations",
+      "item": [
+        {
+          "name": "List installed",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{jwt}}" }],
+            "url": "{{baseUrl}}/api/locations"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Contacts",
+      "item": [
+        {
+          "name": "List",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" },
+              { "key": "X-Location-Id", "value": "{{locationId}}" }
+            ],
+            "url": "{{baseUrl}}/api/contacts?limit=20"
+          }
+        },
+        {
+          "name": "Get by id",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" },
+              { "key": "X-Location-Id", "value": "{{locationId}}" }
+            ],
+            "url": "{{baseUrl}}/api/contacts/{{contactId}}"
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" },
+              { "key": "X-Location-Id", "value": "{{locationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Test\",\n  \"lastName\": \"FromPostman\",\n  \"email\": \"test@example.com\"\n}"
+            },
+            "url": "{{baseUrl}}/api/contacts"
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" },
+              { "key": "X-Location-Id", "value": "{{locationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Updated\"\n}"
+            },
+            "url": "{{baseUrl}}/api/contacts/{{contactId}}"
+          }
+        },
+        {
+          "name": "Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" },
+              { "key": "X-Location-Id", "value": "{{locationId}}" }
+            ],
+            "url": "{{baseUrl}}/api/contacts/{{contactId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Conversations",
+      "item": [
+        {
+          "name": "Search",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" },
+              { "key": "X-Location-Id", "value": "{{locationId}}" }
+            ],
+            "url": "{{baseUrl}}/api/conversations?limit=20"
+          }
+        },
+        {
+          "name": "Messages",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" },
+              { "key": "X-Location-Id", "value": "{{locationId}}" }
+            ],
+            "url": "{{baseUrl}}/api/conversations/{{conversationId}}/messages"
+          }
+        },
+        {
+          "name": "Send message",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" },
+              { "key": "X-Location-Id", "value": "{{locationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"SMS\",\n  \"contactId\": \"{{contactId}}\",\n  \"message\": \"Hello from ORAIA API\"\n}"
+            },
+            "url": "{{baseUrl}}/api/conversations/messages"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Calendar",
+      "item": [
+        {
+          "name": "List calendars",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" },
+              { "key": "X-Location-Id", "value": "{{locationId}}" }
+            ],
+            "url": "{{baseUrl}}/api/calendar/calendars"
+          }
+        },
+        {
+          "name": "Events",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" },
+              { "key": "X-Location-Id", "value": "{{locationId}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/calendar/events?startTime=2026-01-01T00:00:00.000Z&endTime=2026-12-31T23:59:59.000Z",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "calendar", "events"],
+              "query": [
+                { "key": "startTime", "value": "2026-01-01T00:00:00.000Z" },
+                { "key": "endTime", "value": "2026-12-31T23:59:59.000Z" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get appointment",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" },
+              { "key": "X-Location-Id", "value": "{{locationId}}" }
+            ],
+            "url": "{{baseUrl}}/api/calendar/appointments/{{eventId}}"
+          }
+        },
+        {
+          "name": "Create appointment",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" },
+              { "key": "X-Location-Id", "value": "{{locationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"calendarId\": \"\",\n  \"contactId\": \"{{contactId}}\",\n  \"startTime\": \"2026-06-01T10:00:00.000Z\",\n  \"endTime\": \"2026-06-01T11:00:00.000Z\",\n  \"title\": \"ORAIA test appointment\"\n}"
+            },
+            "url": "{{baseUrl}}/api/calendar/appointments"
+          }
+        },
+        {
+          "name": "Delete appointment",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" },
+              { "key": "X-Location-Id", "value": "{{locationId}}" }
+            ],
+            "url": "{{baseUrl}}/api/calendar/appointments/{{eventId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Opportunities",
+      "item": [
+        {
+          "name": "Pipelines",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" },
+              { "key": "X-Location-Id", "value": "{{locationId}}" }
+            ],
+            "url": "{{baseUrl}}/api/opportunities/pipelines"
+          }
+        },
+        {
+          "name": "Search",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" },
+              { "key": "X-Location-Id", "value": "{{locationId}}" }
+            ],
+            "url": "{{baseUrl}}/api/opportunities?limit=20"
+          }
+        },
+        {
+          "name": "Get by id",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" },
+              { "key": "X-Location-Id", "value": "{{locationId}}" }
+            ],
+            "url": "{{baseUrl}}/api/opportunities/{{opportunityId}}"
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" },
+              { "key": "X-Location-Id", "value": "{{locationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pipelineId\": \"\",\n  \"pipelineStageId\": \"\",\n  \"contactId\": \"{{contactId}}\",\n  \"name\": \"ORAIA test deal\",\n  \"status\": \"open\"\n}"
+            },
+            "url": "{{baseUrl}}/api/opportunities"
+          }
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt}}" },
+              { "key": "X-Location-Id", "value": "{{locationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pipelineStageId\": \"STAGE_ID_HERE\"\n}"
+            },
+            "url": "{{baseUrl}}/api/opportunities/{{opportunityId}}"
+          }
+        }
+      ]
+    }
+  ]
+}
