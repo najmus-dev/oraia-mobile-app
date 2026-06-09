@@ -33,11 +33,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     favicon: './assets/oraia-logo.png',
   },
   plugins: [
+    './plugins/withMonorepoAndroid.js',
     '@react-native-community/datetimepicker',
     [
       'expo-notifications',
       {
-        icon: './assets/oraia-logo.png',
+        icon: './assets/icon.png',
         color: '#0E1323',
       },
     ],
