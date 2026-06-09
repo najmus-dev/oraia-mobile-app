@@ -16,6 +16,7 @@ import {
   type InboxFilter,
   type InboxTab,
   buildConversationsQuery,
+  normalizeConversationCursor,
 } from '../lib/conversations';
 import { getCachedContactChannels, prefetchContactChannels } from '../lib/contactCache';
 import {
@@ -122,7 +123,7 @@ export function ConversationsScreen({ navigation, route }: Props) {
         if (seq !== loadSeq.current) return;
         const list = res.conversations ?? [];
         setConversations((prev) => (opts?.more ? [...prev, ...list] : list));
-        setNextCursor(res.nextStartAfterDate);
+        setNextCursor(normalizeConversationCursor(res.nextStartAfterDate));
         setHasLoaded(true);
         setLoadError(null);
         const ids = list.map((c) => c.contactId).filter((id): id is string => Boolean(id?.trim()));

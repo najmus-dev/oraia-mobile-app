@@ -48,6 +48,13 @@ import {
   resolveMessageChannel,
   resolveSendChannels,
 } from '../lib/messageFormat';
+import {
+  buildInvertedThreadRows,
+  mergeThreadMessages,
+  prependOlderMessages,
+  sortMessagesChronologically,
+  type ThreadRow,
+} from '../lib/threadMessages';
 import type { InboxStackParamList } from '../navigation/InboxStack';
 
 type Props = NativeStackScreenProps<InboxStackParamList, 'ConversationThread'>;
@@ -57,47 +64,6 @@ type MessagesResponse = {
   nextPage?: boolean;
   lastMessageId?: string;
 };
-
-type ThreadRow =
-  | { kind: 'day'; key: string; label: string }
-  | { kind: 'message'; key: string; message: ConversationMessage; pending?: boolean; failed?: boolean };
-
-function formatDay(iso?: string) {
-  if (!iso) return '';
-  try {
-    return new Date(iso).toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  } catch {
-    return '';
-  }
-}
-
-function buildThreadRows(messages: ConversationMessage[]): ThreadRow[] {
-  const rows: ThreadRow[] = [];
-  let lastDay = '';
-  for (const message of messages) {
-    const day = formatDay(message.dateAdded);
-    if (day && day !== lastDay) {
-      rows.push({ kind: 'day', key: `day-${day}`, label: day });
-      lastDay = day;
-    }
-    const pending = message.id.startsWith('pending-');
-    const failed = message.id.startsWith('failed-');
-    rows.push({ kind: 'message', key: message.id, message, pending, failed });
-  }
-  return rows;
-}
-
-function sortMessagesChronologically(list: ConversationMessage[]) {
-  return list.slice().sort((a, b) => {
-    const ta = new Date(a.dateAdded ?? 0).getTime();
-    const tb = new Date(b.dateAdded ?? 0).getTime();
-    return ta - tb;
-  });
-}
 
 export function ConversationThreadScreen({ navigation, route }: Props) {
   const {
@@ -132,7 +98,10 @@ export function ConversationThreadScreen({ navigation, route }: Props) {
   const [attachmentUrls, setAttachmentUrls] = useState<string[]>([]);
   const [attaching, setAttaching] = useState(false);
   const listRef = useRef<FlatList<ThreadRow>>(null);
-  const scrolledOnceRef = useRef(false);
+  const isNearBottomRef = useRef(true);
+  const pendingScrollRef = useRef(false);
+  const skipNextLoadRef = useRef(false);
+  const messageCountRef = useRef(0);
 
   const resolvedContactId = useMemo(() => {
     const fromMessages = resolveConversationContactId(routeContactId, messages);
@@ -140,8 +109,16 @@ export function ConversationThreadScreen({ navigation, route }: Props) {
     return fromMessages || trimmed || undefined;
   }, [routeContactId, messages]);
 
-  const rows = useMemo(() => buildThreadRows(messages), [messages]);
+  const rows = useMemo(() => buildInvertedThreadRows(messages), [messages]);
   const displayName = contactName ?? 'Contact';
+
+  useEffect(() => {
+    messageCountRef.current = messages.length;
+  }, [messages.length]);
+
+  useEffect(() => {
+    setConversationId(initialConversationId);
+  }, [initialConversationId]);
 
   const sendGate = useMemo(() => {
     if (!resolvedContactId) {
@@ -197,7 +174,8 @@ export function ConversationThreadScreen({ navigation, route }: Props) {
       setMessages(page.messages);
       setHasOlder(page.hasOlder);
       setOlderCursor(page.cursor);
-      scrolledOnceRef.current = false;
+      isNearBottomRef.current = true;
+      pendingScrollRef.current = true;
       markConversationReadBestEffort({ token, locationId }, conversationId);
     } catch (e) {
       Alert.alert('Messages', formatError(e));
@@ -212,14 +190,13 @@ export function ConversationThreadScreen({ navigation, route }: Props) {
       if (!opts?.silent) setRefreshing(true);
       try {
         const page = await fetchMessagePage(conversationId);
-        setMessages((prev) => {
-          const pending = prev.filter(
-            (m) => m.id.startsWith('pending-') || m.id.startsWith('failed-'),
-          );
-          return [...page.messages, ...pending];
-        });
+        const hadMessages = messageCountRef.current;
+        setMessages((prev) => mergeThreadMessages(prev, page.messages));
         setHasOlder(page.hasOlder);
         setOlderCursor(page.cursor);
+        if (isNearBottomRef.current || hadMessages === 0) {
+          pendingScrollRef.current = true;
+        }
       } catch (e) {
         if (!opts?.silent) Alert.alert('Messages', formatError(e));
       } finally {
@@ -245,11 +222,7 @@ export function ConversationThreadScreen({ navigation, route }: Props) {
     setLoadingOlder(true);
     try {
       const page = await fetchMessagePage(conversationId, olderCursor);
-      setMessages((prev) => {
-        const ids = new Set(prev.map((m) => m.id));
-        const older = page.messages.filter((m) => !ids.has(m.id));
-        return [...older, ...prev];
-      });
+      setMessages((prev) => prependOlderMessages(prev, page.messages));
       setHasOlder(page.hasOlder);
       setOlderCursor(page.cursor);
     } catch (e) {
@@ -260,13 +233,22 @@ export function ConversationThreadScreen({ navigation, route }: Props) {
   }, [token, locationId, conversationId, hasOlder, olderCursor, loadingOlder, fetchMessagePage]);
 
   useEffect(() => {
-    if (conversationId) {
-      scrolledOnceRef.current = false;
-      // eslint-disable-next-line @typescript-eslint/no-floating-promises
-      loadInitial();
-    } else {
+    if (!conversationId) {
       setInitialLoading(false);
+      setMessages([]);
+      return;
     }
+    if (skipNextLoadRef.current) {
+      skipNextLoadRef.current = false;
+      return;
+    }
+    setMessages([]);
+    setHasOlder(false);
+    setOlderCursor(undefined);
+    isNearBottomRef.current = true;
+    pendingScrollRef.current = true;
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    loadInitial();
   }, [conversationId, loadInitial]);
 
   useEffect(() => {
@@ -296,15 +278,27 @@ export function ConversationThreadScreen({ navigation, route }: Props) {
     };
   }, [token, locationId, resolvedContactId, routePhone, routeEmail]);
 
-  useEffect(() => {
-    if (initialLoading || rows.length === 0 || scrolledOnceRef.current) return;
-    scrolledOnceRef.current = true;
-    const t = setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 80);
-    return () => clearTimeout(t);
-  }, [initialLoading, rows.length]);
+  const scrollToLatest = useCallback((animated = true) => {
+    listRef.current?.scrollToOffset({ offset: 0, animated });
+  }, []);
 
-  function scrollToLatest() {
-    requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+  useEffect(() => {
+    if (initialLoading || rows.length === 0 || !pendingScrollRef.current) return;
+    pendingScrollRef.current = false;
+    scrollToLatest(false);
+    const t = setTimeout(() => scrollToLatest(false), 120);
+    return () => clearTimeout(t);
+  }, [initialLoading, rows.length, scrollToLatest]);
+
+  function handleContentSizeChange() {
+    if (isNearBottomRef.current) {
+      scrollToLatest(false);
+    }
+  }
+
+  function handleScroll(e: { nativeEvent: { contentOffset: { y: number } } }) {
+    // Inverted list: offset 0 is the newest messages at the bottom.
+    isNearBottomRef.current = e.nativeEvent.contentOffset.y < 80;
   }
 
   function openContact() {
@@ -418,6 +412,8 @@ export function ConversationThreadScreen({ navigation, route }: Props) {
     setMessages((prev) => [...prev, optimistic]);
     setDraft('');
     setAttachmentUrls([]);
+    isNearBottomRef.current = true;
+    pendingScrollRef.current = true;
     scrollToLatest();
     setSending(true);
 
@@ -438,14 +434,17 @@ export function ConversationThreadScreen({ navigation, route }: Props) {
 
       const nextConversationId = res.conversationId ?? conversationId;
       if (res.conversationId && res.conversationId !== conversationId) {
+        skipNextLoadRef.current = true;
         setConversationId(res.conversationId);
       }
 
       if (nextConversationId) {
         const page = await fetchMessagePage(nextConversationId);
-        setMessages(page.messages);
+        setMessages((prev) => mergeThreadMessages(prev, page.messages));
         setHasOlder(page.hasOlder);
         setOlderCursor(page.cursor);
+        isNearBottomRef.current = true;
+        pendingScrollRef.current = true;
         scrollToLatest();
       } else {
         setMessages((prev) => prev.filter((m) => m.id !== pendingId));
@@ -610,6 +609,7 @@ export function ConversationThreadScreen({ navigation, route }: Props) {
           <FlatList
             ref={listRef}
             data={rows}
+            inverted={rows.length > 0}
             keyExtractor={(r) => r.key}
             renderItem={renderRow}
             contentContainerStyle={[
@@ -618,13 +618,16 @@ export function ConversationThreadScreen({ navigation, route }: Props) {
             ]}
             refreshing={refreshing}
             onRefresh={conversationId ? () => refreshMessages() : undefined}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+            onContentSizeChange={handleContentSizeChange}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
-            initialNumToRender={16}
-            maxToRenderPerBatch={12}
-            windowSize={9}
+            initialNumToRender={20}
+            maxToRenderPerBatch={16}
+            windowSize={11}
             removeClippedSubviews={Platform.OS === 'android'}
-            ListHeaderComponent={
+            ListFooterComponent={
               hasOlder ? (
                 <Pressable
                   style={styles.loadOlder}
@@ -638,11 +641,13 @@ export function ConversationThreadScreen({ navigation, route }: Props) {
               ) : null
             }
             ListEmptyComponent={
-              <Text style={styles.emptyHint}>
-                {conversationId
-                  ? 'No messages yet. Say hello below.'
-                  : 'New conversation — send your first message below.'}
-              </Text>
+              <View style={styles.emptyWrap}>
+                <Text style={styles.emptyHint}>
+                  {conversationId
+                    ? 'No messages yet. Say hello below.'
+                    : 'New conversation — send your first message below.'}
+                </Text>
+              </View>
             }
           />
         )}
@@ -700,12 +705,18 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
-    marginBottom: theme.spacing.sm,
+    marginTop: theme.spacing.sm,
   },
   loadOlderText: {
     color: theme.colors.link,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
+  },
+  emptyWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: theme.spacing.xl,
+    transform: [{ scaleY: -1 }],
   },
   emptyHint: {
     textAlign: 'center',

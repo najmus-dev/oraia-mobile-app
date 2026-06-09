@@ -4,7 +4,7 @@ import type { ParamListBase, RouteProp } from '@react-navigation/native';
 /** Nested stack routes where the bottom tab bar should be hidden. */
 const HIDE_TAB_BAR: Record<string, readonly string[]> = {
   InboxTab: ['ConversationThread', 'PickContactForMessage'],
-  HomeTab: ['Settings'],
+  HomeTab: ['Notifications', 'Settings'],
   CalendarTab: ['PickContact', 'ScheduleAppointment', 'AppointmentDetail', 'AppointmentForm'],
   AppsTab: [
     'ContactDetail',

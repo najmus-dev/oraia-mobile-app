@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   buildConversationsQuery,
+  normalizeConversationCursor,
   buildSendMessagePayload,
   conversationNameInitials,
   formatConversationPreview,
@@ -28,6 +29,25 @@ describe('buildConversationsQuery', () => {
 
   it('includes assignedTo when provided', () => {
     assert.match(buildConversationsQuery({ assignedTo: 'user_1' }), /assignedTo=user_1/);
+  });
+
+  it('encodes numeric startAfterDate cursors from GHL', () => {
+    const qs = buildConversationsQuery({ startAfterDate: 1_714_000_000_000 });
+    assert.match(qs, /startAfterDate=/);
+    assert.doesNotThrow(() => new URLSearchParams(qs.split('&').pop() ?? ''));
+  });
+});
+
+describe('normalizeConversationCursor', () => {
+  it('accepts ISO strings', () => {
+    assert.equal(normalizeConversationCursor('2026-04-24T12:00:00.000Z'), '2026-04-24T12:00:00.000Z');
+  });
+
+  it('converts epoch milliseconds', () => {
+    assert.equal(
+      normalizeConversationCursor(1_714_000_000_000),
+      new Date(1_714_000_000_000).toISOString(),
+    );
   });
 });
 

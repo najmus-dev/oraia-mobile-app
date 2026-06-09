@@ -1,3 +1,4 @@
+import { normalizeConversationDate } from './conversationDates';
 import type { GhlCalendarEvent, GhlConversation, GhlOpportunity } from '../services/ghl/types';
 import type { GhlClient } from '../services/ghl/ghlClient';
 
@@ -37,7 +38,7 @@ export async function listAllCalendarEvents(
   return dedupeEventsById(batches.flatMap((b) => b.events ?? []));
 }
 
-/** Sums unread counts by paginating conversation search (cursor via startAfterDate). */
+/** Sums unread counts by paginating unread conversations only. */
 export async function sumUnreadConversationCount(
   ghl: GhlClient,
   locationId: string,
@@ -48,12 +49,13 @@ export async function sumUnreadConversationCount(
   for (let page = 0; page < MAX_PAGES; page += 1) {
     const data = await ghl.searchConversations(locationId, {
       limit: PAGE_SIZE,
+      status: 'unread',
       startAfterDate,
     });
     const batch = data.conversations ?? [];
     total += batch.reduce((sum, c: GhlConversation) => sum + (c.unreadCount ?? 0), 0);
     if (batch.length < PAGE_SIZE) break;
-    const lastDate = batch[batch.length - 1]?.lastMessageDate;
+    const lastDate = normalizeConversationDate(batch[batch.length - 1]?.lastMessageDate);
     if (!lastDate || lastDate === startAfterDate) break;
     startAfterDate = lastDate;
   }
@@ -65,11 +67,13 @@ export async function sumUnreadConversationCount(
 export async function sumOpenPipelineValue(
   ghl: GhlClient,
   locationId: string,
+  opts?: { maxPages?: number },
 ): Promise<number> {
   let total = 0;
   let startAfterId: string | undefined;
+  const maxPages = opts?.maxPages ?? MAX_PAGES;
 
-  for (let page = 0; page < MAX_PAGES; page += 1) {
+  for (let page = 0; page < maxPages; page += 1) {
     const data = await ghl.searchOpportunities(locationId, {
       limit: PAGE_SIZE,
       status: 'open',

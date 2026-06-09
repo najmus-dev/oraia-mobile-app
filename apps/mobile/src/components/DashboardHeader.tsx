@@ -12,8 +12,10 @@ type Props = {
   locationLogoUrl?: string | null;
   onOpenLocation: () => void;
   onRefresh?: () => void;
+  onNotifications?: () => void;
   onSettings?: () => void;
   welcomeName?: string;
+  notificationCount?: number;
 };
 
 export function DashboardHeader({
@@ -22,12 +24,15 @@ export function DashboardHeader({
   locationLogoUrl,
   onOpenLocation,
   onRefresh,
+  onNotifications,
   onSettings,
   welcomeName,
+  notificationCount,
 }: Props) {
   const paddingTop = useHeaderTopPadding();
   const subAccountName = locationDisplayName(locationName);
   const addressLine = locationAddress?.trim() || '';
+  const showBadge = (notificationCount ?? 0) > 0;
 
   return (
     <View style={[styles.header, { paddingTop }]}>
@@ -52,15 +57,16 @@ export function DashboardHeader({
           ) : null}
         </View>
         <View style={styles.headerActions}>
-          {onRefresh ? (
+          {onNotifications ? (
             <Pressable
               style={styles.headerIconBtn}
               hitSlop={8}
-              onPress={onRefresh}
+              onPress={onNotifications}
               accessibilityRole="button"
-              accessibilityLabel="Refresh"
+              accessibilityLabel="Notifications"
             >
-              <Ionicons name="refresh" size={18} color={theme.colors.white} />
+              <Ionicons name="notifications-outline" size={20} color={theme.colors.white} />
+              {showBadge ? <View style={styles.badgeDot} /> : null}
             </Pressable>
           ) : null}
           {onSettings ? (
@@ -71,13 +77,26 @@ export function DashboardHeader({
               accessibilityRole="button"
               accessibilityLabel="Settings"
             >
-              <Ionicons name="settings-outline" size={18} color={theme.colors.white} />
+              <Ionicons name="settings-outline" size={20} color={theme.colors.white} />
             </Pressable>
           ) : null}
         </View>
       </View>
       {welcomeName ? (
-        <Text style={styles.welcomeText}>Welcome, {welcomeName}</Text>
+        <View style={styles.welcomeRow}>
+          <Text style={styles.welcomeText}>Welcome, {welcomeName}</Text>
+          {onRefresh ? (
+            <Pressable
+              style={styles.refreshBtn}
+              hitSlop={8}
+              onPress={onRefresh}
+              accessibilityRole="button"
+              accessibilityLabel="Refresh"
+            >
+              <Ionicons name="refresh" size={20} color={theme.colors.white} />
+            </Pressable>
+          ) : null}
+        </View>
       ) : null}
     </View>
   );
@@ -109,21 +128,40 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
     lineHeight: theme.typography.lineHeight.sm,
   },
-  welcomeText: {
+  welcomeRow: {
     marginTop: theme.spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  welcomeText: {
     color: theme.colors.white,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.xl,
+    flex: 1,
   },
-  headerActions: { flexDirection: 'row', gap: theme.spacing.sm },
+  refreshBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md },
   headerIconBtn: {
     width: 36,
     height: 36,
-    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+  },
+  badgeDot: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.colors.danger,
+    borderWidth: 1.5,
+    borderColor: theme.colors.shellElevated,
   },
 });

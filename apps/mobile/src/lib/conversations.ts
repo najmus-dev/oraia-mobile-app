@@ -61,13 +61,22 @@ export function resolveConversationContactId(
   return messages?.find((m) => m.contactId?.trim())?.contactId?.trim();
 }
 
+/** GHL may return lastMessageDate as ISO string or epoch ms — normalize for pagination. */
+export function normalizeConversationCursor(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return new Date(value).toISOString();
+  }
+  return undefined;
+}
+
 /** Query string for GET /api/conversations (without leading `?`). */
 export function buildConversationsQuery(params: {
   limit?: number;
   query?: string;
   filter?: InboxFilter;
   assignedTo?: string;
-  startAfterDate?: string;
+  startAfterDate?: string | number;
 }): string {
   const limit = Math.min(Math.max(params.limit ?? 60, 1), 100);
   const parts = [`limit=${limit}`];
@@ -79,8 +88,9 @@ export function buildConversationsQuery(params: {
   if (params.assignedTo?.trim()) {
     parts.push(`assignedTo=${encodeURIComponent(params.assignedTo.trim())}`);
   }
-  if (params.startAfterDate?.trim()) {
-    parts.push(`startAfterDate=${encodeURIComponent(params.startAfterDate.trim())}`);
+  const cursor = normalizeConversationCursor(params.startAfterDate);
+  if (cursor) {
+    parts.push(`startAfterDate=${encodeURIComponent(cursor)}`);
   }
   return parts.join('&');
 }

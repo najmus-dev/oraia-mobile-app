@@ -2,49 +2,49 @@ import { Router } from 'express';
 import { locationGet } from '../middleware/locationRoute';
 import { localDayBounds, parseTzOffsetQuery } from '../lib/dashboardDayBounds';
 import {
+  dashboardCacheKey,
+  getDashboardCache,
+  setDashboardCache,
+  type DashboardSummaryPayload,
+} from '../lib/dashboardCache';
+import { countPendingLocationTasks } from '../lib/dashboardTasks';
+import {
   listAllCalendarEvents,
   sumOpenPipelineValue,
   sumUnreadConversationCount,
 } from '../lib/ghlAggregates';
+import { logger } from '../lib/logger';
 import { getLocationGhlClient } from '../services/tokenVault';
 
 export const dashboardRouter = Router();
 
-async function countPendingTasks(
-  ghl: ReturnType<typeof getLocationGhlClient>,
-  locationId: string,
-): Promise<number> {
-  let count = 0;
-  let skip = 0;
-  for (let page = 0; page < 10; page += 1) {
-    const data = await ghl.searchLocationTasks(locationId, {
-      completed: false,
-      limit: 100,
-      skip,
-    });
-    const batch = data.tasks ?? [];
-    count += batch.filter((t) => !t.completed).length;
-    if (batch.length < 100) break;
-    skip += batch.length;
-  }
-  return count;
+function settledValue<T>(result: PromiseSettledResult<T>, fallback: T): T {
+  if (result.status === 'fulfilled') return result.value;
+  logger.warn('Dashboard aggregate failed', { reason: result.reason });
+  return fallback;
 }
 
-locationGet(dashboardRouter, '/summary', async (req, res) => {
-  const locationId = req.locationId!;
+async function buildDashboardSummary(
+  locationId: string,
+  tzOffset: number,
+): Promise<DashboardSummaryPayload> {
   const ghl = getLocationGhlClient(locationId);
-  const tzOffset = parseTzOffsetQuery(req.query.tzOffset);
   const { start: dayStart, end: dayEnd } = localDayBounds(tzOffset);
 
-  const [allTodayEvents, unreadCount, pipelineValue, pendingTasks] = await Promise.all([
+  const [eventsResult, unreadResult, pipelineResult, tasksResult] = await Promise.allSettled([
     listAllCalendarEvents(ghl, locationId, {
       startTime: dayStart.toISOString(),
       endTime: dayEnd.toISOString(),
     }),
     sumUnreadConversationCount(ghl, locationId),
-    sumOpenPipelineValue(ghl, locationId),
-    countPendingTasks(ghl, locationId),
+    sumOpenPipelineValue(ghl, locationId, { maxPages: 8 }),
+    countPendingLocationTasks(ghl, locationId),
   ]);
+
+  const allTodayEvents = settledValue(eventsResult, []);
+  const unreadCount = settledValue(unreadResult, 0);
+  const pipelineValue = settledValue(pipelineResult, 0);
+  const pendingTasks = settledValue(tasksResult, 0);
 
   const todayEvents = allTodayEvents
     .filter((e) => e.id)
@@ -57,14 +57,32 @@ locationGet(dashboardRouter, '/summary', async (req, res) => {
     .sort((a, b) => new Date(a.startTime ?? 0).getTime() - new Date(b.startTime ?? 0).getTime())
     .slice(0, 3);
 
-  const todayAppointmentCount = allTodayEvents.length;
-
-  res.json({
+  return {
     locationId,
     todayEvents,
-    todayAppointmentCount,
+    todayAppointmentCount: allTodayEvents.length,
     unreadCount,
     pipelineValue,
     pendingTasks,
-  });
+  };
+}
+
+locationGet(dashboardRouter, '/summary', async (req, res) => {
+  const locationId = req.locationId!;
+  const tzOffset = parseTzOffsetQuery(req.query.tzOffset);
+  const { start: dayStart } = localDayBounds(tzOffset);
+  const cacheKey = dashboardCacheKey(locationId, tzOffset, dayStart.toISOString());
+  const forceRefresh = req.query.refresh === '1' || req.query.refresh === 'true';
+
+  if (!forceRefresh) {
+    const cached = getDashboardCache(cacheKey);
+    if (cached) {
+      res.json(cached);
+      return;
+    }
+  }
+
+  const summary = await buildDashboardSummary(locationId, tzOffset);
+  setDashboardCache(cacheKey, summary);
+  res.json(summary);
 });

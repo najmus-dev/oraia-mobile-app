@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
   Alert,
@@ -15,6 +16,13 @@ import { TAB_LIST_BOTTOM_PADDING, useHeaderTopPadding } from '../lib/safeArea';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { api, withAuthHeaders } from '../lib/api';
+import {
+  EMPTY_DASHBOARD_SUMMARY,
+  clientDashboardDayKey,
+  fetchDashboardSummary,
+  readDashboardCache,
+  type DashboardEvent,
+} from '../lib/dashboardSummary';
 import { formatEventRange } from '../lib/dates';
 import { formatError } from '../lib/errors';
 import { navigateToAppointmentDetail } from '../lib/navigation';
@@ -32,8 +40,6 @@ import { LocationSelectSheet } from '../components/LocationSelectSheet';
 import type { HomeStackParamList } from '../navigation/HomeStack';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'HomeMain'>;
-
-type CalendarEvent = { id: string; title?: string; startTime?: string; endTime?: string };
 
 type QuickAction = {
   id: string;
@@ -54,57 +60,80 @@ export function HomeScreen({ navigation }: Props) {
     pinnedAppIds,
     setPinnedAppIds,
   } = useAppState();
-  const [loading, setLoading] = useState(true);
+  const dayKey = useMemo(() => clientDashboardDayKey(), []);
+  const initialSummary = useMemo(
+    () => (locationId ? readDashboardCache(locationId, dayKey) : null),
+    [locationId, dayKey],
+  );
+  const [loading, setLoading] = useState(!initialSummary);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([]);
-  const [todayAppointmentCount, setTodayAppointmentCount] = useState(0);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [pipelineValue, setPipelineValue] = useState(0);
-  const [pendingTasks, setPendingTasks] = useState(0);
+  const [todayEvents, setTodayEvents] = useState<DashboardEvent[]>(
+    initialSummary?.todayEvents ?? EMPTY_DASHBOARD_SUMMARY.todayEvents,
+  );
+  const [todayAppointmentCount, setTodayAppointmentCount] = useState(
+    initialSummary?.todayAppointmentCount ?? 0,
+  );
+  const [unreadCount, setUnreadCount] = useState(initialSummary?.unreadCount ?? 0);
+  const [pipelineValue, setPipelineValue] = useState(initialSummary?.pipelineValue ?? 0);
+  const [pendingTasks, setPendingTasks] = useState(initialSummary?.pendingTasks ?? 0);
+  const hasLoadedOnceRef = useRef(Boolean(initialSummary));
   const [locationSheetOpen, setLocationSheetOpen] = useState(false);
   const [editPinnedOpen, setEditPinnedOpen] = useState(false);
   const [pinnedSearch, setPinnedSearch] = useState('');
   const modalHeaderTop = useHeaderTopPadding(true);
 
-  const load = useCallback(async (opts?: { pull?: boolean }) => {
-    if (!token || !locationId) return;
-    if (opts?.pull) setRefreshing(true);
-    else setLoading(true);
-    setLoadError(null);
-    try {
-      const tzOffset = -new Date().getTimezoneOffset();
-      const summary = await api.getJson<{
-        todayEvents: CalendarEvent[];
-        todayAppointmentCount: number;
-        unreadCount: number;
-        pipelineValue: number;
-        pendingTasks: number;
-      }>(`/api/dashboard/summary?tzOffset=${tzOffset}`, {
-        headers: withAuthHeaders({ token, locationId }),
-      });
-      setTodayEvents(summary.todayEvents ?? []);
-      setTodayAppointmentCount(summary.todayAppointmentCount ?? summary.todayEvents?.length ?? 0);
-      setUnreadCount(summary.unreadCount ?? 0);
-      setPipelineValue(summary.pipelineValue ?? 0);
-      setPendingTasks(summary.pendingTasks ?? 0);
-    } catch (e) {
-      setLoadError(formatError(e));
-      setTodayEvents([]);
-      setTodayAppointmentCount(0);
-      setUnreadCount(0);
-      setPipelineValue(0);
-      setPendingTasks(0);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [token, locationId]);
+  const applySummary = useCallback((summary: typeof EMPTY_DASHBOARD_SUMMARY) => {
+    setTodayEvents(summary.todayEvents);
+    setTodayAppointmentCount(summary.todayAppointmentCount);
+    setUnreadCount(summary.unreadCount);
+    setPipelineValue(summary.pipelineValue);
+    setPendingTasks(summary.pendingTasks);
+  }, []);
+
+  const load = useCallback(
+    async (opts?: { pull?: boolean; force?: boolean; silent?: boolean }) => {
+      if (!token || !locationId) return;
+      const cached = readDashboardCache(locationId, dayKey);
+      if (opts?.pull) setRefreshing(true);
+      else if (!opts?.silent && !cached) setLoading(true);
+      setLoadError(null);
+      try {
+        const summary = await fetchDashboardSummary(
+          { token, locationId },
+          { force: opts?.force || opts?.pull },
+        );
+        applySummary(summary);
+        hasLoadedOnceRef.current = true;
+      } catch (e) {
+        if (!cached && !hasLoadedOnceRef.current) {
+          applySummary(EMPTY_DASHBOARD_SUMMARY);
+        }
+        setLoadError(formatError(e));
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [token, locationId, dayKey, applySummary],
+  );
 
   useEffect(() => {
+    hasLoadedOnceRef.current = Boolean(readDashboardCache(locationId, dayKey));
+    const cached = readDashboardCache(locationId, dayKey);
+    if (cached) applySummary(cached);
+    setLoading(!cached);
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    load();
-  }, [load]);
+    load({ silent: Boolean(cached) });
+  }, [locationId, dayKey, load, applySummary]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!token || !locationId || !hasLoadedOnceRef.current) return;
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      load({ silent: true });
+    }, [token, locationId, load]),
+  );
 
   useEffect(() => {
     const needsEnrich =
@@ -242,9 +271,11 @@ export function HomeScreen({ navigation }: Props) {
         locationAddress={locationAddress}
         locationLogoUrl={locationLogoUrl}
         onOpenLocation={() => setLocationSheetOpen(true)}
-        onRefresh={load}
+        onRefresh={() => load({ pull: true })}
+        onNotifications={() => navigation.navigate('Notifications')}
         onSettings={() => navigation.navigate('Settings')}
         welcomeName={firstName}
+        notificationCount={unreadCount}
       />
 
       <ScrollView

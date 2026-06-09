@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
+import { normalizeConversationDate } from '../lib/conversationDates';
 import { enrichConversationAssignees } from '../lib/conversationEnrichment';
 import { AppError } from '../lib/errors';
 import { extractUploadedAttachmentUrls } from '../lib/attachmentUrls';
@@ -22,7 +23,7 @@ function mapConversation(
     contactName?: string;
     fullName?: string;
     lastMessageBody?: string;
-    lastMessageDate?: string;
+    lastMessageDate?: string | number;
     lastMessageType?: string;
     unreadCount?: number;
     starred?: boolean;
@@ -36,7 +37,7 @@ function mapConversation(
     contactId: c.contactId,
     contactName: c.contactName ?? c.fullName,
     lastMessageBody: c.lastMessageBody,
-    lastMessageDate: c.lastMessageDate,
+    lastMessageDate: normalizeConversationDate(c.lastMessageDate),
     lastMessageType: c.lastMessageType,
     unreadCount: c.unreadCount,
     starred: c.starred,
@@ -126,7 +127,9 @@ locationGet(conversationsRouter, '/', async (req, res) => {
     conversations: raw.map((c) => mapConversation(c, assigneeNames)),
     total: data.total,
     nextStartAfterDate:
-      raw.length >= limit && last?.lastMessageDate ? last.lastMessageDate : undefined,
+      raw.length >= limit && last?.lastMessageDate
+        ? normalizeConversationDate(last.lastMessageDate)
+        : undefined,
   });
 });
 

@@ -13,6 +13,7 @@ import { shouldHideTabBar } from './tabBarVisibility';
 import { TAB_BAR_BASE_HEIGHT } from '../lib/safeArea';
 import { useAppState } from '../state/AppState';
 import { api, withAuthHeaders } from '../lib/api';
+import { prefetchDashboardSummary } from '../lib/dashboardSummary';
 
 export type MainTabParamList = {
   HomeTab: undefined;
@@ -46,6 +47,12 @@ export function MainTabs() {
   const { token, locationId } = useAppState();
   const [unreadCount, setUnreadCount] = useState(0);
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    if (token && locationId) {
+      prefetchDashboardSummary({ token, locationId });
+    }
+  }, [token, locationId]);
 
   useEffect(() => {
     let alive = true;

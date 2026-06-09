@@ -49,6 +49,9 @@ export function AppsScreen({ navigation }: Props) {
         locationAddress={locationAddress}
         locationLogoUrl={locationLogoUrl}
         onOpenLocation={() => setLocationSheetOpen(true)}
+        onNotifications={() =>
+          parentNav?.navigate('HomeTab' as never, { screen: 'Notifications' } as never)
+        }
         onSettings={() =>
           parentNav?.navigate('HomeTab' as never, { screen: 'Settings' } as never)
         }
