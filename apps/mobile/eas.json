@@ -7,14 +7,12 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "installCommand": "cd ../.. && npm ci",
       "android": {
         "buildType": "apk"
       }
     },
     "preview": {
       "distribution": "internal",
-      "installCommand": "cd ../.. && npm ci",
       "android": {
         "buildType": "apk"
       },
@@ -23,7 +21,6 @@
       }
     },
     "production": {
-      "installCommand": "cd ../.. && npm ci",
       "android": {
         "buildType": "app-bundle"
       },
