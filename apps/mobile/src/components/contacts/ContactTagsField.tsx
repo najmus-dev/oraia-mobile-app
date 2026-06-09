@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { api, withAuthHeaders } from '../lib/api';
-import { type ContactTag, type ContactTagsResponse } from '../lib/contacts';
-import { formatError } from '../lib/errors';
-import { theme } from '../theme';
-import { BottomSheet } from './BottomSheet';
-import { FormFieldLabel } from './contacts/FormFieldLabel';
+import { api, withAuthHeaders } from '../../lib/api';
+import { type ContactTag, type ContactTagsResponse } from '../../lib/contacts';
+import { formatError } from '../../lib/errors';
+import { theme } from '../../theme';
+import { BottomSheet } from '../BottomSheet';
+import { FormFieldLabel } from './FormFieldLabel';
 
 export function ContactTagsField({
   token,
