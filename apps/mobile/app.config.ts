@@ -8,11 +8,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   slug: 'oraia-mobile',
   version: '1.0.0',
   orientation: 'portrait',
-  icon: './assets/oraia logo.png',
+  icon: './assets/oraia-logo.png',
   userInterfaceStyle: 'dark',
   newArchEnabled: true,
   splash: {
-    image: './assets/oraia logo.png',
+    image: './assets/oraia-logo.png',
     resizeMode: 'contain',
     backgroundColor: '#0E1323',
   },
@@ -22,7 +22,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     adaptiveIcon: {
-      foregroundImage: './assets/oraia logo.png',
+      foregroundImage: './assets/oraia-logo.png',
       backgroundColor: '#0E1323',
     },
     package: 'com.oraiacrm.app',
@@ -30,14 +30,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     predictiveBackGestureEnabled: false,
   },
   web: {
-    favicon: './assets/oraia logo.png',
+    favicon: './assets/oraia-logo.png',
   },
   plugins: [
     '@react-native-community/datetimepicker',
     [
       'expo-notifications',
       {
-        icon: './assets/oraia logo.png',
+        icon: './assets/oraia-logo.png',
         color: '#0E1323',
       },
     ],

@@ -1,7 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
 import { theme } from '../theme';
-import agencyLogo from '../../assets/oraia logo.png';
+import agencyLogo from '../../assets/oraia-logo.png';
 
 export function AppLoadingScreen({ message = 'Loading…' }: { message?: string }) {
   return (

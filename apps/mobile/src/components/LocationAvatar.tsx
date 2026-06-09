@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { theme } from '../theme';
 import { isAgencyBrandLocation, locationInitials } from '../lib/locationDisplay';
-import agencyLogo from '../../assets/oraia logo.png';
+import agencyLogo from '../../assets/oraia-logo.png';
 
 type Props = {
   name?: string | null;

@@ -18,7 +18,7 @@ import { theme } from '../theme';
 import { useAppState } from '../state/AppState';
 import type { RootStackParamList } from '../navigation/types';
 import { Button } from '../components/Button';
-import agencyLogo from '../../assets/oraia logo.png';
+import agencyLogo from '../../assets/oraia-logo.png';
 import { Image } from 'react-native';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
