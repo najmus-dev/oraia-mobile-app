@@ -11,6 +11,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   icon: './assets/oraia-logo.png',
   userInterfaceStyle: 'dark',
   newArchEnabled: true,
+  experiments: {
+    autolinkingModuleResolution: true,
+  },
   splash: {
     image: './assets/oraia-logo.png',
     resizeMode: 'contain',
@@ -38,7 +41,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       'expo-notifications',
       {
-        icon: './assets/icon.png',
+        icon: './assets/oraia-logo.png',
         color: '#0E1323',
       },
     ],

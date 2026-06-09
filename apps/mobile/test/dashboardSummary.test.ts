@@ -4,7 +4,7 @@ import {
   clearDashboardCache,
   readDashboardCache,
   writeDashboardCache,
-} from '../src/lib/dashboardSummary';
+} from '../src/lib/dashboardSummaryCache';
 
 describe('dashboardSummary cache', () => {
   beforeEach(() => {
