@@ -4,6 +4,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -17,9 +18,9 @@ import { formatError } from '../lib/errors';
 import { theme } from '../theme';
 import { useAppState } from '../state/AppState';
 import type { RootStackParamList } from '../navigation/types';
+import { AuthShell } from '../components/AuthShell';
+import { BrandLockup } from '../components/BrandLockup';
 import { Button } from '../components/Button';
-import agencyLogo from '../../assets/oraia-logo.png';
-import { Image } from 'react-native';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
@@ -72,138 +73,144 @@ export function LoginScreen(_props: Props) {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.select({ ios: 'padding', android: undefined })}
-      >
-      <View style={styles.brandWrap}>
-        <Image source={agencyLogo} style={styles.logo} />
-        <Text style={styles.title}>ORAIA CRM</Text>
-        <Text style={styles.subtitle}>Welcome back. Sign in to continue.</Text>
-      </View>
-
-      <View style={styles.form}>
-        <Text style={styles.fieldLabel}>Work Email</Text>
-        <TextInput
-          value={email}
-          onChangeText={setEmail}
-          onBlur={() => setEmailTouched(true)}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          textContentType="emailAddress"
-          autoComplete="email"
-          editable={!loading}
-          style={[styles.input, emailError ? styles.inputError : null]}
-          placeholder="you@company.com"
-          placeholderTextColor={theme.colors.mutedText}
-          returnKeyType="next"
-        />
-        {!!emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
-
-        <View style={styles.fieldGap} />
-
-        <Text style={styles.fieldLabel}>Password</Text>
-        <View style={[styles.passwordWrap, passwordError ? styles.inputError : null]}>
-          <TextInput
-            value={password}
-            onChangeText={setPassword}
-            onBlur={() => setPasswordTouched(true)}
-            secureTextEntry={!showPassword}
-            textContentType="password"
-            autoComplete="password"
-            autoCorrect={false}
-            editable={!loading}
-            style={styles.passwordInput}
-            placeholder="Enter your password"
-            placeholderTextColor={theme.colors.mutedText}
-            returnKeyType="done"
-            onSubmitEditing={() => {
-              if (canSubmit) {
-                // eslint-disable-next-line @typescript-eslint/no-floating-promises
-                onLogin();
-              }
-            }}
-          />
-          <Pressable
-            hitSlop={8}
-            style={styles.eyeBtn}
-            onPress={() => setShowPassword((v) => !v)}
-            accessibilityRole="button"
-            accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+    <AuthShell>
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <ScrollView
+            contentContainerStyle={styles.scroll}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
-            <Ionicons
-              name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-              size={18}
-              color={theme.colors.mutedText}
-            />
-          </Pressable>
-        </View>
-        {!!passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
+            <View style={styles.brandWrap}>
+              <BrandLockup size="compact" tagline="Sign in to your agency workspace" />
+            </View>
 
-        <Button
-          title={loading ? 'Signing in…' : 'Sign in'}
-          onPress={onLogin}
-          disabled={!canSubmit}
-          style={{ marginTop: theme.spacing.xl }}
-        />
-        <Text style={styles.helper}>
-          Use your agency admin or staff credentials provisioned in ORAIA API.
-        </Text>
-      </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+            <View style={styles.form}>
+              <Text style={styles.formTitle}>Welcome back</Text>
+              <Text style={styles.formSubtitle}>Enter your credentials to continue.</Text>
+
+              <Text style={styles.fieldLabel}>Work email</Text>
+              <TextInput
+                value={email}
+                onChangeText={setEmail}
+                onBlur={() => setEmailTouched(true)}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                textContentType="emailAddress"
+                autoComplete="email"
+                editable={!loading}
+                style={[styles.input, emailError ? styles.inputError : null]}
+                placeholder="you@company.com"
+                placeholderTextColor={theme.colors.mutedText}
+                returnKeyType="next"
+              />
+              {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
+
+              <Text style={[styles.fieldLabel, styles.fieldLabelSpaced]}>Password</Text>
+              <View style={[styles.passwordWrap, passwordError ? styles.inputError : null]}>
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  onBlur={() => setPasswordTouched(true)}
+                  secureTextEntry={!showPassword}
+                  textContentType="password"
+                  autoComplete="password"
+                  autoCorrect={false}
+                  editable={!loading}
+                  style={styles.passwordInput}
+                  placeholder="Enter your password"
+                  placeholderTextColor={theme.colors.mutedText}
+                  returnKeyType="done"
+                  onSubmitEditing={() => {
+                    if (canSubmit) {
+                      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+                      onLogin();
+                    }
+                  }}
+                />
+                <Pressable
+                  hitSlop={8}
+                  style={styles.eyeBtn}
+                  onPress={() => setShowPassword((v) => !v)}
+                  accessibilityRole="button"
+                  accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={18}
+                    color={theme.colors.mutedText}
+                  />
+                </Pressable>
+              </View>
+              {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
+
+              <Button
+                title={loading ? 'Signing in…' : 'Sign in'}
+                onPress={onLogin}
+                disabled={!canSubmit}
+                style={styles.submitBtn}
+              />
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </AuthShell>
   );
 }
 
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: theme.colors.navy,
   },
-  container: {
+  flex: {
     flex: 1,
-    backgroundColor: theme.colors.navy,
-    paddingHorizontal: theme.spacing.xl,
+  },
+  scroll: {
+    flexGrow: 1,
     justifyContent: 'center',
+    paddingHorizontal: theme.spacing.xl,
+    paddingVertical: theme.spacing.xl,
   },
   brandWrap: {
     alignItems: 'center',
-    marginBottom: theme.spacing['2xl'],
-  },
-  logo: {
-    width: 62,
-    height: 62,
-    borderRadius: 16,
-    marginBottom: theme.spacing.lg,
-  },
-  title: {
-    color: theme.colors.white,
-    fontSize: theme.typography.fontSize['2xl'],
-    lineHeight: theme.typography.lineHeight.xl,
-    fontFamily: theme.typography.fontFamily.bold,
-    letterSpacing: 0.8,
-    textAlign: 'center',
-  },
-  subtitle: {
-    marginTop: theme.spacing.sm,
-    color: 'rgba(255,255,255,0.86)',
-    textAlign: 'center',
-    fontFamily: theme.typography.fontFamily.regular,
-    fontSize: theme.typography.fontSize.sm,
+    marginBottom: theme.spacing.xl,
   },
   form: {
-    borderRadius: 16,
+    borderRadius: 20,
     padding: theme.spacing.xl,
     backgroundColor: theme.colors.white,
     borderWidth: 1,
     borderColor: theme.colors.borderLight,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 6,
+  },
+  formTitle: {
+    color: theme.colors.text,
+    fontFamily: theme.typography.fontFamily.bold,
+    fontSize: theme.typography.fontSize.xl,
+  },
+  formSubtitle: {
+    marginTop: theme.spacing.xs,
+    marginBottom: theme.spacing.lg,
+    color: theme.colors.mutedText,
+    fontFamily: theme.typography.fontFamily.regular,
+    fontSize: theme.typography.fontSize.sm,
+    lineHeight: theme.typography.lineHeight.md,
   },
   fieldLabel: {
     color: theme.colors.text,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
+  },
+  fieldLabelSpaced: {
+    marginTop: theme.spacing.lg,
   },
   input: {
     marginTop: theme.spacing.sm,
@@ -215,6 +222,7 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     backgroundColor: theme.colors.white,
     fontFamily: theme.typography.fontFamily.regular,
+    fontSize: theme.typography.fontSize.md,
   },
   passwordWrap: {
     marginTop: theme.spacing.sm,
@@ -232,6 +240,7 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.md,
     color: theme.colors.text,
     fontFamily: theme.typography.fontFamily.regular,
+    fontSize: theme.typography.fontSize.md,
   },
   eyeBtn: {
     width: 34,
@@ -241,23 +250,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   inputError: {
-    borderColor: '#D14343',
+    borderColor: theme.colors.danger,
   },
   errorText: {
     marginTop: theme.spacing.xs,
-    color: '#D14343',
+    color: theme.colors.danger,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.xs,
   },
-  fieldGap: {
-    height: theme.spacing.lg,
-  },
-  helper: {
-    marginTop: theme.spacing.md,
-    color: theme.colors.mutedText,
-    fontFamily: theme.typography.fontFamily.regular,
-    fontSize: theme.typography.fontSize.xs,
-    textAlign: 'center',
+  submitBtn: {
+    marginTop: theme.spacing.xl,
   },
 });
-

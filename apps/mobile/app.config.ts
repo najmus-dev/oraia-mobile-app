@@ -36,6 +36,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     favicon: './assets/oraia-logo.png',
   },
   plugins: [
+    [
+      'expo-splash-screen',
+      {
+        backgroundColor: '#0E1323',
+        image: './assets/oraia-logo.png',
+        imageWidth: 220,
+        resizeMode: 'contain',
+      },
+    ],
     './plugins/withMonorepoAndroid.js',
     '@react-native-community/datetimepicker',
     [

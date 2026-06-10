@@ -146,25 +146,27 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
         if (storedToken) {
           setToken(storedToken);
-          if (storedLocationId) setLocationId(storedLocationId);
-          try {
-            const refreshed = await fetchAuthMe(storedToken, storedLocationId);
-            if (!alive) return;
-            setUser(refreshed);
-            // eslint-disable-next-line @typescript-eslint/no-floating-promises
-            SecureStore.setItemAsync(STORAGE_KEYS.user, JSON.stringify(refreshed));
-          } catch (e) {
-            if (!alive) return;
-            if (isUnauthorizedError(e)) {
-              clearStoredSession();
-            } else if (parsedUser) {
-              setUser(parsedUser);
-            } else {
-              setToken(null);
+          if (parsedUser) setUser(parsedUser);
+
+          // Validate session in the background — do not block first paint.
+          void (async () => {
+            try {
+              const refreshed = await fetchAuthMe(storedToken, storedLocationId);
+              if (!alive) return;
+              setUser(refreshed);
               // eslint-disable-next-line @typescript-eslint/no-floating-promises
-              SecureStore.deleteItemAsync(STORAGE_KEYS.token);
+              SecureStore.setItemAsync(STORAGE_KEYS.user, JSON.stringify(refreshed));
+            } catch (e) {
+              if (!alive) return;
+              if (isUnauthorizedError(e)) {
+                clearStoredSession();
+              } else if (!parsedUser) {
+                setToken(null);
+                // eslint-disable-next-line @typescript-eslint/no-floating-promises
+                SecureStore.deleteItemAsync(STORAGE_KEYS.token);
+              }
             }
-          }
+          })();
         } else if (parsedUser) {
           // eslint-disable-next-line @typescript-eslint/no-floating-promises
           SecureStore.deleteItemAsync(STORAGE_KEYS.user);

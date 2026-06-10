@@ -2,7 +2,6 @@ import React from 'react';
 import { NavigationContainer, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { RootStackParamList } from './types';
-import { AppLoadingScreen } from '../components/AppLoadingScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { LocationPickerScreen } from '../screens/LocationPickerScreen';
 import { usePushNotifications } from '../hooks/usePushNotifications';
@@ -31,12 +30,8 @@ const navTheme: Theme = {
 };
 
 export function AppNavigator() {
-  const { hydrated, token, locationId } = useAppState();
+  const { token, locationId } = useAppState();
   usePushNotifications();
-
-  if (!hydrated) {
-    return <AppLoadingScreen message="Verifying session…" />;
-  }
 
   const navKey = !token ? 'guest' : !locationId ? 'pick-location' : 'main';
 

@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import {
@@ -6,12 +7,19 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
+import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { AppLoadingScreen } from './src/components/AppLoadingScreen';
-import { AppStateProvider } from './src/state/AppState';
+import { AppStateProvider, useAppState } from './src/state/AppState';
 import { AppNavigator } from './src/navigation/AppNavigator';
+import { ScreenEntrance } from './src/components/ScreenEntrance';
 
-export default function App() {
+SplashScreen.preventAutoHideAsync().catch(() => {
+  /* Splash may already be hidden in dev */
+});
+
+function AppRoot() {
+  const { hydrated } = useAppState();
+  const splashHiddenRef = useRef(false);
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -19,19 +27,38 @@ export default function App() {
     Inter_700Bold,
   });
 
-  if (!fontsLoaded) {
-    return (
-      <SafeAreaProvider>
-        <AppLoadingScreen message="Loading fonts…" />
-      </SafeAreaProvider>
-    );
+  const hideSplash = useCallback(async () => {
+    if (splashHiddenRef.current) return;
+    splashHiddenRef.current = true;
+    await SplashScreen.hideAsync();
+  }, []);
+
+  const ready = fontsLoaded && hydrated;
+
+  useEffect(() => {
+    if (ready) {
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      hideSplash();
+    }
+  }, [ready, hideSplash]);
+
+  if (!ready) {
+    return null;
   }
 
   return (
+    <ScreenEntrance>
+      <AppNavigator />
+      <StatusBar style="light" />
+    </ScreenEntrance>
+  );
+}
+
+export default function App() {
+  return (
     <SafeAreaProvider>
       <AppStateProvider>
-        <AppNavigator />
-        <StatusBar style="light" />
+        <AppRoot />
       </AppStateProvider>
     </SafeAreaProvider>
   );

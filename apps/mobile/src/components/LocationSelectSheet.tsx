@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Modal,
   Pressable,
@@ -22,7 +21,11 @@ import {
 } from '../lib/locationTypes';
 import { useAppState } from '../state/AppState';
 import { theme } from '../theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LocationAvatar } from './LocationAvatar';
+import { AuthShell } from './AuthShell';
+import { BootstrapLoader } from './BootstrapLoader';
+import { ListBusyState } from './ListBusyState';
 
 type Section = {
   key: string;
@@ -36,9 +39,17 @@ type Props = {
   /** First login: must pick a location; backdrop tap won't dismiss. */
   required?: boolean;
   onSelected?: () => void;
+  /** Full-screen onboarding layout for first location pick. */
+  presentation?: 'modal' | 'fullscreen';
 };
 
-export function LocationSelectSheet({ visible, onClose, required, onSelected }: Props) {
+export function LocationSelectSheet({
+  visible,
+  onClose,
+  required,
+  onSelected,
+  presentation = 'modal',
+}: Props) {
   const sheetBottom = useSheetBottomPadding();
   const {
     token,
@@ -184,86 +195,189 @@ export function LocationSelectSheet({ visible, onClose, required, onSelected }: 
     );
   }
 
+  const list = loading && locations.length === 0 ? (
+    presentation === 'fullscreen' ? (
+      <View style={styles.fullscreenLoader}>
+        <BootstrapLoader message="Loading locations…" />
+      </View>
+    ) : (
+      <ListBusyState blocking message="Loading locations…" />
+    )
+  ) : (
+    <SectionList
+      sections={sections}
+      keyExtractor={(item) => item.id}
+      stickySectionHeadersEnabled={false}
+      showsVerticalScrollIndicator
+      style={presentation === 'fullscreen' ? styles.fullscreenList : undefined}
+      contentContainerStyle={styles.listContent}
+      keyboardShouldPersistTaps="handled"
+      renderSectionHeader={({ section }) =>
+        section.title ? (
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionLine} />
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+            <View style={styles.sectionLine} />
+          </View>
+        ) : null
+      }
+      renderItem={({ item, section }) =>
+        renderRow(item, section.key === 'current' || item.id === locationId)
+      }
+      ListEmptyComponent={
+        !loading ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyTitle}>No locations found</Text>
+            <Text style={styles.emptySub}>
+              Install the marketplace app on sub-accounts in GHL, then pull to refresh.
+            </Text>
+            <Pressable onPress={load} style={styles.retryBtn}>
+              <Text style={styles.retryText}>Refresh</Text>
+            </Pressable>
+          </View>
+        ) : null
+      }
+      refreshing={loading}
+      onRefresh={load}
+    />
+  );
+
+  const search = (
+    <View style={styles.searchWrap}>
+      <Ionicons name="search" size={18} color={theme.colors.mutedTextOnDark} />
+      <TextInput
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Search for a sub-account"
+        placeholderTextColor={theme.colors.mutedTextOnDark}
+        style={styles.searchInput}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+    </View>
+  );
+
+  const modalPanel = (
+    <View style={[styles.sheet, { paddingBottom: sheetBottom }]}>
+      <View style={styles.handle} />
+      <View style={styles.sheetHeader}>
+        <Pressable
+          onPress={onClose}
+          hitSlop={12}
+          style={styles.closeBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        >
+          <Ionicons name="close" size={22} color={theme.colors.textOnDark} />
+        </Pressable>
+        <Text style={styles.sheetTitle}>Select Location</Text>
+        <View style={styles.closeBtn} />
+      </View>
+      {search}
+      {list}
+    </View>
+  );
+
+  const fullscreenPanel = (
+    <View style={[styles.fullscreenPanel, { paddingBottom: sheetBottom }]}>
+      <View style={styles.fullscreenTopBar}>
+        <View style={styles.closeBtn} />
+        <Pressable
+          onPress={onClose}
+          hitSlop={12}
+          style={styles.signOutBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Sign out"
+        >
+          <Text style={styles.signOutText}>Sign out</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.fullscreenHeading}>
+        <Text style={styles.fullscreenTitle}>Choose a location</Text>
+        <Text style={styles.fullscreenSubtitle}>
+          Select the sub-account you want to work in today.
+        </Text>
+      </View>
+
+      {search}
+      {list}
+    </View>
+  );
+
+  if (!visible) return null;
+
+  if (presentation === 'fullscreen') {
+    return (
+      <AuthShell>
+        <SafeAreaView style={styles.fullscreenRoot} edges={['top']}>
+          {fullscreenPanel}
+        </SafeAreaView>
+      </AuthShell>
+    );
+  }
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleBackdropPress}>
       <View style={styles.overlay}>
         <Pressable style={styles.backdrop} onPress={handleBackdropPress} />
-        <View style={[styles.sheet, { paddingBottom: sheetBottom }]}>
-          <View style={styles.handle} />
-
-          <View style={styles.sheetHeader}>
-            <Pressable
-              onPress={onClose}
-              hitSlop={12}
-              style={styles.closeBtn}
-              accessibilityRole="button"
-              accessibilityLabel={required ? 'Sign out' : 'Close'}
-            >
-              <Ionicons name="close" size={22} color={theme.colors.textOnDark} />
-            </Pressable>
-            <Text style={styles.sheetTitle}>Select Location</Text>
-            <View style={styles.closeBtn} />
-          </View>
-
-          <View style={styles.searchWrap}>
-            <Ionicons name="search" size={18} color={theme.colors.mutedTextOnDark} />
-            <TextInput
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Search for a sub-account"
-              placeholderTextColor={theme.colors.mutedTextOnDark}
-              style={styles.searchInput}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-          </View>
-
-          {loading && locations.length === 0 ? (
-            <ActivityIndicator color={theme.colors.secondary} style={{ marginTop: theme.spacing.xl }} />
-          ) : (
-            <SectionList
-              sections={sections}
-              keyExtractor={(item) => item.id}
-              stickySectionHeadersEnabled={false}
-              showsVerticalScrollIndicator
-              contentContainerStyle={styles.listContent}
-              keyboardShouldPersistTaps="handled"
-              renderSectionHeader={({ section }) =>
-                section.title ? (
-                  <View style={styles.sectionHeader}>
-                    <View style={styles.sectionLine} />
-                    <Text style={styles.sectionTitle}>{section.title}</Text>
-                    <View style={styles.sectionLine} />
-                  </View>
-                ) : null
-              }
-              renderItem={({ item, section }) =>
-                renderRow(item, section.key === 'current' || item.id === locationId)
-              }
-              ListEmptyComponent={
-                !loading ? (
-                  <View style={styles.empty}>
-                    <Text style={styles.emptyTitle}>No locations found</Text>
-                    <Text style={styles.emptySub}>
-                      Install the marketplace app on sub-accounts in GHL, then pull to refresh.
-                    </Text>
-                    <Pressable onPress={load} style={styles.retryBtn}>
-                      <Text style={styles.retryText}>Refresh</Text>
-                    </Pressable>
-                  </View>
-                ) : null
-              }
-              refreshing={loading}
-              onRefresh={load}
-            />
-          )}
-        </View>
+        {modalPanel}
       </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  fullscreenRoot: {
+    flex: 1,
+    backgroundColor: theme.colors.shell,
+  },
+  fullscreenPanel: {
+    flex: 1,
+    backgroundColor: theme.colors.shell,
+  },
+  fullscreenTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.sm,
+  },
+  signOutBtn: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+  },
+  signOutText: {
+    color: theme.colors.link,
+    fontFamily: theme.typography.fontFamily.semiBold,
+    fontSize: theme.typography.fontSize.sm,
+  },
+  fullscreenHeading: {
+    paddingHorizontal: theme.spacing.xl,
+    paddingBottom: theme.spacing.lg,
+  },
+  fullscreenTitle: {
+    color: theme.colors.textOnDark,
+    fontFamily: theme.typography.fontFamily.bold,
+    fontSize: theme.typography.fontSize['2xl'],
+    lineHeight: theme.typography.lineHeight.xl,
+  },
+  fullscreenSubtitle: {
+    marginTop: theme.spacing.sm,
+    color: theme.colors.mutedTextOnDark,
+    fontFamily: theme.typography.fontFamily.regular,
+    fontSize: theme.typography.fontSize.md,
+    lineHeight: theme.typography.lineHeight.md,
+  },
+  fullscreenLoader: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: theme.spacing['2xl'],
+  },
+  fullscreenList: {
+    flex: 1,
+  },
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',
