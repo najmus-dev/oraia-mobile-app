@@ -13,7 +13,7 @@
 | Conversations | search, messages, send |
 | Calendar | calendars, events, appointments CRUD, **free-slots** |
 | Opportunities | pipelines, search, get, create, update |
-| Jobs | hourly company token refresh |
+| Jobs | company token auto-refresh (every 15 min + on 401) |
 
 **Postman:** `docs/postman/ORAIA-API.postman_collection.json`  
 **Contract:** `docs/api-contract.md`

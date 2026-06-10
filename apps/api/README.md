@@ -49,7 +49,8 @@ See `docs/api-contract.md` and `docs/PROJECT_STATUS.md`.
 - Opportunities create + get by id
 - `DELETE /api/contacts/:id`
 - `GET /api/oauth/callback`, `POST /webhooks/ghl`
-- Hourly token refresh cron
+- GHL token auto-refresh (every 15 min, on startup, on 401 retry)
+- `GET /health/ghl-token` — token expiry monitoring (no secrets)
 
 Set `GHL_OAUTH_REDIRECT_URI` only when you deploy (production OAuth callback). **Local Postman testing does not need webhooks or a tunnel** — tokens come from `.env` and location tokens are created on first CRM call.
 

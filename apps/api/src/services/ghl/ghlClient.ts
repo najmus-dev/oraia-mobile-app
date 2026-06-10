@@ -1,6 +1,13 @@
-import axios, { type AxiosInstance } from 'axios';
+import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 import { config } from '../../config';
 import { GHL_CALENDAR_API_VERSION } from '../../lib/calendarFreeSlots';
+import { AppError } from '../../lib/errors';
+import {
+  buildCompanyAuthCodeBody,
+  buildCompanyRefreshTokenBody,
+  decodeJwtExpiry,
+  resolveGhlTokenExpiry,
+} from '../../lib/ghlOAuth';
 import type {
   GhlCalendarEventsResponse,
   GhlContact,
@@ -20,16 +27,55 @@ import type {
   GhlUsersFilterByEmailResponse,
 } from './types';
 
-const REFRESH_BUFFER_MS = 5 * 60 * 1000;
+export type GhlClientOptions = {
+  /** Invalidate cached token and refresh; GHL request is retried once on 401. */
+  onUnauthorized?: () => Promise<void>;
+};
+
+interface RetryableAxiosConfig extends InternalAxiosRequestConfig {
+  _ghlRetried?: boolean;
+}
+
+function isOAuthTokenRequest(url: string | undefined): boolean {
+  return Boolean(url?.includes('/oauth/token'));
+}
 
 export class GhlClient {
   private readonly http: AxiosInstance;
 
-  constructor(private getAccessToken: () => Promise<string>) {
+  constructor(
+    private getAccessToken: () => Promise<string>,
+    private options?: GhlClientOptions,
+  ) {
     this.http = axios.create({
       baseURL: config.ghl.baseUrl,
       timeout: 30_000,
     });
+
+    this.http.interceptors.response.use(
+      (response) => response,
+      async (error: unknown) => {
+        if (!axios.isAxiosError(error) || !error.config || error.response?.status !== 401) {
+          throw error;
+        }
+
+        const requestConfig = error.config as RetryableAxiosConfig;
+        if (requestConfig._ghlRetried || isOAuthTokenRequest(requestConfig.url)) {
+          throw error;
+        }
+
+        if (!this.options?.onUnauthorized) {
+          throw error;
+        }
+
+        requestConfig._ghlRetried = true;
+        await this.options.onUnauthorized();
+        const token = await this.getAccessToken();
+        requestConfig.headers = requestConfig.headers ?? {};
+        requestConfig.headers.Authorization = `Bearer ${token}`;
+        return this.http.request(requestConfig);
+      },
+    );
   }
 
   private async authHeaders(): Promise<Record<string, string>> {
@@ -649,15 +695,39 @@ export class GhlClient {
   }
 
   async refreshCompanyToken(refreshToken: string): Promise<GhlOAuthTokenResponse> {
-    const body = new URLSearchParams({
-      client_id: config.ghl.clientId,
-      client_secret: config.ghl.clientSecret,
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken,
+    return GhlClient.refreshCompanyTokens(refreshToken);
+  }
+
+  /**
+   * Refresh agency (company) access token per GHL OAuth 2.0 docs.
+   * Requires user_type=Company and redirect_uri matching the marketplace app.
+   */
+  static async refreshCompanyTokens(refreshToken: string): Promise<GhlOAuthTokenResponse> {
+    const redirectUri = config.oauth.redirectUri;
+    if (!redirectUri) {
+      throw new AppError(
+        503,
+        'Set GHL_OAUTH_REDIRECT_URI (must match GHL app redirect URI) for automatic token refresh',
+        'OAUTH_NOT_CONFIGURED',
+      );
+    }
+
+    const body = buildCompanyRefreshTokenBody({
+      clientId: config.ghl.clientId,
+      clientSecret: config.ghl.clientSecret,
+      refreshToken,
+      redirectUri,
     });
-    const { data } = await this.http.post<GhlOAuthTokenResponse>('/oauth/token', body.toString(), {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    });
+    const { data } = await axios.post<GhlOAuthTokenResponse>(
+      `${config.ghl.baseUrl}/oauth/token`,
+      body.toString(),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Accept: 'application/json',
+        },
+      },
+    );
     return data;
   }
 
@@ -666,34 +736,30 @@ export class GhlClient {
     code: string,
     redirectUri: string,
   ): Promise<GhlOAuthTokenResponse> {
-    const body = new URLSearchParams({
-      client_id: config.ghl.clientId,
-      client_secret: config.ghl.clientSecret,
-      grant_type: 'authorization_code',
+    const body = buildCompanyAuthCodeBody({
+      clientId: config.ghl.clientId,
+      clientSecret: config.ghl.clientSecret,
       code,
-      redirect_uri: redirectUri,
+      redirectUri,
     });
     const { data } = await axios.post<GhlOAuthTokenResponse>(
       `${config.ghl.baseUrl}/oauth/token`,
       body.toString(),
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Accept: 'application/json',
+        },
+      },
     );
     return data;
   }
 
-  static tokenExpiresAt(expiresInSeconds: number): Date {
-    return new Date(Date.now() + expiresInSeconds * 1000 - REFRESH_BUFFER_MS);
+  static tokenExpiresAt(expiresInSeconds: number | undefined, accessToken?: string): Date {
+    return resolveGhlTokenExpiry(expiresInSeconds, accessToken);
   }
 
   static decodeJwtExpiry(token: string): Date | null {
-    try {
-      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8')) as {
-        exp?: number;
-      };
-      if (!payload.exp) return null;
-      return new Date(payload.exp * 1000 - REFRESH_BUFFER_MS);
-    } catch {
-      return null;
-    }
+    return decodeJwtExpiry(token);
   }
 }

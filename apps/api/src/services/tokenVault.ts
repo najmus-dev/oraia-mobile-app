@@ -1,6 +1,7 @@
 import { config } from '../config';
 import { decrypt, encrypt } from '../lib/crypto';
 import { AppError } from '../lib/errors';
+import { GHL_REFRESH_BEFORE_MS, tokenNeedsRefresh } from '../lib/ghlOAuth';
 import { logger } from '../lib/logger';
 import { CompanyToken } from '../models/CompanyToken';
 import { LocationToken } from '../models/LocationToken';
@@ -12,14 +13,21 @@ let companyRefreshPromise: Promise<void> | null = null;
 
 export function getGhlClient(): GhlClient {
   if (!companyGhlClient) {
-    companyGhlClient = new GhlClient(() => tokenVault.getCompanyAccessToken());
+    companyGhlClient = new GhlClient(() => tokenVault.getCompanyAccessToken(), {
+      onUnauthorized: () => tokenVault.forceRefreshCompanyToken(),
+    });
   }
   return companyGhlClient;
 }
 
 /** GHL client that uses a sub-account (location) access token. */
 export function getLocationGhlClient(locationId: string): GhlClient {
-  return new GhlClient(() => tokenVault.getLocationAccessToken(locationId));
+  return new GhlClient(() => tokenVault.getLocationAccessToken(locationId), {
+    onUnauthorized: async () => {
+      await LocationToken.deleteOne({ locationId });
+      logger.info('Location token invalidated after GHL 401', { locationId });
+    },
+  });
 }
 
 export const tokenVault = {
@@ -94,12 +102,12 @@ export const tokenVault = {
     if (!record) {
       throw new AppError(
         503,
-        'GHL company token not configured. Run npm run seed or set tokens in .env',
+        'GHL company token not configured. Complete OAuth install or run npm run seed',
         'GHL_TOKEN_MISSING',
       );
     }
 
-    if (record.expiresAt.getTime() <= Date.now()) {
+    if (tokenNeedsRefresh(record.expiresAt)) {
       await this.refreshCompanyToken(record);
       const updated = await CompanyToken.findOne({ companyId: config.ghl.companyId });
       if (!updated) {
@@ -111,18 +119,24 @@ export const tokenVault = {
     return decrypt(record.accessTokenEncrypted);
   },
 
+  /** Force refresh from stored refresh token (e.g. after GHL returns 401). */
+  async forceRefreshCompanyToken(): Promise<void> {
+    const record = await CompanyToken.findOne({ companyId: config.ghl.companyId });
+    if (!record) {
+      throw new AppError(503, 'GHL company token not configured', 'GHL_TOKEN_MISSING');
+    }
+    await this.refreshCompanyToken(record);
+  },
+
   async getLocationAccessToken(locationId: string): Promise<string> {
     const record = await LocationToken.findOne({ locationId });
-    if (record && record.expiresAt.getTime() > Date.now()) {
+    if (record && !tokenNeedsRefresh(record.expiresAt)) {
       return decrypt(record.accessTokenEncrypted);
     }
 
     const companyClient = getGhlClient();
     const tokens = await companyClient.exchangeLocationToken(config.ghl.companyId, locationId);
-    const expiresAt =
-      GhlClient.tokenExpiresAt(tokens.expires_in) ??
-      GhlClient.decodeJwtExpiry(tokens.access_token) ??
-      new Date(Date.now() + 23 * 60 * 60 * 1000);
+    const expiresAt = GhlClient.tokenExpiresAt(tokens.expires_in, tokens.access_token);
 
     await this.upsertLocationTokens({
       locationId,
@@ -154,16 +168,19 @@ export const tokenVault = {
     refreshTokenEncrypted: string;
   }): Promise<void> {
     const refreshToken = decrypt(record.refreshTokenEncrypted);
-    const client = new GhlClient(async () => refreshToken);
-    const tokens = await client.refreshCompanyToken(refreshToken);
-    await this.upsertCompanyTokens({
-      companyId: record.companyId,
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token,
-      expiresAt: GhlClient.tokenExpiresAt(tokens.expires_in),
-      refreshTokenId: tokens.refreshTokenId,
-    });
-    logger.info('Company token refreshed', { companyId: record.companyId });
+    try {
+      const tokens = await GhlClient.refreshCompanyTokens(refreshToken);
+      await this.storeCompanyOAuthResponse(tokens);
+      logger.info('Company token refreshed', { companyId: record.companyId });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error('Company token refresh failed', {
+        companyId: record.companyId,
+        message,
+        hint: 'Re-install the marketplace app or visit /api/oauth/callback with a new auth code',
+      });
+      throw err;
+    }
   },
 
   async storeCompanyOAuthResponse(tokens: GhlOAuthTokenResponse): Promise<void> {
@@ -172,7 +189,7 @@ export const tokenVault = {
       companyId,
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
-      expiresAt: GhlClient.tokenExpiresAt(tokens.expires_in),
+      expiresAt: GhlClient.tokenExpiresAt(tokens.expires_in, tokens.access_token),
       refreshTokenId: tokens.refreshTokenId,
     });
   },
@@ -195,10 +212,37 @@ export const tokenVault = {
 
   async refreshCompanyTokenIfExpiring(): Promise<void> {
     const record = await CompanyToken.findOne({ companyId: config.ghl.companyId });
-    if (!record) return;
-    const expiresInMs = record.expiresAt.getTime() - Date.now();
-    if (expiresInMs < 60 * 60 * 1000) {
+    if (!record) {
+      logger.warn('Token refresh skipped — no company token in database');
+      return;
+    }
+    if (tokenNeedsRefresh(record.expiresAt)) {
       await this.refreshCompanyToken(record);
     }
+  },
+
+  /** Token health for ops — no secrets exposed. */
+  async getCompanyTokenHealth(): Promise<{
+    configured: boolean;
+    oauthRedirectConfigured: boolean;
+    expiresAt?: string;
+    expiresInMinutes?: number;
+    needsRefresh?: boolean;
+  }> {
+    const record = await CompanyToken.findOne({ companyId: config.ghl.companyId });
+    if (!record) {
+      return {
+        configured: false,
+        oauthRedirectConfigured: Boolean(config.oauth.redirectUri),
+      };
+    }
+    const expiresInMs = record.expiresAt.getTime() - Date.now();
+    return {
+      configured: true,
+      oauthRedirectConfigured: Boolean(config.oauth.redirectUri),
+      expiresAt: record.expiresAt.toISOString(),
+      expiresInMinutes: Math.floor(expiresInMs / 60_000),
+      needsRefresh: tokenNeedsRefresh(record.expiresAt),
+    };
   },
 };

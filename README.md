@@ -48,7 +48,7 @@ This API is a **long-running Express server** with MongoDB, background token ref
 - `JWT_SECRET`, `ENCRYPTION_KEY`
 - `GHL_CLIENT_ID`, `GHL_CLIENT_SECRET`, `GHL_COMPANY_ID`
 - `GHL_COMPANY_ACCESS_TOKEN`, `GHL_COMPANY_REFRESH_TOKEN`
-- `GHL_OAUTH_REDIRECT_URI` → `https://oraia-mobile-app.onrender.com/api/oauth/callback`
+- `GHL_OAUTH_REDIRECT_URI` → `https://oraia-mobile-app.onrender.com/api/oauth/callback` (**required** for automatic 24h GHL token refresh)
 - `BOOTSTRAP_ADMIN_PASSWORD`
 - `NODE_ENV` → `production`
 
