@@ -37,15 +37,29 @@ export function buildCompanyAuthCodeBody(params: {
 }
 
 export function decodeJwtExpiry(token: string): Date | null {
+  const payload = decodeJwtPayload(token);
+  if (!payload?.exp) return null;
+  return new Date(payload.exp * 1000 - GHL_REFRESH_BUFFER_MS);
+}
+
+export function decodeJwtPayload(token: string): { exp?: number; userId?: string; sub?: string } | null {
   try {
-    const payload = JSON.parse(
+    return JSON.parse(
       Buffer.from(token.split('.')[1], 'base64url').toString('utf8'),
-    ) as { exp?: number };
-    if (!payload.exp) return null;
-    return new Date(payload.exp * 1000 - GHL_REFRESH_BUFFER_MS);
+    ) as { exp?: number; userId?: string; sub?: string };
   } catch {
     return null;
   }
+}
+
+/** userId on location OAuth tokens — used for calendar event list fallback. */
+export function decodeJwtUserId(token: string): string | undefined {
+  const payload = decodeJwtPayload(token);
+  if (!payload) return undefined;
+  const userId = payload.userId?.trim();
+  if (userId) return userId;
+  const sub = payload.sub?.trim();
+  return sub || undefined;
 }
 
 export function resolveGhlTokenExpiry(

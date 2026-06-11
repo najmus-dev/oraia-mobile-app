@@ -1,22 +1,31 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { api, withAuthHeaders } from '../lib/api';
 import {
-  addDays,
-  endOfMonth,
-  endOfWeekSunday,
   formatDayLabel,
   formatEventRange,
   formatMonthYear,
-  isSameDay,
   startOfDay,
   startOfMonth,
-  startOfWeekSunday,
-  toDateKey,
   toIso,
 } from '../lib/dates';
+import {
+  buildCalendarRangeKey,
+  calendarLoadingState,
+  clampDayInMonth,
+  collectMarkedDates,
+  computeCalendarFetchRange,
+  filterEventsForView,
+  groupEventsByDay,
+  mergeCalendarOptions,
+  shiftVisibleMonth,
+  shiftVisibleWeek,
+  type CalendarListEvent,
+  type CalendarViewMode,
+} from '../lib/calendarView';
 import { formatError } from '../lib/errors';
 import { FAB_LIST_PADDING_BOTTOM } from '../lib/fabLayout';
 import { theme } from '../theme';
@@ -33,48 +42,27 @@ import type { CalendarStackParamList } from '../navigation/CalendarStack';
 
 type Props = NativeStackScreenProps<CalendarStackParamList, 'CalendarList'>;
 
-type CalendarEvent = {
-  id: string;
-  title?: string;
-  startTime?: string;
-  endTime?: string;
-  appointmentStatus?: string;
-};
-
-type ViewMode = 'list' | 'weekly' | 'monthly';
-
-const VIEW_LABELS: Record<ViewMode, string> = {
+const VIEW_LABELS: Record<CalendarViewMode, string> = {
   list: 'List View',
   weekly: 'Weekly View',
   monthly: 'Monthly View',
 };
 
-type CalendarSection = { title: string; data: CalendarEvent[] };
-
-function groupByDay(events: CalendarEvent[]): CalendarSection[] {
-  const map = new Map<string, CalendarEvent[]>();
-  for (const e of events) {
-    const key = e.startTime ? new Date(e.startTime).toDateString() : 'Unknown';
-    const list = map.get(key) ?? [];
-    list.push(e);
-    map.set(key, list);
-  }
-  return Array.from(map.entries())
-    .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
-    .map(([_, items]) => ({
-      title: formatDayLabel(items[0]?.startTime ?? ''),
-      data: items.sort(
-        (a, b) => new Date(a.startTime ?? 0).getTime() - new Date(b.startTime ?? 0).getTime(),
-      ),
-    }));
+function ContentLoadingOverlay({ message }: { message: string }) {
+  return (
+    <View style={styles.contentLoading} pointerEvents="none">
+      <ActivityIndicator color={theme.colors.link} size="large" />
+      <Text style={styles.contentLoadingText}>{message}</Text>
+    </View>
+  );
 }
 
 const CalendarEventRow = React.memo(function CalendarEventRow({
   event,
   onPress,
 }: {
-  event: CalendarEvent;
-  onPress: (event: CalendarEvent) => void;
+  event: CalendarListEvent;
+  onPress: (event: CalendarListEvent) => void;
 }) {
   return (
     <View style={styles.rowWrap}>
@@ -90,59 +78,100 @@ const CalendarEventRow = React.memo(function CalendarEventRow({
 export function CalendarScreen({ navigation }: Props) {
   const { token, locationId, locationName } = useAppState();
 
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [viewMode, setViewMode] = useState<CalendarViewMode>('list');
   const [focusDate, setFocusDate] = useState(() => startOfDay());
-  const [monthCursor, setMonthCursor] = useState(() => startOfMonth());
-  const [initialLoading, setInitialLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [hasLoaded, setHasLoaded] = useState(false);
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loadedRangeKey, setLoadedRangeKey] = useState<string | null>(null);
+  const [events, setEvents] = useState<CalendarListEvent[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [viewSheetOpen, setViewSheetOpen] = useState(false);
   const [newSheetOpen, setNewSheetOpen] = useState(false);
   const [calendarSheetOpen, setCalendarSheetOpen] = useState(false);
   const [calendars, setCalendars] = useState<Array<{ id: string; name?: string }>>([]);
   const [calendarId, setCalendarId] = useState<string | null>(null);
+  const loadRequestRef = useRef(0);
+  const loadRef = useRef<(opts?: { pull?: boolean }) => Promise<void>>(async () => {});
+  const isFirstFocusRef = useRef(true);
 
-  const range = useMemo(() => {
-    if (viewMode === 'monthly' || viewMode === 'list') {
-      const month = startOfMonth(focusDate);
-      return { start: month, end: endOfMonth(month) };
-    }
-    return { start: startOfWeekSunday(focusDate), end: endOfWeekSunday(focusDate) };
-  }, [viewMode, focusDate]);
+  const monthCursor = useMemo(() => startOfMonth(focusDate), [focusDate]);
 
-  const markedDates = useMemo(() => {
-    const set = new Set<string>();
-    for (const e of events) {
-      if (e.startTime) set.add(toDateKey(new Date(e.startTime)));
-    }
-    return set;
-  }, [events]);
+  const range = useMemo(
+    () => computeCalendarFetchRange(viewMode, focusDate),
+    [viewMode, focusDate],
+  );
+
+  const rangeKey = useMemo(
+    () => buildCalendarRangeKey(viewMode, range.start, range.end, calendarId),
+    [viewMode, range.start, range.end, calendarId],
+  );
+
+  const loadState = useMemo(
+    () => calendarLoadingState(loading, loadedRangeKey, rangeKey),
+    [loading, loadedRangeKey, rangeKey],
+  );
+
+  const filteredEvents = useMemo(
+    () => filterEventsForView(events, viewMode, focusDate),
+    [events, viewMode, focusDate],
+  );
+
+  const markedDates = useMemo(() => collectMarkedDates(events), [events]);
+  const sections = useMemo(() => groupEventsByDay(filteredEvents, formatDayLabel), [filteredEvents]);
+  const emptyRangeLabel = formatMonthYear(focusDate);
+  const showEmpty = loadState.showEmpty && filteredEvents.length === 0;
+  const showContentLoading = loadState.updating && filteredEvents.length === 0;
 
   const load = useCallback(
     async (opts?: { pull?: boolean }) => {
       if (!token || !locationId) return;
+      const requestId = ++loadRequestRef.current;
+      const fetchKey = rangeKey;
+      const isFirstLoad = loadedRangeKey === null;
+      setLoading(true);
       if (opts?.pull) setRefreshing(true);
-      else if (!hasLoaded) setInitialLoading(true);
       setLoadError(null);
       try {
         const calQs = calendarId ? `&calendarId=${encodeURIComponent(calendarId)}` : '';
-        const res = await api.getJson<{ events: CalendarEvent[] }>(
+        const res = await api.getJson<{
+          events: CalendarListEvent[];
+          calendars?: Array<{ id: string; name?: string }>;
+        }>(
           `/api/calendar/events?startTime=${encodeURIComponent(toIso(range.start))}&endTime=${encodeURIComponent(toIso(range.end))}${calQs}`,
           { headers: withAuthHeaders({ token, locationId }) },
         );
+        if (requestId !== loadRequestRef.current) return;
         setEvents(res.events ?? []);
-        setHasLoaded(true);
+        setLoadedRangeKey(fetchKey);
+        if (res.calendars?.length) {
+          setCalendars((prev) => mergeCalendarOptions(prev, res.calendars ?? []));
+        }
       } catch (e) {
+        if (requestId !== loadRequestRef.current) return;
         setLoadError(formatError(e));
-        if (!hasLoaded) setEvents([]);
+        if (isFirstLoad) setEvents([]);
       } finally {
-        setInitialLoading(false);
-        setRefreshing(false);
+        if (requestId === loadRequestRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
-    [token, locationId, range.start, range.end, hasLoaded, calendarId],
+    [token, locationId, range.start, range.end, rangeKey, calendarId, loadedRangeKey],
+  );
+
+  loadRef.current = load;
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!token || !locationId) return;
+      if (isFirstFocusRef.current) {
+        isFirstFocusRef.current = false;
+        return;
+      }
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      loadRef.current();
+    }, [token, locationId]),
   );
 
   useEffect(() => {
@@ -169,34 +198,91 @@ export function CalendarScreen({ navigation }: Props) {
     load();
   }, [load]);
 
-  const filteredEvents = useMemo(() => {
-    if (viewMode === 'monthly') {
-      return events.filter((e) => e.startTime && isSameDay(new Date(e.startTime), focusDate));
-    }
-    if (viewMode === 'weekly') {
-      return events;
-    }
-    return events;
-  }, [events, viewMode, focusDate]);
-
-  const sections = useMemo(() => groupByDay(filteredEvents), [filteredEvents]);
-  const emptyMonthLabel = formatMonthYear(focusDate);
-  const showEmpty = hasLoaded && !initialLoading && sections.length === 0;
-
-  function openEvent(event: CalendarEvent) {
+  function openEvent(event: CalendarListEvent) {
     navigation.navigate('AppointmentDetail', { eventId: event.id, title: event.title });
   }
 
-  function shiftFocus(step: number) {
-    if (viewMode === 'list') {
-      const next = startOfMonth(focusDate);
-      next.setMonth(next.getMonth() + step);
-      setFocusDate(next);
-      setMonthCursor(next);
+  function goToToday() {
+    setFocusDate(startOfDay());
+  }
+
+  function shiftPeriod(step: number) {
+    if (viewMode === 'weekly') {
+      setFocusDate((prev) => shiftVisibleWeek(prev, step));
       return;
     }
-    const days = viewMode === 'weekly' ? 7 : 1;
-    setFocusDate((prev) => addDays(prev, step * days));
+    setFocusDate((prev) => shiftVisibleMonth(prev, step));
+  }
+
+  function onChangeVisibleMonth(nextMonth: Date) {
+    setFocusDate((prev) => clampDayInMonth(prev, nextMonth));
+  }
+
+  const periodLabel = formatMonthYear(focusDate);
+
+  function renderListContent() {
+    if (loadState.blocking) {
+      return <ListBusyState blocking message="Loading appointments…" />;
+    }
+
+    if (viewMode === 'weekly') {
+      return (
+        <WeekScheduleGrid
+          focusDate={focusDate}
+          events={filteredEvents}
+          onSelectDay={setFocusDate}
+          onPrevWeek={() => shiftPeriod(-1)}
+          onNextWeek={() => shiftPeriod(1)}
+          onEventPress={openEvent}
+          loading={loadState.updating}
+          emptyHint={showEmpty ? 'No appointments this week. Tap + to create one.' : undefined}
+        />
+      );
+    }
+
+    if (showContentLoading) {
+      return (
+        <View style={styles.contentArea}>
+          <ContentLoadingOverlay message="Loading appointments…" />
+        </View>
+      );
+    }
+
+    if (showEmpty) {
+      return (
+        <View style={styles.emptyWrap}>
+          <Ionicons name="calendar-outline" size={56} color={theme.colors.surfaceMuted} />
+          <Text style={styles.emptyTitle}>No events for {emptyRangeLabel}!</Text>
+          <Text style={styles.emptySub}>Tap + to create an appointment.</Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.contentArea}>
+        {loadState.updating ? (
+          <View style={styles.contentLoadingOverlay} pointerEvents="none">
+            <ContentLoadingOverlay message="Updating appointments…" />
+          </View>
+        ) : null}
+        <SectionList
+          sections={sections}
+          keyExtractor={(event) => event.id}
+          contentContainerStyle={styles.list}
+          refreshing={refreshing}
+          onRefresh={() => load({ pull: true })}
+          stickySectionHeadersEnabled={false}
+          initialNumToRender={8}
+          maxToRenderPerBatch={6}
+          windowSize={7}
+          removeClippedSubviews
+          renderSectionHeader={({ section: { title } }) => (
+            <Text style={styles.sectionTitle}>{title}</Text>
+          )}
+          renderItem={({ item }) => <CalendarEventRow event={item} onPress={openEvent} />}
+        />
+      </View>
+    );
   }
 
   return (
@@ -222,14 +308,7 @@ export function CalendarScreen({ navigation }: Props) {
           <Text style={styles.viewBtnText}>{VIEW_LABELS[viewMode]}</Text>
           <Ionicons name="chevron-down" size={16} color={theme.colors.mutedTextOnDark} />
         </Pressable>
-        <Pressable
-          style={styles.todayBtn}
-          onPress={() => {
-            const today = startOfDay();
-            setFocusDate(today);
-            setMonthCursor(startOfMonth(today));
-          }}
-        >
+        <Pressable style={styles.todayBtn} onPress={goToToday}>
           <Text style={styles.todayText}>Today</Text>
         </Pressable>
       </View>
@@ -253,60 +332,31 @@ export function CalendarScreen({ navigation }: Props) {
         />
       ) : null}
 
+      {viewMode === 'list' ? (
+        <View style={styles.periodNav}>
+          <Pressable onPress={() => shiftPeriod(-1)} hitSlop={12} accessibilityLabel="Previous month">
+            <Ionicons name="chevron-back" size={22} color={theme.colors.link} />
+          </Pressable>
+          <Text style={styles.periodLabel}>{periodLabel}</Text>
+          <Pressable onPress={() => shiftPeriod(1)} hitSlop={12} accessibilityLabel="Next month">
+            <Ionicons name="chevron-forward" size={22} color={theme.colors.link} />
+          </Pressable>
+        </View>
+      ) : null}
+
       {viewMode === 'monthly' ? (
         <View style={styles.monthWrap}>
           <MonthCalendar
             month={monthCursor}
             selected={focusDate}
-            onSelect={(date) => {
-              setFocusDate(date);
-              setMonthCursor(startOfMonth(date));
-            }}
-            onChangeMonth={setMonthCursor}
+            onSelect={setFocusDate}
+            onChangeMonth={onChangeVisibleMonth}
             markedDates={markedDates}
           />
         </View>
       ) : null}
 
-      {initialLoading && !hasLoaded ? (
-        <ListBusyState blocking message="Loading appointments…" />
-      ) : viewMode === 'weekly' ? (
-        <WeekScheduleGrid
-          focusDate={focusDate}
-          events={filteredEvents}
-          onSelectDay={setFocusDate}
-          onPrevWeek={() => shiftFocus(-1)}
-          onNextWeek={() => shiftFocus(1)}
-          onEventPress={openEvent}
-        />
-      ) : showEmpty ? (
-        <View style={styles.emptyWrap}>
-          <Ionicons name="calendar-outline" size={56} color={theme.colors.surfaceMuted} />
-          <Text style={styles.emptyTitle}>
-            {viewMode === 'list' || viewMode === 'monthly'
-              ? `No events for ${emptyMonthLabel}!`
-              : 'No appointments in this range'}
-          </Text>
-          <Text style={styles.emptySub}>Tap + to create an appointment.</Text>
-        </View>
-      ) : (
-        <SectionList
-          sections={sections}
-          keyExtractor={(event) => event.id}
-          contentContainerStyle={styles.list}
-          refreshing={refreshing}
-          onRefresh={() => load({ pull: true })}
-          stickySectionHeadersEnabled={false}
-          initialNumToRender={8}
-          maxToRenderPerBatch={6}
-          windowSize={7}
-          removeClippedSubviews
-          renderSectionHeader={({ section: { title } }) => (
-            <Text style={styles.sectionTitle}>{title}</Text>
-          )}
-          renderItem={({ item }) => <CalendarEventRow event={item} onPress={openEvent} />}
-        />
-      )}
+      {renderListContent()}
 
       <FloatingActionButton
         onPress={() => setNewSheetOpen(true)}
@@ -314,7 +364,7 @@ export function CalendarScreen({ navigation }: Props) {
       />
 
       <BottomSheet visible={viewSheetOpen} onClose={() => setViewSheetOpen(false)}>
-        {(Object.keys(VIEW_LABELS) as ViewMode[]).map((mode) => (
+        {(Object.keys(VIEW_LABELS) as CalendarViewMode[]).map((mode) => (
           <Pressable
             key={mode}
             style={styles.sheetRow}
@@ -418,6 +468,20 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.sm,
   },
+  periodNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.sm,
+  },
+  periodLabel: {
+    flex: 1,
+    textAlign: 'center',
+    color: theme.colors.textOnDark,
+    fontFamily: theme.typography.fontFamily.semiBold,
+    fontSize: theme.typography.fontSize.md,
+  },
   locationRow: {
     paddingHorizontal: theme.spacing.lg,
     paddingBottom: theme.spacing.sm,
@@ -451,13 +515,34 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
   },
+  contentArea: {
+    flex: 1,
+    position: 'relative',
+  },
+  contentLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 2,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+  },
+  contentLoading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: theme.spacing.xl,
+    paddingBottom: FAB_LIST_PADDING_BOTTOM,
+    gap: theme.spacing.sm,
+  },
+  contentLoadingText: {
+    color: theme.colors.mutedTextOnDark,
+    fontFamily: theme.typography.fontFamily.medium,
+    fontSize: theme.typography.fontSize.sm,
+  },
   list: {
     padding: theme.spacing.lg,
     paddingTop: 0,
     gap: theme.spacing.lg,
     paddingBottom: FAB_LIST_PADDING_BOTTOM,
   },
-  section: { gap: theme.spacing.sm },
   sectionTitle: {
     color: theme.colors.textOnDark,
     fontFamily: theme.typography.fontFamily.semiBold,
@@ -489,6 +574,9 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.lg,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: theme.colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   sheetRowText: {
     color: theme.colors.textOnDark,

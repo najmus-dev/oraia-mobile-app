@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { api, withAuthHeaders } from '../lib/api';
 import { type ContactResponse, type PickedContact, contactToPicked } from '../lib/contacts';
 import { formatError } from '../lib/errors';
@@ -28,6 +29,13 @@ import {
   stagesForPipeline,
   validateOpportunityForm,
 } from '../lib/opportunities';
+import {
+  clearOpportunityFormDraft,
+  type OpportunityFormDraft,
+  opportunityFormOwnerKey,
+  readOpportunityFormDraft,
+  writeOpportunityFormDraft,
+} from '../lib/opportunityFormDraft';
 import { theme } from '../theme';
 import { useAppState } from '../state/AppState';
 import { AppBar } from '../components/AppBar';
@@ -44,8 +52,11 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
   const { token, locationId } = useAppState();
   const opportunityId = route.params?.opportunityId;
   const isEdit = Boolean(opportunityId);
+  const ownerKey = opportunityFormOwnerKey({ opportunityId });
   const initialPipelineId = route.params?.pipelineId ?? '';
   const initialStageId = route.params?.pipelineStageId ?? '';
+  const redirectedForContact = useRef(false);
+  const pipelinesLoaded = useRef(false);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -64,6 +75,31 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
       contactId: route.params?.pickedContact?.id ?? '',
       name: route.params?.pickedContact?.name ?? '',
     }),
+  );
+
+  const persistDraft = useCallback(
+    (patch?: Partial<OpportunityFormDraft>) => {
+      writeOpportunityFormDraft(ownerKey, {
+        values: patch?.values ?? values,
+        pickedContact: patch?.pickedContact !== undefined ? patch.pickedContact : pickedContact,
+        ownerName: patch?.ownerName ?? ownerDisplayName,
+      });
+    },
+    [ownerKey, values, pickedContact, ownerDisplayName],
+  );
+
+  useEffect(() => {
+    persistDraft();
+  }, [persistDraft]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const stored = readOpportunityFormDraft(ownerKey);
+      if (!stored) return;
+      setValues(stored.values);
+      setPickedContact(stored.pickedContact);
+      setOwnerDisplayName(stored.ownerName);
+    }, [ownerKey]),
   );
 
   useEffect(() => {
@@ -126,7 +162,7 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
             setOwnerDisplayName('');
           }
         }
-      } else {
+      } else if (!pipelinesLoaded.current) {
         setValues((prev) => {
           const pipelineId = prev.pipelineId || initialPipelineId || list[0]?.id || '';
           const pipelineStageId =
@@ -135,6 +171,7 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
             defaultStageIdForPipeline(list, pipelineId);
           return { ...prev, pipelineId, pipelineStageId };
         });
+        pipelinesLoaded.current = true;
       }
     } catch (e) {
       Alert.alert(isEdit ? 'Opportunity' : 'Pipelines', formatError(e), [
@@ -151,7 +188,8 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
   }, [loadPipelines]);
 
   useEffect(() => {
-    if (isEdit || pickedContact || loading) return;
+    if (isEdit || pickedContact || loading || redirectedForContact.current) return;
+    redirectedForContact.current = true;
     navigation.replace('PickContact', {
       flow: 'opportunity',
       pipelineId: initialPipelineId || undefined,
@@ -173,10 +211,20 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
     : '';
 
   function openOwnerPicker() {
+    persistDraft();
     navigation.navigate('SelectAssignees', {
       mode: 'single',
       selectedIds: values.assignedTo ? [values.assignedTo] : [],
       returnTo: 'OpportunityForm',
+    });
+  }
+
+  function openContactPicker() {
+    persistDraft();
+    navigation.navigate('PickContact', {
+      flow: 'opportunity',
+      pipelineId: values.pipelineId,
+      pipelineStageId: values.pipelineStageId,
     });
   }
 
@@ -213,6 +261,7 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
           opportunityId,
           title: values.name.trim(),
         });
+        clearOpportunityFormDraft(ownerKey);
         return;
       }
       const res = await api.postJson<OpportunityResponse>(
@@ -220,14 +269,16 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
         formValuesToOpportunityPayload(values),
         { headers: withAuthHeaders({ token, locationId }) },
       );
-      const opportunityId = res.opportunity?.id;
-      if (!opportunityId) {
+      const createdId = res.opportunity?.id;
+      if (!createdId) {
         Alert.alert('Created', 'Opportunity saved, but could not open detail (missing id).');
+        clearOpportunityFormDraft(ownerKey);
         navigation.navigate('PipelineHome');
         return;
       }
+      clearOpportunityFormDraft(ownerKey);
       navigation.replace('OpportunityDetail', {
-        opportunityId,
+        opportunityId: createdId,
         title: values.name.trim(),
       });
     } catch (e) {
@@ -274,13 +325,7 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
               label="Contact"
               value={pickedContact?.name ?? ''}
               placeholder="Select contact"
-              onPress={() =>
-                navigation.navigate('PickContact', {
-                  flow: 'opportunity',
-                  pipelineId: values.pipelineId,
-                  pipelineStageId: values.pipelineStageId,
-                })
-              }
+              onPress={openContactPicker}
             />
 
             <Field label="Opportunity Name">

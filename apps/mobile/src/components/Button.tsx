@@ -44,8 +44,11 @@ export function Button({
 const styles = StyleSheet.create({
   base: {
     borderRadius: 12,
-    paddingVertical: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    minHeight: 48,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   primary: { backgroundColor: theme.colors.primary },
   dark: { backgroundColor: theme.colors.navy },
@@ -54,6 +57,7 @@ const styles = StyleSheet.create({
   text: {
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.md,
+    lineHeight: theme.typography.lineHeight.md,
   },
 });
 

@@ -16,8 +16,9 @@ function mockGhl(overrides: {
   const eventsByCalendar = overrides.eventsByCalendar ?? {};
   return {
     listCalendars: async () => ({ calendars: overrides.calendars ?? [] }),
-    listCalendarEvents: async (_locationId: string, params: { calendarId?: string }) => ({
-      events: eventsByCalendar[params.calendarId ?? ''] ?? [],
+    listCalendarEvents: async (_locationId: string, params: { calendarId?: string; userId?: string }) => ({
+      events:
+        eventsByCalendar[params.calendarId ?? params.userId ?? ''] ?? [],
     }),
     searchConversations: async (_locationId: string, params?: { startAfterDate?: string }) => {
       const pages = overrides.conversations ?? [[]];
@@ -78,5 +79,22 @@ describe('ghlAggregates', () => {
     });
     const total = await sumOpenPipelineValue(ghl as never, 'loc_1');
     assert.equal(total, 175);
+  });
+
+  it('merges userId fallback events even when calendars return data', async () => {
+    const ghl = mockGhl({
+      calendars: [{ id: 'cal_a' }],
+      eventsByCalendar: {
+        cal_a: [{ id: 'e1', title: 'Cal A' }],
+        user_1: [{ id: 'e2', title: 'User only' }],
+      },
+    });
+    const events = await listAllCalendarEvents(ghl as never, 'loc_1', {
+      startTime: '2026-06-08T00:00:00.000Z',
+      endTime: '2026-06-08T23:59:59.999Z',
+      userId: 'user_1',
+    });
+    assert.equal(events.length, 2);
+    assert.deepEqual(events.map((e) => e.id).sort(), ['e1', 'e2']);
   });
 });

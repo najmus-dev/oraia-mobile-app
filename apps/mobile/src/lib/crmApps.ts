@@ -1,5 +1,6 @@
 import type { Ionicons } from '@expo/vector-icons';
 import type { NavigationProp, ParamListBase } from '@react-navigation/native';
+import { navigateToTabScreen } from '../navigation/tabNavigation';
 
 export type CrmAppId = 'contacts' | 'conversations' | 'calendar' | 'opportunities' | 'tasks';
 
@@ -80,24 +81,24 @@ export const PINNABLE_CRM_APP_IDS: readonly CrmAppId[] = Object.keys(CRM_APPS) a
 
 export function openCrmApp(
   appId: CrmAppId,
-  parentNav: NavigationProp<ParamListBase> | undefined,
+  navigation: NavigationProp<ParamListBase> | undefined,
 ): void {
-  if (!parentNav) return;
+  if (!navigation) return;
   switch (appId) {
     case 'contacts':
-      parentNav.navigate('AppsTab' as never, { screen: 'ContactsList' } as never);
+      navigateToTabScreen(navigation, 'AppsTab', 'ContactsList');
       break;
     case 'conversations':
-      parentNav.navigate('InboxTab' as never);
+      navigateToTabScreen(navigation, 'InboxTab', 'InboxList');
       break;
     case 'calendar':
-      parentNav.navigate('CalendarTab' as never);
+      navigateToTabScreen(navigation, 'CalendarTab', 'CalendarList');
       break;
     case 'tasks':
-      parentNav.navigate('AppsTab' as never, { screen: 'TasksHome' } as never);
+      navigateToTabScreen(navigation, 'AppsTab', 'TasksHome');
       break;
     case 'opportunities':
-      parentNav.navigate('AppsTab' as never, { screen: 'PipelineHome' } as never);
+      navigateToTabScreen(navigation, 'AppsTab', 'PipelineHome');
       break;
     default:
       break;

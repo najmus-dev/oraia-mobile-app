@@ -10,7 +10,7 @@
     "web": "expo start --web",
     "build:preview": "eas build --profile preview --platform android",
     "build:production": "eas build --profile production --platform android",
-    "test": "tsx --test test/auth.test.ts test/apiBaseUrl.test.ts test/contacts.test.ts test/phoneFormat.test.ts test/opportunities.test.ts test/opportunityPipeline.test.ts test/appointments.test.ts test/scheduleAppointment.test.ts test/conversations.test.ts test/threadMessages.test.ts test/smsCompliance.test.ts test/dashboardSummary.test.ts test/userDisplay.test.ts test/messageFormat.test.ts test/contactCache.test.ts test/crmApps.test.ts test/globalSearch.test.ts test/tasks.test.ts test/taskFormDraft.test.ts"
+    "test": "tsx --test test/auth.test.ts test/apiBaseUrl.test.ts test/contacts.test.ts test/phoneFormat.test.ts test/opportunities.test.ts test/opportunityFormDraft.test.ts test/opportunityPipeline.test.ts test/appointments.test.ts test/calendarView.test.ts test/weekScheduleGrid.test.ts test/scheduleAppointment.test.ts test/conversations.test.ts test/threadMessages.test.ts test/smsCompliance.test.ts test/dashboardSummary.test.ts test/userDisplay.test.ts test/messageFormat.test.ts test/contactCache.test.ts test/crmApps.test.ts test/globalSearch.test.ts test/tasks.test.ts test/taskFormDraft.test.ts test/notificationFeed.test.ts test/tabNavigation.test.ts"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",

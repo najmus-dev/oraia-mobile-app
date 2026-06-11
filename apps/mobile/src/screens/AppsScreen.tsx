@@ -11,6 +11,7 @@ import {
   type CrmAppDef,
 } from '../lib/crmApps';
 import { TAB_LIST_BOTTOM_PADDING } from '../lib/safeArea';
+import { getTabNavigation, navigateToTabScreen } from '../lib/navigation';
 import { useAppState } from '../state/AppState';
 import { theme } from '../theme';
 import type { AppsStackParamList } from '../navigation/AppsStack';
@@ -21,7 +22,7 @@ export function AppsScreen({ navigation }: Props) {
   const { locationName, locationAddress, locationLogoUrl } = useAppState();
   const [query, setQuery] = useState('');
   const [locationSheetOpen, setLocationSheetOpen] = useState(false);
-  const parentNav = navigation.getParent();
+  const tabNav = getTabNavigation(navigation);
 
   const sections = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -39,7 +40,7 @@ export function AppsScreen({ navigation }: Props) {
       Alert.alert(app.label, 'This app is coming soon on mobile.');
       return;
     }
-    openCrmApp(app.id, parentNav ?? undefined);
+    openCrmApp(app.id, tabNav ?? navigation);
   }
 
   return (
@@ -49,12 +50,8 @@ export function AppsScreen({ navigation }: Props) {
         locationAddress={locationAddress}
         locationLogoUrl={locationLogoUrl}
         onOpenLocation={() => setLocationSheetOpen(true)}
-        onNotifications={() =>
-          parentNav?.navigate('HomeTab' as never, { screen: 'Notifications' } as never)
-        }
-        onSettings={() =>
-          parentNav?.navigate('HomeTab' as never, { screen: 'Settings' } as never)
-        }
+        onNotifications={() => navigateToTabScreen(navigation, 'HomeTab', 'Notifications')}
+        onSettings={() => navigateToTabScreen(navigation, 'HomeTab', 'Settings')}
       />
 
       <View style={styles.searchWrap}>

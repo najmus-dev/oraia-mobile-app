@@ -1,6 +1,11 @@
 import { Router } from 'express';
 import { AppError } from '../lib/errors';
 import { parseFreeSlotsQuery } from '../lib/calendarFreeSlots';
+import {
+  freeSlotsCacheKey,
+  readFreeSlotsCache,
+  writeFreeSlotsCache,
+} from '../lib/freeSlotsCache';
 import { listAllCalendarEvents } from '../lib/ghlAggregates';
 import {
   validateAppointmentCreateBody,
@@ -8,7 +13,8 @@ import {
 } from '../lib/appointmentValidation';
 import { param } from '../lib/params';
 import { locationDelete, locationGet, locationPost, locationPut } from '../middleware/locationRoute';
-import { getLocationGhlClient } from '../services/tokenVault';
+import { getLocationGhlClient, tokenVault } from '../services/tokenVault';
+import { decodeJwtUserId } from '../lib/ghlOAuth';
 
 export const calendarRouter = Router();
 
@@ -77,7 +83,14 @@ locationGet(calendarRouter, '/calendars/:calendarId/free-slots', async (req, res
     );
   }
   const ghl = getLocationGhlClient(locationId);
-  const slots = await ghl.getFreeSlots(calendarId, query);
+  const cacheKey = freeSlotsCacheKey(locationId, calendarId, query.startDate, query.endDate);
+  const cached = readFreeSlotsCache(cacheKey);
+  if (cached) {
+    res.json({ locationId, calendarId, slots: cached });
+    return;
+  }
+  const slots = await ghl.getFreeSlots(locationId, calendarId, query);
+  writeFreeSlotsCache(cacheKey, slots);
   res.json({ locationId, calendarId, slots });
 });
 
@@ -96,7 +109,13 @@ locationGet(calendarRouter, '/events', async (req, res) => {
   const ghl = getLocationGhlClient(locationId);
 
   if (!calendarId && !userId && !groupId) {
-    const events = await listAllCalendarEvents(ghl, locationId, { startTime, endTime });
+    const locationToken = await tokenVault.getLocationAccessToken(locationId);
+    const tokenUserId = decodeJwtUserId(locationToken);
+    const events = await listAllCalendarEvents(ghl, locationId, {
+      startTime,
+      endTime,
+      userId: tokenUserId,
+    });
     const { calendars } = await ghl.listCalendars(locationId);
     res.json({
       locationId,

@@ -27,6 +27,7 @@ import {
   formatNoteWhen,
 } from '../lib/contactNotes';
 import { lookupConversationForContact } from '../lib/conversationsApi';
+import type { MessageChannel } from '../lib/conversations';
 import {
   navigateToContactMessage,
   navigateToScheduleForContact,
@@ -39,6 +40,8 @@ import { AppBar } from '../components/AppBar';
 import { Button } from '../components/Button';
 import { ListBusyState } from '../components/ListBusyState';
 import { ContactAvatar } from '../components/contacts/ContactAvatar';
+import { ContactDetailSection } from '../components/contacts/ContactDetailSection';
+import { ContactOverflowMenu } from '../components/contacts/ContactOverflowMenu';
 import { ContactQuickActions } from '../components/contacts/ContactQuickActions';
 import { ContactTabBar, type ContactTab } from '../components/contacts/ContactTabBar';
 import { TaskRow } from '../components/tasks/TaskRow';
@@ -47,15 +50,6 @@ import { type Opportunity, formatOpportunityMoney } from '../lib/opportunities';
 import type { AppsStackParamList } from '../navigation/AppsStack';
 
 type Props = NativeStackScreenProps<AppsStackParamList, 'ContactDetail'>;
-
-function AccordionSection({ title }: { title: string }) {
-  return (
-    <Pressable style={styles.accordion}>
-      <Text style={styles.accordionTitle}>{title}</Text>
-      <Ionicons name="chevron-down" size={18} color={theme.colors.mutedTextOnDark} />
-    </Pressable>
-  );
-}
 
 function DetailField({
   label,
@@ -186,6 +180,34 @@ export function ContactDetailScreen({ navigation, route }: Props) {
   const displayName = contact ? contactDisplayName(contact) : 'Contact';
   const pendingTasks = tasks.filter((t) => !t.completed).length;
 
+  const openInAppConversation = useCallback(
+    async (channel: MessageChannel) => {
+      if (!contact || !token || !locationId) return;
+      if (channel === 'Email' && !contact.email?.trim()) {
+        Alert.alert('Email', 'No email on file.');
+        return;
+      }
+      if (channel === 'SMS' && !contact.phone?.trim() && !contact.email?.trim()) {
+        Alert.alert('Message', 'No phone or email on file.');
+        return;
+      }
+      try {
+        const conversation = await lookupConversationForContact({ token, locationId }, contact.id);
+        navigateToContactMessage(navigation, {
+          contactId: contact.id,
+          contactName: displayName,
+          contactPhone: contact.phone,
+          contactEmail: contact.email,
+          conversationId: conversation?.id,
+          channel,
+        });
+      } catch (e) {
+        Alert.alert(channel === 'Email' ? 'Email' : 'Message', formatError(e));
+      }
+    },
+    [contact, token, locationId, navigation, displayName],
+  );
+
   const quickActions = useMemo(
     () => [
       {
@@ -208,20 +230,9 @@ export function ContactDetailScreen({ navigation, route }: Props) {
         label: 'Message',
         icon: 'chatbubble-ellipses-outline' as const,
         disabled: !contact?.phone?.trim() && !contact?.email?.trim(),
-        onPress: async () => {
-          if (!contact || !token || !locationId) return;
-          try {
-            const conversation = await lookupConversationForContact({ token, locationId }, contact.id);
-            navigateToContactMessage(navigation, {
-              contactId: contact.id,
-              contactName: displayName,
-              contactPhone: contact.phone,
-              contactEmail: contact.email,
-              conversationId: conversation?.id,
-            });
-          } catch (e) {
-            Alert.alert('Message', formatError(e));
-          }
+        onPress: () => {
+          // eslint-disable-next-line @typescript-eslint/no-floating-promises
+          openInAppConversation('SMS');
         },
       },
       {
@@ -230,13 +241,8 @@ export function ContactDetailScreen({ navigation, route }: Props) {
         icon: 'mail-outline' as const,
         disabled: !contact?.email?.trim(),
         onPress: () => {
-          const addr = contact?.email?.trim();
-          if (!addr) {
-            Alert.alert('Email', 'No email on file.');
-            return;
-          }
           // eslint-disable-next-line @typescript-eslint/no-floating-promises
-          Linking.openURL(`mailto:${addr}`);
+          openInAppConversation('Email');
         },
       },
       {
@@ -255,7 +261,7 @@ export function ContactDetailScreen({ navigation, route }: Props) {
         },
       },
     ],
-    [contact, token, locationId, navigation, displayName],
+    [contact, openInAppConversation, navigation, displayName],
   );
 
   function openTask(task: Task) {
@@ -322,51 +328,62 @@ export function ContactDetailScreen({ navigation, route }: Props) {
     Alert.alert('Copied', 'Contact name copied to clipboard.');
   }
 
+  function openEditContact() {
+    navigation.navigate('ContactForm', { contactId });
+  }
+
+  function handleTabChange(tab: ContactTab) {
+    setMenuOpen(false);
+    setActiveTab(tab);
+  }
+
   return (
     <View style={styles.container}>
       <AppBar
         title={displayName}
         onBack={() => navigation.goBack()}
-        rightLabel="⋯"
+        rightIcon="ellipsis-vertical"
         onRightPress={() => setMenuOpen((v) => !v)}
       />
 
-      {menuOpen ? (
-        <View style={styles.menu}>
-          <Pressable style={styles.menuItem} onPress={() => {
-            setMenuOpen(false);
-            navigation.navigate('ContactForm', { contactId });
-          }}>
-            <Text style={styles.menuText}>Edit contact</Text>
-          </Pressable>
-          <Pressable style={styles.menuItem} onPress={confirmDelete} disabled={deleting}>
-            <Text style={[styles.menuText, styles.menuDanger]}>Delete contact</Text>
-          </Pressable>
-        </View>
-      ) : null}
+      <ContactOverflowMenu
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        items={[
+          { label: 'Edit contact', onPress: openEditContact },
+          { label: 'Delete contact', onPress: confirmDelete, destructive: true, disabled: deleting },
+        ]}
+      />
 
-      <ScrollView contentContainerStyle={{ paddingBottom: scrollBottom }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: scrollBottom }}
+        onScrollBeginDrag={() => setMenuOpen(false)}
+        keyboardShouldPersistTaps="handled"
+      >
         {contact ? (
           <>
             <View style={styles.profile}>
               <View style={styles.tagRow}>
-                <Pressable style={styles.tagPill}>
+                <Pressable style={styles.tagPill} onPress={openEditContact}>
                   <Ionicons name="pricetag-outline" size={14} color={theme.colors.link} />
                   <Text style={styles.tagPillText}>Tags</Text>
                 </Pressable>
                 {contact.tags?.length ? (
-                  <Text style={styles.tagSummary} numberOfLines={1}>
-                    {contact.tags.join(', ')}
-                  </Text>
-                ) : null}
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tagScroll}>
+                    {contact.tags.map((tag) => (
+                      <View key={tag} style={styles.tagChip}>
+                        <Text style={styles.tagChipText} numberOfLines={1}>
+                          {tag}
+                        </Text>
+                      </View>
+                    ))}
+                  </ScrollView>
+                ) : (
+                  <Text style={styles.tagEmpty}>No tags</Text>
+                )}
               </View>
 
-              <View style={styles.avatarWrap}>
-                <ContactAvatar contact={contact} size={96} />
-                <Pressable style={styles.cameraBtn}>
-                  <Ionicons name="camera-outline" size={16} color={theme.colors.link} />
-                </Pressable>
-              </View>
+              <ContactAvatar contact={contact} size={96} />
 
               <View style={styles.nameRow}>
                 <Text style={styles.profileName}>{displayName}</Text>
@@ -374,12 +391,28 @@ export function ContactDetailScreen({ navigation, route }: Props) {
                   <Ionicons name="copy-outline" size={18} color={theme.colors.mutedTextOnDark} />
                 </Pressable>
               </View>
-              {contact.phone?.trim() ? (
-                <Text style={styles.profileSub}>{contact.phone.trim()}</Text>
-              ) : null}
-              {contact.email?.trim() ? (
-                <Text style={styles.profileSub}>{contact.email.trim()}</Text>
-              ) : null}
+
+              <View style={styles.contactLines}>
+                {contact.phone?.trim() ? (
+                  <Pressable
+                    onPress={() => Linking.openURL(`tel:${contact.phone!.trim()}`)}
+                    hitSlop={4}
+                  >
+                    <Text style={styles.profileLink}>{contact.phone.trim()}</Text>
+                  </Pressable>
+                ) : null}
+                {contact.email?.trim() ? (
+                  <Pressable
+                    onPress={() => {
+                      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+                      openInAppConversation('Email');
+                    }}
+                    hitSlop={4}
+                  >
+                    <Text style={styles.profileLink}>{contact.email.trim()}</Text>
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
 
             <ContactQuickActions actions={quickActions} />
@@ -387,7 +420,7 @@ export function ContactDetailScreen({ navigation, route }: Props) {
             <View style={styles.tabsWrap}>
               <ContactTabBar
                 active={activeTab}
-                onChange={setActiveTab}
+                onChange={handleTabChange}
                 taskCount={pendingTasks}
                 opportunityCount={opportunities.length}
               />
@@ -404,8 +437,7 @@ export function ContactDetailScreen({ navigation, route }: Props) {
                     thumbColor={theme.colors.white}
                   />
                 </View>
-                <AccordionSection title="Contact" />
-                <View style={styles.sectionBody}>
+                <ContactDetailSection title="Contact" defaultOpen>
                   <DetailField label="First name" value={contact.firstName} hideEmpty={hideEmpty} />
                   <DetailField label="Last name" value={contact.lastName} hideEmpty={hideEmpty} />
                   <DetailField label="Email" value={contact.email} hideEmpty={hideEmpty} />
@@ -414,20 +446,18 @@ export function ContactDetailScreen({ navigation, route }: Props) {
                   <DetailField label="Type" value={contact.type} hideEmpty={hideEmpty} />
                   <DetailField label="Owner" value={assigneeName ?? undefined} hideEmpty={hideEmpty} />
                   <DetailField label="Timezone" value={contact.timezone} hideEmpty={hideEmpty} />
-                </View>
-                <AccordionSection title="General info" />
-                <View style={styles.sectionBody}>
+                </ContactDetailSection>
+                <ContactDetailSection title="General info" defaultOpen={false}>
                   <DetailField label="Website" value={contact.website} hideEmpty={hideEmpty} />
                   <DetailField label="Address" value={contactAddressLine(contact)} hideEmpty={hideEmpty} />
-                </View>
-                <AccordionSection title="DND" />
-                <View style={styles.sectionBody}>
+                </ContactDetailSection>
+                <ContactDetailSection title="DND" defaultOpen={false}>
                   <DetailField
                     label="DND all channels"
                     value={contact.dnd ? 'Yes' : 'No'}
                     hideEmpty={hideEmpty}
                   />
-                </View>
+                </ContactDetailSection>
               </View>
             ) : null}
 
@@ -478,21 +508,23 @@ export function ContactDetailScreen({ navigation, route }: Props) {
 
             {activeTab === 'notes' ? (
               <View style={styles.tabBody}>
-                <TextInput
-                  value={noteDraft}
-                  onChangeText={setNoteDraft}
-                  placeholder="Add a note about this contact…"
-                  placeholderTextColor={theme.colors.mutedTextOnDark}
-                  style={styles.noteInput}
-                  multiline
-                  maxLength={4000}
-                />
-                <Button
-                  title={savingNote ? 'Saving…' : 'Add note'}
-                  onPress={addNote}
-                  disabled={savingNote || !noteDraft.trim()}
-                  style={styles.addNoteBtn}
-                />
+                <View style={styles.noteComposer}>
+                  <TextInput
+                    value={noteDraft}
+                    onChangeText={setNoteDraft}
+                    placeholder="Add a note about this contact…"
+                    placeholderTextColor={theme.colors.mutedTextOnDark}
+                    style={styles.noteInput}
+                    multiline
+                    maxLength={4000}
+                  />
+                  <Button
+                    title={savingNote ? 'Saving…' : 'Add note'}
+                    onPress={addNote}
+                    disabled={savingNote || !noteDraft.trim()}
+                    style={styles.addNoteBtn}
+                  />
+                </View>
                 {notesLoading ? (
                   <ListBusyState message="Loading notes…" />
                 ) : notes.length === 0 ? (
@@ -522,24 +554,6 @@ export function ContactDetailScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
-  menu: {
-    position: 'absolute',
-    top: 88,
-    right: theme.spacing.lg,
-    zIndex: 30,
-    backgroundColor: theme.colors.surfaceElevated,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    overflow: 'hidden',
-  },
-  menuItem: { paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md },
-  menuText: {
-    color: theme.colors.textOnDark,
-    fontFamily: theme.typography.fontFamily.medium,
-    fontSize: theme.typography.fontSize.sm,
-  },
-  menuDanger: { color: theme.colors.danger },
   profile: {
     alignItems: 'center',
     paddingHorizontal: theme.spacing.xl,
@@ -552,6 +566,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.sm,
+    minHeight: 36,
+  },
+  tagScroll: {
+    flex: 1,
+  },
+  tagChip: {
+    marginRight: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    maxWidth: 140,
+  },
+  tagChipText: {
+    color: theme.colors.textOnDark,
+    fontFamily: theme.typography.fontFamily.medium,
+    fontSize: theme.typography.fontSize.xs,
+  },
+  tagEmpty: {
+    flex: 1,
+    color: theme.colors.mutedTextOnDark,
+    fontFamily: theme.typography.fontFamily.regular,
+    fontSize: theme.typography.fontSize.xs,
   },
   tagPill: {
     flexDirection: 'row',
@@ -569,26 +608,6 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
   },
-  tagSummary: {
-    flex: 1,
-    color: theme.colors.mutedTextOnDark,
-    fontFamily: theme.typography.fontFamily.regular,
-    fontSize: theme.typography.fontSize.xs,
-  },
-  avatarWrap: { marginTop: theme.spacing.md, marginBottom: theme.spacing.sm },
-  cameraBtn: {
-    position: 'absolute',
-    right: -4,
-    bottom: -4,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -599,8 +618,13 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.fontFamily.bold,
     fontSize: theme.typography.fontSize.xl,
   },
-  profileSub: {
-    color: theme.colors.mutedTextOnDark,
+  contactLines: {
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    marginTop: theme.spacing.xs,
+  },
+  profileLink: {
+    color: theme.colors.link,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
   },
@@ -621,21 +645,7 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
   },
-  accordion: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: theme.spacing.lg,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: theme.colors.border,
-  },
-  accordionTitle: {
-    color: theme.colors.textOnDark,
-    fontFamily: theme.typography.fontFamily.semiBold,
-    fontSize: theme.typography.fontSize.md,
-  },
-  sectionBody: { gap: theme.spacing.md, paddingBottom: theme.spacing.sm },
-  detailField: { gap: 4 },
+  detailField: { gap: theme.spacing.xs },
   detailLabel: {
     color: theme.colors.mutedTextOnDark,
     fontFamily: theme.typography.fontFamily.medium,
@@ -646,8 +656,16 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
   },
+  noteComposer: {
+    gap: theme.spacing.md,
+    padding: theme.spacing.md,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceMuted,
+  },
   noteInput: {
-    minHeight: 72,
+    minHeight: 88,
     borderWidth: 1,
     borderColor: theme.colors.border,
     borderRadius: 12,
@@ -655,9 +673,11 @@ const styles = StyleSheet.create({
     color: theme.colors.textOnDark,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
+    lineHeight: theme.typography.lineHeight.md,
     textAlignVertical: 'top',
+    backgroundColor: theme.colors.background,
   },
-  addNoteBtn: { alignSelf: 'flex-start' },
+  addNoteBtn: { alignSelf: 'stretch' },
   noteCard: {
     borderWidth: 1,
     borderColor: theme.colors.border,

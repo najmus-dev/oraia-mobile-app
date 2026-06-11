@@ -19,6 +19,7 @@ import {
   type Pipeline,
   OPPORTUNITY_STATUS_OPTIONS,
 } from '../lib/opportunities';
+import { resetCreateOpportunityFormDraft } from '../lib/opportunityFormDraft';
 import {
   filterOpportunitiesByQuery,
   filterOpportunitiesByStatus,
@@ -134,6 +135,7 @@ export function PipelineScreen({ navigation }: Props) {
   const sortLabel = sortField === 'monetaryValue' ? 'Deal Value' : 'Date Added';
 
   function openCreate(stageId?: string) {
+    resetCreateOpportunityFormDraft();
     navigation.navigate('PickContact', {
       flow: 'opportunity',
       pipelineId: pipelineId || undefined,

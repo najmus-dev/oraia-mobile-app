@@ -23,9 +23,10 @@ import {
   readDashboardCache,
   type DashboardEvent,
 } from '../lib/dashboardSummary';
+import { fetchNotificationUnreadCount } from '../lib/notificationFeed';
 import { formatEventRange } from '../lib/dates';
 import { formatError } from '../lib/errors';
-import { navigateToAppointmentDetail } from '../lib/navigation';
+import { getTabNavigation, navigateToAppointmentDetail, navigateToTabScreen } from '../lib/navigation';
 import { useAppState } from '../state/AppState';
 import { theme } from '../theme';
 import { ListRow } from '../components/ListRow';
@@ -75,6 +76,7 @@ export function HomeScreen({ navigation }: Props) {
     initialSummary?.todayAppointmentCount ?? 0,
   );
   const [unreadCount, setUnreadCount] = useState(initialSummary?.unreadCount ?? 0);
+  const [notificationCount, setNotificationCount] = useState(0);
   const [pipelineValue, setPipelineValue] = useState(initialSummary?.pipelineValue ?? 0);
   const [pendingTasks, setPendingTasks] = useState(initialSummary?.pendingTasks ?? 0);
   const hasLoadedOnceRef = useRef(Boolean(initialSummary));
@@ -90,6 +92,16 @@ export function HomeScreen({ navigation }: Props) {
     setPipelineValue(summary.pipelineValue);
     setPendingTasks(summary.pendingTasks);
   }, []);
+
+  const loadNotificationBadge = useCallback(async () => {
+    if (!token || !locationId) return;
+    try {
+      const count = await fetchNotificationUnreadCount({ token, locationId });
+      setNotificationCount(count);
+    } catch {
+      /* badge is best-effort */
+    }
+  }, [token, locationId]);
 
   const load = useCallback(
     async (opts?: { pull?: boolean; force?: boolean; silent?: boolean }) => {
@@ -129,10 +141,13 @@ export function HomeScreen({ navigation }: Props) {
 
   useFocusEffect(
     useCallback(() => {
-      if (!token || !locationId || !hasLoadedOnceRef.current) return;
+      if (!token || !locationId) return;
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      loadNotificationBadge();
+      if (!hasLoadedOnceRef.current) return;
       // eslint-disable-next-line @typescript-eslint/no-floating-promises
       load({ silent: true });
-    }, [token, locationId, load]),
+    }, [token, locationId, load, loadNotificationBadge]),
   );
 
   useEffect(() => {
@@ -178,7 +193,7 @@ export function HomeScreen({ navigation }: Props) {
   }, [token, locationId, locationName, locationAddress, locationLogoUrl, setLocation]);
 
   const firstName = user?.email?.split('@')[0] ?? 'there';
-  const parentNav = navigation.getParent();
+  const tabNav = getTabNavigation(navigation);
   const scrollBottomPad = TAB_LIST_BOTTOM_PADDING;
 
   const pinnedApps = useMemo(
@@ -197,37 +212,33 @@ export function HomeScreen({ navigation }: Props) {
         id: 'add-contact',
         label: 'Add Contact',
         icon: 'person-add-outline',
-        onPress: () =>
-          parentNav?.navigate('AppsTab' as never, { screen: 'ContactForm' } as never),
+        onPress: () => navigateToTabScreen(navigation, 'AppsTab', 'ContactForm'),
       },
       {
         id: 'new-message',
         label: 'New Message',
         icon: 'chatbubble-ellipses-outline',
         onPress: () =>
-          parentNav?.navigate(
-            'InboxTab' as never,
-            { screen: 'InboxList', params: { openCompose: true } } as never,
-          ),
+          navigateToTabScreen(navigation, 'InboxTab', 'InboxList', { openCompose: true }),
       },
       {
         id: 'new-opportunity',
         label: 'New Opportunity',
         icon: 'git-network-outline',
         onPress: () =>
-          parentNav?.navigate('AppsTab' as never, {
-            screen: 'PickContact',
-            params: { flow: 'opportunity', pipelineId: undefined },
-          } as never),
+          navigateToTabScreen(navigation, 'AppsTab', 'PickContact', {
+            flow: 'opportunity',
+            pipelineId: undefined,
+          }),
       },
       {
         id: 'schedule',
         label: 'Schedule',
         icon: 'calendar-outline',
-        onPress: () => parentNav?.navigate('CalendarTab' as never),
+        onPress: () => navigateToTabScreen(navigation, 'CalendarTab', 'CalendarList'),
       },
     ],
-    [parentNav],
+    [navigation],
   );
 
   function togglePinned(appId: string) {
@@ -275,7 +286,7 @@ export function HomeScreen({ navigation }: Props) {
         onNotifications={() => navigation.navigate('Notifications')}
         onSettings={() => navigation.navigate('Settings')}
         welcomeName={firstName}
-        notificationCount={unreadCount}
+        notificationCount={notificationCount}
       />
 
       <ScrollView
@@ -298,12 +309,9 @@ export function HomeScreen({ navigation }: Props) {
               icon="checkbox-outline"
               accent="#60A5FA"
               onPress={() =>
-                parentNav?.navigate('AppsTab' as never, {
-                  screen: 'TasksHome',
-                  params: {
-                    appliedFilters: { ...DEFAULT_TASK_FILTERS, status: 'pending' },
-                  },
-                } as never)
+                navigateToTabScreen(navigation, 'AppsTab', 'TasksHome', {
+                  appliedFilters: { ...DEFAULT_TASK_FILTERS, status: 'pending' },
+                })
               }
             />
             <StatCard
@@ -312,9 +320,7 @@ export function HomeScreen({ navigation }: Props) {
               value={pipelineDisplay}
               icon="cash-outline"
               accent="#22C55E"
-              onPress={() =>
-                parentNav?.navigate('AppsTab' as never, { screen: 'PipelineHome' } as never)
-              }
+              onPress={() => navigateToTabScreen(navigation, 'AppsTab', 'PipelineHome')}
             />
           </View>
           <View style={styles.statsRow}>
@@ -324,7 +330,7 @@ export function HomeScreen({ navigation }: Props) {
               value={loading ? '—' : unreadCount}
               icon="chatbubble-ellipses-outline"
               accent="#60A5FA"
-              onPress={() => parentNav?.navigate('InboxTab' as never)}
+              onPress={() => navigateToTabScreen(navigation, 'InboxTab', 'InboxList')}
             />
             <StatCard
               title="Appointments"
@@ -332,7 +338,7 @@ export function HomeScreen({ navigation }: Props) {
               value={loading ? '—' : todayAppointmentCount}
               icon="calendar-outline"
               accent="#F59E0B"
-              onPress={() => parentNav?.navigate('CalendarTab' as never)}
+              onPress={() => navigateToTabScreen(navigation, 'CalendarTab', 'CalendarList')}
             />
           </View>
         </View>
@@ -352,7 +358,7 @@ export function HomeScreen({ navigation }: Props) {
                 <Pressable
                   key={app.id}
                   style={styles.pinnedItem}
-                  onPress={() => openCrmApp(app.id, parentNav ?? undefined)}
+                  onPress={() => openCrmApp(app.id, tabNav ?? navigation)}
                 >
                   <View style={[styles.pinnedCircle, { borderColor: `${app.accent}44` }]}>
                     <Ionicons name={app.icon} size={20} color={app.accent} />
@@ -388,7 +394,7 @@ export function HomeScreen({ navigation }: Props) {
           <View style={styles.panelHead}>
             <Text style={styles.panelTitle}>Today&apos;s schedule</Text>
             {todayAppointmentCount > todayEvents.length ? (
-              <Pressable onPress={() => parentNav?.navigate('CalendarTab' as never)}>
+              <Pressable onPress={() => navigateToTabScreen(navigation, 'CalendarTab', 'CalendarList')}>
                 <Text style={styles.viewAllLink}>View all ({todayAppointmentCount})</Text>
               </Pressable>
             ) : null}

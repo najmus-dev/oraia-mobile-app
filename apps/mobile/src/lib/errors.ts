@@ -20,7 +20,12 @@ export function parseApiError(raw: string, status?: number): ApiError {
 }
 
 export function formatError(e: unknown): string {
-  if (e instanceof ApiError) return e.message;
+  if (e instanceof ApiError) {
+    if (e.status === 429) {
+      return 'The server is busy. Wait a moment, then tap Retry.';
+    }
+    return e.message;
+  }
   if (e instanceof Error) return e.message;
   return String(e);
 }

@@ -57,6 +57,25 @@ Enable **InboundMessage** under Advanced settings → Webhooks for push notifica
 
 ---
 
+## Notifications (in-app feed)
+
+GHL does not expose a public notifications list API. ORAIA stores notifications from webhooks and CRM sync.
+
+| Method | Path | Auth |
+|--------|------|------|
+| GET | `/api/notifications?type=&status=&cursor=&sync=1&tzOffset=` | JWT + location |
+| GET | `/api/notifications/unread-count` | JWT + location |
+| PUT | `/api/notifications/read-all` | JWT + location |
+| PUT | `/api/notifications/:notificationId/read` | JWT + location |
+
+**Query `type`:** `conversations`, `appointments`, `tasks`, `reputation`, `social_planner`, `custom`  
+**Query `status`:** `read`, `unread`  
+**`sync=1`:** backfills unread conversations, pending tasks, and today's appointments from GHL (throttled 60s per user/location).
+
+**Webhook sources:** `InboundMessage`, `AppointmentCreate`, `TaskCreate` → `POST /webhooks/ghl`
+
+---
+
 ## Push tokens (mobile)
 
 | Method | Path | Auth |

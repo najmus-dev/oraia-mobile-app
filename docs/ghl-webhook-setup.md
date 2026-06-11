@@ -47,7 +47,9 @@ Local dev: omit all three to allow unsigned `curl` testing.
 
 In **Marketplace → My Apps → Advanced settings → Webhooks**, enable:
 
-- **InboundMessage** — sends a push to registered mobile devices when a contact messages in
+- **InboundMessage** — push + in-app notification when a contact messages in
+- **AppointmentCreate** — in-app notification for new appointments (optional)
+- **TaskCreate** — in-app notification for new tasks (optional)
 
 The mobile app registers an Expo push token per user + location via `POST /api/push-tokens/register`.
 

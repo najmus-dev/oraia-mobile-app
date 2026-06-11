@@ -82,10 +82,14 @@ export function PickContactScreen({ navigation, route }: Props) {
       return;
     }
     if (flow === 'opportunity') {
-      (navigation as PipelinePickProps['navigation']).navigate('OpportunityForm', {
-        pickedContact: picked,
-        pipelineId: route.params.pipelineId,
-        pipelineStageId: route.params.pipelineStageId,
+      (navigation as PipelinePickProps['navigation']).navigate({
+        name: 'OpportunityForm',
+        params: {
+          pickedContact: picked,
+          pipelineId: route.params.pipelineId,
+          pipelineStageId: route.params.pipelineStageId,
+        },
+        merge: true,
       });
       return;
     }

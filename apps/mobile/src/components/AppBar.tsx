@@ -8,6 +8,7 @@ type Props = {
   title: string;
   onBack?: () => void;
   rightLabel?: string;
+  rightIcon?: keyof typeof Ionicons.glyphMap;
   onRightPress?: () => void;
   rightDisabled?: boolean;
   rightLoading?: boolean;
@@ -19,6 +20,7 @@ export function AppBar({
   title,
   onBack,
   rightLabel,
+  rightIcon,
   onRightPress,
   rightDisabled,
   rightLoading,
@@ -44,6 +46,15 @@ export function AppBar({
         {onSettings ? (
           <Pressable onPress={onSettings} hitSlop={8} style={styles.iconBtn}>
             <Ionicons name="settings-outline" size={20} color={theme.colors.textOnDark} />
+          </Pressable>
+        ) : null}
+        {rightIcon ? (
+          <Pressable onPress={onRightPress} disabled={rightDisabled || rightLoading} hitSlop={8} style={styles.iconBtn}>
+            {rightLoading ? (
+              <ActivityIndicator size="small" color={theme.colors.link} />
+            ) : (
+              <Ionicons name={rightIcon} size={22} color={theme.colors.textOnDark} />
+            )}
           </Pressable>
         ) : null}
         {rightLabel ? (

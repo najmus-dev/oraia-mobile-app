@@ -4,6 +4,7 @@ import {
   assertFreeSlotsRange,
   normalizeFreeSlotsRange,
   parseFreeSlotsQuery,
+  toGhlEventQueryMillis,
 } from '../src/lib/calendarFreeSlots';
 
 describe('normalizeFreeSlotsRange', () => {
@@ -36,5 +37,16 @@ describe('parseFreeSlotsQuery', () => {
     });
     assert.equal(query.timezone, 'America/New_York');
     assert.equal(query.userId, 'user_1');
+  });
+});
+
+describe('toGhlEventQueryMillis', () => {
+  it('converts ISO 8601 to epoch milliseconds', () => {
+    const iso = '2026-06-11T18:45:00.000Z';
+    assert.equal(toGhlEventQueryMillis(iso), String(Date.parse(iso)));
+  });
+
+  it('passes through millisecond strings', () => {
+    assert.equal(toGhlEventQueryMillis('1680373800000'), '1680373800000');
   });
 });

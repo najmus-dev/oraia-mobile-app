@@ -1,7 +1,9 @@
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 import { config } from '../../config';
-import { GHL_CALENDAR_API_VERSION } from '../../lib/calendarFreeSlots';
+import { GHL_CALENDAR_API_VERSION, toGhlEventQueryMillis } from '../../lib/calendarFreeSlots';
+import { normalizeCalendarEventsResponse } from '../../lib/calendarEvents';
 import { AppError } from '../../lib/errors';
+import { omitRedundantLocationId, withRequiredLocationQuery } from '../../lib/ghlLocationScope';
 import {
   buildCompanyAuthCodeBody,
   buildCompanyRefreshTokenBody,
@@ -34,6 +36,11 @@ export type GhlClientOptions = {
 
 interface RetryableAxiosConfig extends InternalAxiosRequestConfig {
   _ghlRetried?: boolean;
+  _ghl429Retried?: boolean;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function isOAuthTokenRequest(url: string | undefined): boolean {
@@ -55,11 +62,27 @@ export class GhlClient {
     this.http.interceptors.response.use(
       (response) => response,
       async (error: unknown) => {
-        if (!axios.isAxiosError(error) || !error.config || error.response?.status !== 401) {
+        if (!axios.isAxiosError(error) || !error.config) {
           throw error;
         }
 
         const requestConfig = error.config as RetryableAxiosConfig;
+        const status = error.response?.status;
+
+        if (status === 429 && !requestConfig._ghl429Retried) {
+          requestConfig._ghl429Retried = true;
+          const retryAfterHeader = error.response?.headers?.['retry-after'];
+          const retryAfterSec =
+            typeof retryAfterHeader === 'string' ? Number.parseInt(retryAfterHeader, 10) : NaN;
+          const delayMs = Number.isFinite(retryAfterSec) && retryAfterSec > 0 ? retryAfterSec * 1000 : 2000;
+          await sleep(Math.min(delayMs, 5000));
+          return this.http.request(requestConfig);
+        }
+
+        if (status !== 401) {
+          throw error;
+        }
+
         if (requestConfig._ghlRetried || isOAuthTokenRequest(requestConfig.url)) {
           throw error;
         }
@@ -78,13 +101,16 @@ export class GhlClient {
     );
   }
 
-  private async authHeaders(): Promise<Record<string, string>> {
+  private async authHeaders(locationId?: string): Promise<Record<string, string>> {
     const token = await this.getAccessToken();
-    return {
+    const headers: Record<string, string> = {
       Authorization: `Bearer ${token}`,
       Version: config.ghl.apiVersion,
       Accept: 'application/json',
     };
+    const scoped = locationId?.trim();
+    if (scoped) headers.locationId = scoped;
+    return headers;
   }
 
   async listInstalledLocations(
@@ -127,22 +153,21 @@ export class GhlClient {
       startAfter?: number;
     },
   ): Promise<GhlContactsListResponse> {
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     const { data } = await this.http.get<GhlContactsListResponse>('/contacts/', {
       headers,
-      params: {
-        locationId,
+      params: withRequiredLocationQuery(locationId, {
         limit: params?.limit ?? 20,
         query: params?.query,
         startAfterId: params?.startAfterId,
         startAfter: params?.startAfter,
-      },
+      }),
     });
     return data;
   }
 
   async listLocationTags(locationId: string): Promise<{ tags?: Array<{ id: string; name: string }> }> {
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     const { data } = await this.http.get<{ tags?: Array<{ id: string; name: string }> }>(
       `/locations/${locationId}/tags`,
       { headers },
@@ -152,7 +177,7 @@ export class GhlClient {
 
   /** GHL smart lists are internal-only; probe known paths and return [] if unavailable. */
   async listSmartLists(locationId: string): Promise<unknown[]> {
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     const jsonHeaders = { ...headers, 'Content-Type': 'application/json' };
     const attempts: Array<() => Promise<unknown>> = [
       async () => {
@@ -205,7 +230,7 @@ export class GhlClient {
       smartListId?: string;
     },
   ): Promise<GhlContactsSearchResponse> {
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     const payload: Record<string, unknown> = {
       locationId,
       pageLimit: body.pageLimit ?? 30,
@@ -225,16 +250,15 @@ export class GhlClient {
   }
 
   async getContact(contactId: string, locationId: string): Promise<GhlContact> {
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     const { data } = await this.http.get<{ contact: GhlContact }>(`/contacts/${contactId}`, {
       headers,
-      params: { locationId },
     });
     return data.contact;
   }
 
   async createContact(locationId: string, body: Record<string, unknown>): Promise<GhlContact> {
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     const { data } = await this.http.post<{ contact: GhlContact }>(
       '/contacts/',
       { ...body, locationId },
@@ -248,20 +272,19 @@ export class GhlClient {
     locationId: string,
     body: Record<string, unknown>,
   ): Promise<GhlContact> {
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     const { data } = await this.http.put<{ contact: GhlContact }>(
       `/contacts/${contactId}`,
-      body,
-      { headers: { ...headers, 'Content-Type': 'application/json' }, params: { locationId } },
+      omitRedundantLocationId(body),
+      { headers: { ...headers, 'Content-Type': 'application/json' } },
     );
     return data.contact;
   }
 
   async deleteContact(contactId: string, locationId: string): Promise<void> {
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     await this.http.delete(`/contacts/${contactId}`, {
       headers,
-      params: { locationId },
     });
   }
 
@@ -276,18 +299,17 @@ export class GhlClient {
       startAfterDate?: string;
     },
   ): Promise<GhlConversationsSearchResponse> {
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     const { data } = await this.http.get<GhlConversationsSearchResponse>('/conversations/search', {
       headers,
-      params: {
-        locationId,
+      params: withRequiredLocationQuery(locationId, {
         limit: params?.limit ?? 20,
         status: params?.status,
         query: params?.query,
         contactId: params?.contactId,
         assignedTo: params?.assignedTo,
         startAfterDate: params?.startAfterDate,
-      },
+      }),
     });
     return data;
   }
@@ -297,7 +319,7 @@ export class GhlClient {
     locationId: string,
     params?: { searchFilter?: string },
   ): Promise<{ numbers?: Array<Record<string, unknown>> }> {
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     const { data } = await this.http.get<{ numbers?: Array<Record<string, unknown>> }>(
       `/phone-system/numbers/location/${locationId}`,
       { headers, params: { searchFilter: params?.searchFilter } },
@@ -310,13 +332,12 @@ export class GhlClient {
     locationId: string,
     params?: { limit?: number; lastMessageId?: string },
   ): Promise<GhlMessagesResponse> {
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     const { data } = await this.http.get<GhlMessagesResponse>(
       `/conversations/${conversationId}/messages`,
       {
         headers,
         params: {
-          locationId,
           limit: params?.limit ?? 50,
           ...(params?.lastMessageId ? { lastMessageId: params.lastMessageId } : {}),
         },
@@ -330,20 +351,20 @@ export class GhlClient {
     locationId: string,
     body: { unreadCount?: number; starred?: boolean },
   ): Promise<unknown> {
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     const { data } = await this.http.put(
       `/conversations/${conversationId}`,
-      { locationId, ...body },
+      omitRedundantLocationId(body),
       { headers: { ...headers, 'Content-Type': 'application/json' } },
     );
     return data;
   }
 
   async listContactNotes(contactId: string, locationId: string): Promise<{ notes?: Array<Record<string, unknown>> }> {
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     const { data } = await this.http.get<{ notes?: Array<Record<string, unknown>> }>(
       `/contacts/${contactId}/notes`,
-      { headers, params: { locationId } },
+      { headers },
     );
     return data;
   }
@@ -353,11 +374,11 @@ export class GhlClient {
     locationId: string,
     body: string,
   ): Promise<{ note?: Record<string, unknown> }> {
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     const { data } = await this.http.post<{ note?: Record<string, unknown> }>(
       `/contacts/${contactId}/notes`,
       { body },
-      { headers: { ...headers, 'Content-Type': 'application/json' }, params: { locationId } },
+      { headers: { ...headers, 'Content-Type': 'application/json' } },
     );
     return data;
   }
@@ -376,7 +397,7 @@ export class GhlClient {
       filename: file.filename,
       contentType: file.mimeType,
     });
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     const { data } = await this.http.post('/conversations/messages/upload', form, {
       headers: { ...headers, ...form.getHeaders() },
       maxBodyLength: 6 * 1024 * 1024,
@@ -388,28 +409,31 @@ export class GhlClient {
     locationId: string,
     body: Record<string, unknown>,
   ): Promise<unknown> {
-    const headers = await this.authHeaders();
-    const { data } = await this.http.post('/conversations/messages', body, {
+    const headers = await this.authHeaders(locationId);
+    const { data } = await this.http.post('/conversations/messages', { locationId, ...body }, {
       headers: { ...headers, 'Content-Type': 'application/json' },
-      params: { locationId },
     });
     return data;
   }
 
   async listCalendars(locationId: string): Promise<{ calendars: Array<{ id: string; name?: string; locationId?: string }> }> {
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     const { data } = await this.http.get<{ calendars: Array<{ id: string; name?: string; locationId?: string }> }>(
       '/calendars/',
-      { headers, params: { locationId } },
+      {
+        headers: { ...headers, Version: GHL_CALENDAR_API_VERSION },
+        params: withRequiredLocationQuery(locationId),
+      },
     );
     return data;
   }
 
   async getFreeSlots(
+    locationId: string,
     calendarId: string,
     query: { startDate: number; endDate: number; timezone?: string; userId?: string },
   ): Promise<unknown> {
-    const baseHeaders = await this.authHeaders();
+    const baseHeaders = await this.authHeaders(locationId);
     const params: Record<string, string | number> = {
       startDate: query.startDate,
       endDate: query.endDate,
@@ -423,8 +447,8 @@ export class GhlClient {
     return data;
   }
 
-  async getAppointment(eventId: string, _locationId: string): Promise<unknown> {
-    const baseHeaders = await this.authHeaders();
+  async getAppointment(eventId: string, locationId: string): Promise<unknown> {
+    const baseHeaders = await this.authHeaders(locationId);
     const { data } = await this.http.get(`/calendars/events/appointments/${eventId}`, {
       headers: { ...baseHeaders, Version: GHL_CALENDAR_API_VERSION },
     });
@@ -432,7 +456,7 @@ export class GhlClient {
   }
 
   async createAppointment(locationId: string, body: Record<string, unknown>): Promise<unknown> {
-    const baseHeaders = await this.authHeaders();
+    const baseHeaders = await this.authHeaders(locationId);
     const { locationId: _omit, ...rest } = body;
     const { data } = await this.http.post(
       '/calendars/events/appointments',
@@ -450,10 +474,10 @@ export class GhlClient {
 
   async updateAppointment(
     eventId: string,
-    _locationId: string,
+    locationId: string,
     body: Record<string, unknown>,
   ): Promise<unknown> {
-    const baseHeaders = await this.authHeaders();
+    const baseHeaders = await this.authHeaders(locationId);
     const { locationId: _omit, ...payload } = body;
     const { data } = await this.http.put(`/calendars/events/appointments/${eventId}`, payload, {
       headers: {
@@ -466,10 +490,9 @@ export class GhlClient {
   }
 
   async deleteCalendarEvent(eventId: string, locationId: string): Promise<void> {
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     await this.http.delete(`/calendars/events/${eventId}`, {
-      headers,
-      params: { locationId },
+      headers: { ...headers, Version: GHL_CALENDAR_API_VERSION },
     });
   }
 
@@ -483,34 +506,32 @@ export class GhlClient {
       groupId?: string;
     },
   ): Promise<GhlCalendarEventsResponse> {
-    const headers = await this.authHeaders();
-    const query: Record<string, string> = {
-      locationId,
-      startTime: params.startTime,
-      endTime: params.endTime,
-    };
+    const headers = await this.authHeaders(locationId);
+    const query: Record<string, string> = withRequiredLocationQuery(locationId, {
+      startTime: toGhlEventQueryMillis(params.startTime),
+      endTime: toGhlEventQueryMillis(params.endTime),
+    });
     if (params.calendarId) query.calendarId = params.calendarId;
     else if (params.userId) query.userId = params.userId;
     else if (params.groupId) query.groupId = params.groupId;
 
-    const { data } = await this.http.get<GhlCalendarEventsResponse>('/calendars/events', {
-      headers,
+    const { data } = await this.http.get('/calendars/events', {
+      headers: { ...headers, Version: GHL_CALENDAR_API_VERSION },
       params: query,
     });
-    return data;
+    return { events: normalizeCalendarEventsResponse(data) };
   }
 
   async getOpportunity(opportunityId: string, locationId: string): Promise<unknown> {
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     const { data } = await this.http.get(`/opportunities/${opportunityId}`, {
       headers,
-      params: { locationId },
     });
     return data;
   }
 
   async createOpportunity(locationId: string, body: Record<string, unknown>): Promise<unknown> {
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     const { data } = await this.http.post(
       '/opportunities',
       { ...body, locationId },
@@ -530,7 +551,7 @@ export class GhlClient {
       contactId?: string;
     },
   ): Promise<GhlOpportunitiesSearchResponse> {
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     const { data } = await this.http.get<GhlOpportunitiesSearchResponse>('/opportunities/search', {
       headers,
       params: {
@@ -547,10 +568,9 @@ export class GhlClient {
   }
 
   async getPipelines(locationId: string): Promise<GhlPipelinesResponse> {
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     const { data } = await this.http.get<GhlPipelinesResponse>('/opportunities/pipelines', {
       headers,
-      params: { locationId },
     });
     return data;
   }
@@ -560,19 +580,17 @@ export class GhlClient {
     locationId: string,
     body: Record<string, unknown>,
   ): Promise<unknown> {
-    const headers = await this.authHeaders();
-    const { data } = await this.http.put(`/opportunities/${opportunityId}`, body, {
+    const headers = await this.authHeaders(locationId);
+    const { data } = await this.http.put(`/opportunities/${opportunityId}`, omitRedundantLocationId(body), {
       headers: { ...headers, 'Content-Type': 'application/json' },
-      params: { locationId },
     });
     return data;
   }
 
   async deleteOpportunity(opportunityId: string, locationId: string): Promise<void> {
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     await this.http.delete(`/opportunities/${opportunityId}`, {
       headers,
-      params: { locationId },
     });
   }
 
@@ -587,7 +605,7 @@ export class GhlClient {
       skip?: number;
     },
   ): Promise<GhlTasksSearchResponse> {
-    const headers = await this.authHeaders();
+    const headers = await this.authHeaders(locationId);
     const { data } = await this.http.post<GhlTasksSearchResponse>(
       `/locations/${locationId}/tasks/search`,
       body,

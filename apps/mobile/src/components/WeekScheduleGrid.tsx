@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
   addDays,
@@ -8,14 +8,17 @@ import {
   startOfWeekSunday,
   timezoneAbbrev,
 } from '../lib/dates';
+import {
+  bucketWeekEventsByDay,
+  earliestWeekEventTop,
+  WEEK_GRID_CONTENT_HEIGHT,
+  WEEK_GRID_HOUR_HEIGHT,
+  WEEK_GRID_HOURS,
+  type WeekGridEvent,
+} from '../lib/weekScheduleGrid';
 import { theme } from '../theme';
 
-export type ScheduleEvent = {
-  id: string;
-  title?: string;
-  startTime?: string;
-  endTime?: string;
-};
+export type ScheduleEvent = WeekGridEvent;
 
 type Props = {
   focusDate: Date;
@@ -26,19 +29,11 @@ type Props = {
   onEventPress: (event: ScheduleEvent) => void;
   /** When true, show a single-day column (daily agenda). */
   daily?: boolean;
-};
-
-type PlacedEvent = {
-  event: ScheduleEvent;
-  top: number;
-  height: number;
+  loading?: boolean;
+  emptyHint?: string;
 };
 
 const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-const START_HOUR = 7;
-const END_HOUR = 21;
-const HOUR_HEIGHT = 56;
-const HOURS = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
 
 function startOfDayCopy(d: Date) {
   const date = new Date(d);
@@ -46,58 +41,27 @@ function startOfDayCopy(d: Date) {
   return date;
 }
 
-function placeEventOnGrid(event: ScheduleEvent): PlacedEvent | null {
-  if (!event.startTime) return null;
-  const start = new Date(event.startTime);
-  const end = event.endTime ? new Date(event.endTime) : new Date(start.getTime() + 45 * 60 * 1000);
-  const startMins = start.getHours() * 60 + start.getMinutes();
-  const endMins = end.getHours() * 60 + end.getMinutes();
-  const gridStart = START_HOUR * 60;
-  const top = ((startMins - gridStart) / 60) * HOUR_HEIGHT;
-  const height = Math.max(((endMins - startMins) / 60) * HOUR_HEIGHT, 22);
-  if (top + height < 0 || top > (END_HOUR - START_HOUR) * HOUR_HEIGHT) return null;
-  return { event, top, height };
-}
-
-function bucketEventsByDay(
-  events: ScheduleEvent[],
-  weekStart: Date,
-  dayCount: number,
-): PlacedEvent[][] {
-  const cols: PlacedEvent[][] = Array.from({ length: dayCount }, () => []);
-  for (const event of events) {
-    if (!event.startTime) continue;
-    const start = new Date(event.startTime);
-    const dayStart = startOfDayCopy(start);
-    const dayIndex = Math.round((dayStart.getTime() - weekStart.getTime()) / 86_400_000);
-    if (dayIndex < 0 || dayIndex >= dayCount) continue;
-    const placed = placeEventOnGrid(event);
-    if (placed) cols[dayIndex].push(placed);
-  }
-  return cols;
-}
-
 const DayColumn = React.memo(function DayColumn({
   placed,
   active,
   onEventPress,
 }: {
-  placed: PlacedEvent[];
+  placed: Array<{ event: ScheduleEvent; top: number; height: number }>;
   active: boolean;
   onEventPress: (event: ScheduleEvent) => void;
 }) {
   return (
     <View style={styles.dayCol}>
-      {HOURS.map((h) => (
+      {WEEK_GRID_HOURS.map((h) => (
         <View
           key={h}
-          style={[styles.hourCell, { height: HOUR_HEIGHT }, active && styles.hourCellActive]}
+          style={[styles.hourCell, { height: WEEK_GRID_HOUR_HEIGHT }, active && styles.hourCellActive]}
         />
       ))}
       {placed.map(({ event, top, height }) => (
         <Pressable
           key={event.id}
-          style={[styles.eventBlock, { top, height, left: 2, right: 2 }]}
+          style={[styles.eventBlock, { top, height }]}
           onPress={() => onEventPress(event)}
         >
           <Text style={styles.eventTitle} numberOfLines={2}>
@@ -117,7 +81,11 @@ export function WeekScheduleGrid({
   onNextWeek,
   onEventPress,
   daily = false,
+  loading = false,
+  emptyHint,
 }: Props) {
+  const scrollRef = useRef<ScrollView>(null);
+
   const weekStart = useMemo(
     () => (daily ? startOfDayCopy(focusDate) : startOfWeekSunday(focusDate)),
     [focusDate, daily],
@@ -127,13 +95,34 @@ export function WeekScheduleGrid({
     [weekStart, focusDate, daily],
   );
   const days = useMemo(
-    () => (daily ? [startOfDayCopy(focusDate)] : Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))),
+    () =>
+      daily
+        ? [startOfDayCopy(focusDate)]
+        : Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
     [weekStart, focusDate, daily],
   );
   const eventsByDay = useMemo(
-    () => bucketEventsByDay(events, weekStart, days.length),
+    () => bucketWeekEventsByDay(events, weekStart, days.length),
     [events, weekStart, days.length],
   );
+  const placedCount = useMemo(
+    () => eventsByDay.reduce((sum, col) => sum + col.length, 0),
+    [eventsByDay],
+  );
+
+  useEffect(() => {
+    if (loading) return;
+    const top = placedCount > 0 ? earliestWeekEventTop(eventsByDay) : null;
+    const y =
+      top != null
+        ? Math.max(0, top - WEEK_GRID_HOUR_HEIGHT)
+        : 7 * WEEK_GRID_HOUR_HEIGHT;
+    const timer = setTimeout(() => {
+      scrollRef.current?.scrollTo({ y, animated: false });
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [eventsByDay, loading, placedCount, weekStart]);
+
   const tz = timezoneAbbrev(focusDate);
   const rangeLabel = daily
     ? focusDate.toLocaleDateString(undefined, {
@@ -143,6 +132,7 @@ export function WeekScheduleGrid({
         year: 'numeric',
       })
     : formatWeekRange(weekStart, weekEnd);
+  const showEmptyHint = Boolean(emptyHint) && !loading && events.length === 0;
 
   return (
     <View style={styles.wrap}>
@@ -174,11 +164,15 @@ export function WeekScheduleGrid({
         })}
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView
+        ref={scrollRef}
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+      >
         <View style={styles.gridRow}>
           <View style={styles.timeCol}>
-            {HOURS.map((h) => (
-              <View key={h} style={[styles.timeCell, { height: HOUR_HEIGHT }]}>
+            {WEEK_GRID_HOURS.map((h) => (
+              <View key={h} style={[styles.timeCell, { height: WEEK_GRID_HOUR_HEIGHT }]}>
                 <Text style={styles.timeLabel}>
                   {new Date(2000, 0, 1, h).toLocaleTimeString(undefined, {
                     hour: 'numeric',
@@ -200,13 +194,25 @@ export function WeekScheduleGrid({
             ))}
           </View>
         </View>
+        {showEmptyHint ? (
+          <View style={styles.emptyHintWrap}>
+            <Text style={styles.emptyHintText}>{emptyHint}</Text>
+          </View>
+        ) : null}
       </ScrollView>
+
+      {loading ? (
+        <View style={styles.loadingOverlay} pointerEvents="none">
+          <ActivityIndicator color={theme.colors.link} size="large" />
+          <Text style={styles.loadingText}>Loading appointments…</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1 },
+  wrap: { flex: 1, position: 'relative' },
   nav: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -259,7 +265,12 @@ const styles = StyleSheet.create({
   },
   dayNumActive: { color: theme.colors.navy, fontFamily: theme.typography.fontFamily.bold },
   scroll: { flex: 1 },
-  gridRow: { flexDirection: 'row', paddingHorizontal: theme.spacing.sm },
+  scrollContent: { paddingBottom: 120 },
+  gridRow: {
+    flexDirection: 'row',
+    paddingHorizontal: theme.spacing.sm,
+    minHeight: WEEK_GRID_CONTENT_HEIGHT,
+  },
   timeCol: { width: 44 },
   timeCell: { justifyContent: 'flex-start', paddingTop: 2 },
   timeLabel: {
@@ -273,6 +284,8 @@ const styles = StyleSheet.create({
   dayCol: {
     flex: 1,
     position: 'relative',
+    minHeight: WEEK_GRID_CONTENT_HEIGHT,
+    overflow: 'visible',
     borderLeftWidth: StyleSheet.hairlineWidth,
     borderLeftColor: theme.colors.border,
   },
@@ -283,15 +296,44 @@ const styles = StyleSheet.create({
   hourCellActive: { backgroundColor: 'rgba(96, 165, 250, 0.06)' },
   eventBlock: {
     position: 'absolute',
+    left: 2,
+    right: 2,
+    zIndex: 2,
+    elevation: 2,
     borderRadius: 6,
     backgroundColor: theme.colors.primary,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
     paddingHorizontal: 4,
-    paddingVertical: 2,
+    paddingVertical: 3,
     overflow: 'hidden',
   },
   eventTitle: {
     color: theme.colors.white,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: 10,
+  },
+  emptyHintWrap: {
+    paddingVertical: theme.spacing.xl,
+    paddingHorizontal: theme.spacing.lg,
+    alignItems: 'center',
+  },
+  emptyHintText: {
+    color: theme.colors.mutedTextOnDark,
+    fontFamily: theme.typography.fontFamily.regular,
+    fontSize: theme.typography.fontSize.sm,
+    textAlign: 'center',
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
+  },
+  loadingText: {
+    color: theme.colors.textOnDark,
+    fontFamily: theme.typography.fontFamily.medium,
+    fontSize: theme.typography.fontSize.sm,
   },
 });

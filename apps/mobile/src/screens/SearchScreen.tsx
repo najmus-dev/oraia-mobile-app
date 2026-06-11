@@ -40,7 +40,7 @@ import {
   type GlobalSearchResults,
   type SearchScope,
 } from '../lib/globalSearch';
-import { navigateToAppointmentDetail, navigateToContactDetail } from '../lib/navigation';
+import { navigateToAppointmentDetail, navigateToContactDetail, navigateToTabScreen, getTabNavigation } from '../lib/navigation';
 import { type OpportunitiesListResponse } from '../lib/opportunities';
 import { type TasksSearchResponse } from '../lib/tasks';
 import { TAB_LIST_BOTTOM_PADDING, useHeaderTopPadding } from '../lib/safeArea';
@@ -74,7 +74,7 @@ export function SearchScreen({ navigation }: Props) {
     appointments: [],
   });
   const [locationSheetOpen, setLocationSheetOpen] = useState(false);
-  const parentNav = navigation.getParent();
+  const tabNav = getTabNavigation(navigation);
   const headerTop = useHeaderTopPadding();
 
   const suggestedApps = useMemo(
@@ -195,59 +195,35 @@ export function SearchScreen({ navigation }: Props) {
       setScope((prev) => (prev === app.id ? null : app.id));
       return;
     }
-    openCrmApp(app.id, parentNav ?? undefined);
+    openCrmApp(app.id, tabNav ?? navigation);
   }
 
   function openContactsViewMore() {
-    parentNav?.navigate(
-      'AppsTab' as never,
-      {
-        screen: 'ContactsList',
-        params: { initialQuery: trimmedQuery },
-      } as never,
-    );
+    navigateToTabScreen(navigation, 'AppsTab', 'ContactsList', { initialQuery: trimmedQuery });
   }
 
   function openOpportunity(opportunityId: string, title?: string) {
-    parentNav?.navigate(
-      'AppsTab' as never,
-      {
-        screen: 'OpportunityDetail',
-        params: { opportunityId, title },
-      } as never,
-    );
+    navigateToTabScreen(navigation, 'AppsTab', 'OpportunityDetail', { opportunityId, title });
   }
 
   function openConversation(conversationId: string, contactId?: string, contactName?: string) {
-    parentNav?.navigate(
-      'InboxTab' as never,
-      {
-        screen: 'ConversationThread',
-        params: {
-          conversationId,
-          contactId,
-          contactName,
-        },
-      } as never,
-    );
+    navigateToTabScreen(navigation, 'InboxTab', 'ConversationThread', {
+      conversationId,
+      contactId,
+      contactName,
+    });
   }
 
   function openTask(task: (typeof results.tasks)[number]) {
     if (!task.contactId?.trim()) {
-      parentNav?.navigate('AppsTab' as never, { screen: 'TasksHome' } as never);
+      navigateToTabScreen(navigation, 'AppsTab', 'TasksHome');
       return;
     }
-    parentNav?.navigate(
-      'AppsTab' as never,
-      {
-        screen: 'TaskForm',
-        params: {
-          taskId: task.id,
-          contactId: task.contactId,
-          initialTask: task,
-        },
-      } as never,
-    );
+    navigateToTabScreen(navigation, 'AppsTab', 'TaskForm', {
+      taskId: task.id,
+      contactId: task.contactId,
+      initialTask: task,
+    });
   }
 
   const scopeLabel = scope ? CRM_APPS[scope]?.label : null;

@@ -3,11 +3,16 @@ import { config } from '../config';
 import { logger } from '../lib/logger';
 import {
   inboundMessagePreview,
+  isAppointmentCreateEvent,
   isInboundMessageEvent,
+  isTaskCreateEvent,
   normalizeWebhookEventType,
+  parseAppointmentCreate,
   parseInboundMessage,
+  parseTaskCreate,
 } from '../lib/ghlWebhookEvents';
 import { assertGhlWebhookAuthorized } from '../lib/webhookAuth';
+import { upsertNotification } from '../services/notificationService';
 import { sendConversationPush } from '../services/pushService';
 import { tokenVault } from '../services/tokenVault';
 
@@ -70,6 +75,22 @@ webhooksRouter.post('/ghl', async (req, res, next) => {
         const preview = inboundMessagePreview(inbound);
         const fromLabel = inbound.from?.trim();
         const title = fromLabel ? `Message from ${fromLabel}` : 'New message';
+        const dedupeKey = inbound.messageId
+          ? `message:${inbound.messageId}`
+          : `conversation:message:${inbound.conversationId}:${Date.now()}`;
+        await upsertNotification({
+          locationId: inbound.locationId,
+          type: 'conversations',
+          title,
+          body: preview,
+          dedupeKey,
+          targetGhlUserId: inbound.assignedTo,
+          action: {
+            kind: 'conversation',
+            conversationId: inbound.conversationId,
+            contactId: inbound.contactId,
+          },
+        });
         const sent = await sendConversationPush({
           locationId: inbound.locationId,
           conversationId: inbound.conversationId,
@@ -83,6 +104,58 @@ webhooksRouter.post('/ghl', async (req, res, next) => {
         return;
       }
       res.json({ ok: true, action: 'inbound_message_ignored', reason: 'missing ids' });
+      return;
+    }
+
+    if (isAppointmentCreateEvent(type)) {
+      const appt = parseAppointmentCreate(body);
+      if (appt?.locationId && appt.appointmentId) {
+        const title = appt.title?.trim() || 'New appointment';
+        const startLabel = appt.startTime ? new Date(appt.startTime).toLocaleString() : 'Scheduled';
+        await upsertNotification({
+          locationId: appt.locationId,
+          type: 'appointments',
+          title,
+          body: startLabel,
+          dedupeKey: `appointment:create:${appt.appointmentId}`,
+          targetGhlUserId: appt.assignedUserId,
+          action: {
+            kind: 'appointment',
+            appointmentId: appt.appointmentId,
+            contactId: appt.contactId,
+          },
+        });
+        res.json({ ok: true, action: 'appointment_create_notification' });
+        return;
+      }
+      res.json({ ok: true, action: 'appointment_create_ignored', reason: 'missing ids' });
+      return;
+    }
+
+    if (isTaskCreateEvent(type)) {
+      const task = parseTaskCreate(body);
+      if (task?.locationId && task.taskId) {
+        const title = task.title?.trim() || 'New task';
+        const bodyText =
+          task.body?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || 'Task assigned';
+        await upsertNotification({
+          locationId: task.locationId,
+          type: 'tasks',
+          title,
+          body: bodyText.slice(0, 200),
+          dedupeKey: `task:create:${task.taskId}`,
+          targetGhlUserId: task.assignedTo,
+          action: {
+            kind: 'task',
+            taskId: task.taskId,
+            taskContactId: task.contactId,
+            contactId: task.contactId,
+          },
+        });
+        res.json({ ok: true, action: 'task_create_notification' });
+        return;
+      }
+      res.json({ ok: true, action: 'task_create_ignored', reason: 'missing ids' });
       return;
     }
 

@@ -1,4 +1,5 @@
 import { normalizeConversationDate } from './conversationDates';
+import { logger } from './logger';
 import type { GhlCalendarEvent, GhlConversation, GhlOpportunity } from '../services/ghl/types';
 import type { GhlClient } from '../services/ghl/ghlClient';
 
@@ -16,26 +17,49 @@ function dedupeEventsById(events: GhlCalendarEvent[]): GhlCalendarEvent[] {
   return out;
 }
 
-/** Fetches today's events across every calendar on the location. */
+/** Fetches events across every calendar on the location (with userId fallback). */
 export async function listAllCalendarEvents(
   ghl: GhlClient,
   locationId: string,
-  params: { startTime: string; endTime: string },
+  params: { startTime: string; endTime: string; userId?: string },
 ): Promise<GhlCalendarEvent[]> {
   const { calendars } = await ghl.listCalendars(locationId);
   const ids = (calendars ?? []).map((c) => c.id).filter(Boolean);
-  if (ids.length === 0) return [];
 
-  const batches = await Promise.all(
-    ids.map((calendarId) =>
-      ghl.listCalendarEvents(locationId, {
-        startTime: params.startTime,
-        endTime: params.endTime,
-        calendarId,
-      }),
-    ),
-  );
-  return dedupeEventsById(batches.flatMap((b) => b.events ?? []));
+  const merged: GhlCalendarEvent[] = [];
+  if (ids.length > 0) {
+    const batches = await Promise.allSettled(
+      ids.map((calendarId) =>
+        ghl.listCalendarEvents(locationId, {
+          startTime: params.startTime,
+          endTime: params.endTime,
+          calendarId,
+        }),
+      ),
+    );
+    for (const result of batches) {
+      if (result.status === 'fulfilled') {
+        merged.push(...(result.value.events ?? []));
+        continue;
+      }
+      logger.warn('Calendar events fetch failed for one calendar', { reason: result.reason });
+    }
+  }
+
+  const deduped = dedupeEventsById(merged);
+  if (!params.userId?.trim()) return deduped;
+
+  try {
+    const byUser = await ghl.listCalendarEvents(locationId, {
+      startTime: params.startTime,
+      endTime: params.endTime,
+      userId: params.userId.trim(),
+    });
+    return dedupeEventsById([...deduped, ...(byUser.events ?? [])]);
+  } catch (err) {
+    logger.warn('Calendar events userId fallback failed', { reason: err });
+    return deduped;
+  }
 }
 
 /** Sums unread counts by paginating unread conversations only. */

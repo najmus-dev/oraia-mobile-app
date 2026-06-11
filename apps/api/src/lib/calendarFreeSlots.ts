@@ -2,6 +2,22 @@
 export const GHL_CALENDAR_API_VERSION = '2021-04-15';
 export const GHL_FREE_SLOTS_MAX_RANGE_MS = 31 * 24 * 60 * 60 * 1000;
 
+/**
+ * GHL GET /calendars/events requires startTime/endTime as unix milliseconds (see marketplace docs).
+ * Mobile BFF accepts ISO 8601 and converts here.
+ */
+export function toGhlEventQueryMillis(value: string): string {
+  const trimmed = value.trim();
+  if (/^\d+$/.test(trimmed)) {
+    const n = Number(trimmed);
+    if (!Number.isFinite(n)) throw new Error('Invalid startTime/endTime');
+    return String(n < 1e12 ? n * 1000 : n);
+  }
+  const date = new Date(trimmed);
+  if (Number.isNaN(date.getTime())) throw new Error('Invalid startTime/endTime');
+  return String(date.getTime());
+}
+
 /** Normalize query timestamps to unix milliseconds (GHL requirement). */
 export function normalizeFreeSlotsRange(startDate: number, endDate: number): { startDate: number; endDate: number } {
   const toMs = (value: number) => (value < 1e12 ? value * 1000 : value);

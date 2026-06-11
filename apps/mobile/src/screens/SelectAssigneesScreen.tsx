@@ -153,7 +153,11 @@ export function SelectAssigneesScreen({ navigation, route }: Props) {
           renderItem={({ item }) => {
             const checked = mode === 'multi' ? selected.includes(item.id) : false;
             const isCurrentSingle =
-              mode === 'single' && returnTo === 'TaskForm' && selectedIds?.includes(item.id);
+              mode === 'single' &&
+              (returnTo === 'TaskForm' ||
+                returnTo === 'OpportunityForm' ||
+                returnTo === 'ContactForm') &&
+              selectedIds?.includes(item.id);
             return (
               <Pressable style={styles.row} onPress={() => toggle(item.id)}>
                 {mode === 'multi' ? (

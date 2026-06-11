@@ -132,8 +132,11 @@ export function ScheduleAppointmentScreen({ navigation, route }: Props) {
   }, [loadCalendars]);
 
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    loadSlots();
+    const t = setTimeout(() => {
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      loadSlots();
+    }, 400);
+    return () => clearTimeout(t);
   }, [loadSlots]);
 
   async function save() {

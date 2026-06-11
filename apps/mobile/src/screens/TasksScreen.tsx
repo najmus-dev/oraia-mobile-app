@@ -13,7 +13,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { api, withAuthHeaders } from '../lib/api';
-import { formatError } from '../lib/errors';
+import { navigateToContactDetail } from '../lib/navigation';
 import { FAB_LIST_PADDING_BOTTOM } from '../lib/fabLayout';
 import { useHeaderTopPadding } from '../lib/safeArea';
 import {
@@ -167,10 +167,7 @@ export function TasksScreen({ navigation, route }: Props) {
     setActionOpen(false);
     const contactId = selectedTask.contactId;
     setSelectedTask(null);
-    navigation.getParent()?.navigate('AppsTab' as never, {
-      screen: 'ContactDetail',
-      params: { contactId },
-    } as never);
+    navigateToContactDetail(navigation, contactId);
   }
 
   function confirmDelete() {

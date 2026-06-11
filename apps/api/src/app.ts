@@ -17,6 +17,7 @@ import { opportunitiesRouter } from './routes/opportunities';
 import { tasksRouter } from './routes/tasks';
 import { webhooksRouter } from './routes/webhooks';
 import { pushTokensRouter } from './routes/pushTokens';
+import { notificationsRouter } from './routes/notifications';
 
 export function createApp() {
   const app = express();
@@ -39,12 +40,15 @@ export function createApp() {
   );
 
   app.use(express.json({ limit: '1mb' }));
+  // Authenticated mobile clients make many small reads (inbox, calendar, dashboard).
+  // Keep login brute-force protection in auth routes; use a generous limit elsewhere.
   app.use(
     rateLimit({
       windowMs: 15 * 60 * 1000,
-      max: 300,
+      max: 2000,
       standardHeaders: true,
       legacyHeaders: false,
+      skip: (req) => req.path === '/health' || req.path.startsWith('/webhooks'),
     }),
   );
 
@@ -59,6 +63,7 @@ export function createApp() {
   app.use('/api/dashboard', dashboardRouter);
   app.use('/api/tasks', tasksRouter);
   app.use('/api/push-tokens', pushTokensRouter);
+  app.use('/api/notifications', notificationsRouter);
 
   app.use(ghlErrorMiddleware);
   app.use(errorHandler);

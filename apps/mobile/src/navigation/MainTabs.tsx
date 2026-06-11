@@ -10,6 +10,7 @@ import { CalendarStack } from './CalendarStack';
 import { AppsStack } from './AppsStack';
 import { theme } from '../theme';
 import { shouldHideTabBar } from './tabBarVisibility';
+import { createTabPressToRootListener } from './tabNavigation';
 import { TAB_BAR_BASE_HEIGHT } from '../lib/safeArea';
 import { useAppState } from '../state/AppState';
 import { api, withAuthHeaders } from '../lib/api';
@@ -118,6 +119,7 @@ export function MainTabs() {
       <Tab.Screen
         name="HomeTab"
         component={HomeStack}
+        listeners={createTabPressToRootListener({ tabName: 'HomeTab', rootScreen: 'HomeMain' })}
         options={{
           title: 'Home',
           tabBarIcon: ({ focused, color }) => (
@@ -128,6 +130,7 @@ export function MainTabs() {
       <Tab.Screen
         name="InboxTab"
         component={InboxStack}
+        listeners={createTabPressToRootListener({ tabName: 'InboxTab', rootScreen: 'InboxList' })}
         options={{
           title: 'Conversations',
           tabBarBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
@@ -153,6 +156,7 @@ export function MainTabs() {
       <Tab.Screen
         name="SearchTab"
         component={SearchStack}
+        listeners={createTabPressToRootListener({ tabName: 'SearchTab', rootScreen: 'SearchMain' })}
         options={{
           title: 'Search',
           tabBarIcon: ({ focused, color }) => (
@@ -163,6 +167,7 @@ export function MainTabs() {
       <Tab.Screen
         name="CalendarTab"
         component={CalendarStack}
+        listeners={createTabPressToRootListener({ tabName: 'CalendarTab', rootScreen: 'CalendarList' })}
         options={{
           title: 'Calendar',
           tabBarIcon: ({ focused, color }) => (
@@ -173,6 +178,7 @@ export function MainTabs() {
       <Tab.Screen
         name="AppsTab"
         component={AppsStack}
+        listeners={createTabPressToRootListener({ tabName: 'AppsTab', rootScreen: 'AppsHome' })}
         options={{
           title: 'Apps',
           tabBarIcon: ({ focused, color }) => (
