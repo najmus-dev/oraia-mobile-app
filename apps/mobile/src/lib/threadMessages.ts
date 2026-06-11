@@ -1,4 +1,5 @@
 import type { ConversationMessage } from './conversations';
+import { stripSmsComplianceFooter } from './smsCompliance';
 
 export type ThreadRow =
   | { kind: 'day'; key: string; label: string }
@@ -59,14 +60,27 @@ function isPendingOrFailed(message: ConversationMessage) {
   return message.id.startsWith('pending-') || message.id.startsWith('failed-');
 }
 
+function normalizeBodyForMatch(body: string): string {
+  return stripSmsComplianceFooter(body).toLowerCase();
+}
+
 function isOptimisticDuplicate(
   pending: ConversationMessage,
   server: ConversationMessage,
 ): boolean {
   const pendingBody = (pending.body ?? '').trim();
   const serverBody = (server.body ?? '').trim();
-  if (pendingBody !== serverBody) return false;
+  if (!pendingBody || !serverBody) return false;
   if (pending.direction !== server.direction) return false;
+
+  const pendingNorm = normalizeBodyForMatch(pendingBody);
+  const serverNorm = normalizeBodyForMatch(serverBody);
+  const bodiesMatch =
+    pendingNorm === serverNorm ||
+    serverNorm.startsWith(pendingNorm) ||
+    pendingBody === serverBody;
+  if (!bodiesMatch) return false;
+
   const pendingTime = new Date(pending.dateAdded ?? 0).getTime();
   const serverTime = new Date(server.dateAdded ?? 0).getTime();
   return Math.abs(serverTime - pendingTime) < 120_000;

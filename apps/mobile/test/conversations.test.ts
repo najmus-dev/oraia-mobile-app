@@ -76,9 +76,13 @@ describe('buildSendMessagePayload', () => {
       contactId: 'c1',
       message: 'Hi',
       fromNumber: '+14075551234',
+      toNumber: '+923129198015',
+      conversationId: 'conv_1',
     });
     assert.equal(body.type, 'SMS');
     assert.equal(body.fromNumber, '+14075551234');
+    assert.equal(body.toNumber, '+923129198015');
+    assert.equal(body.conversationId, 'conv_1');
   });
 
   it('includes attachment urls when provided', () => {

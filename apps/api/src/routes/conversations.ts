@@ -4,6 +4,7 @@ import { normalizeConversationDate } from '../lib/conversationDates';
 import { enrichConversationAssignees } from '../lib/conversationEnrichment';
 import { AppError } from '../lib/errors';
 import { extractUploadedAttachmentUrls } from '../lib/attachmentUrls';
+import { buildGhlSendMessagePayload } from '../lib/buildGhlSendMessagePayload';
 import { parseMessageAttachments } from '../lib/parseMessageAttachments';
 import { param } from '../lib/params';
 import { locationGet, locationPost, locationPostWith, locationPut } from '../middleware/locationRoute';
@@ -226,18 +227,7 @@ locationPost(conversationsRouter, '/messages', async (req, res) => {
   if (!messageText && attachments.length === 0) {
     throw new AppError(400, 'message or attachments is required', 'VALIDATION_ERROR');
   }
-  const payload: Record<string, unknown> = {
-    type: body.type,
-    contactId: body.contactId,
-    message: messageText || ' ',
-  };
-  if (typeof body.conversationId === 'string' && body.conversationId.trim()) {
-    payload.conversationId = body.conversationId.trim();
-  }
-  if (typeof body.conversationProviderId === 'string' && body.conversationProviderId.trim()) {
-    payload.conversationProviderId = body.conversationProviderId.trim();
-  }
-  if (attachments.length > 0) payload.attachments = attachments;
+  const payload = buildGhlSendMessagePayload(body);
   const ghl = getLocationGhlClient(locationId);
   const result = await ghl.sendMessage(locationId, payload);
   const resultPayload = (result ?? {}) as Record<string, unknown>;

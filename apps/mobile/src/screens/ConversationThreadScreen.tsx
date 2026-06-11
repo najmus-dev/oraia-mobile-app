@@ -42,9 +42,11 @@ import { ThreadContactBar } from '../components/inbox/ThreadContactBar';
 import {
   canSendEmail,
   canSendSms,
+  formatMessageBodyForDisplay,
   formatMessageMeta,
   isActivityMessage,
   isOutboundMessage,
+  isUndeliveredMessage,
   resolveMessageChannel,
   resolveSendChannels,
 } from '../lib/messageFormat';
@@ -102,6 +104,7 @@ export function ConversationThreadScreen({ navigation, route }: Props) {
   const pendingScrollRef = useRef(false);
   const skipNextLoadRef = useRef(false);
   const messageCountRef = useRef(0);
+  const deliveryPollTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const resolvedContactId = useMemo(() => {
     const fromMessages = resolveConversationContactId(routeContactId, messages);
@@ -204,6 +207,24 @@ export function ConversationThreadScreen({ navigation, route }: Props) {
       }
     },
     [token, locationId, conversationId, fetchMessagePage],
+  );
+
+  const scheduleDeliveryStatusPoll = useCallback(() => {
+    deliveryPollTimersRef.current.forEach(clearTimeout);
+    deliveryPollTimersRef.current = [2_000, 5_000, 12_000].map((delay) =>
+      setTimeout(() => {
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        refreshMessages({ silent: true });
+      }, delay),
+    );
+  }, [refreshMessages]);
+
+  useEffect(
+    () => () => {
+      deliveryPollTimersRef.current.forEach(clearTimeout);
+      deliveryPollTimersRef.current = [];
+    },
+    [],
   );
 
   useFocusEffect(
@@ -423,6 +444,7 @@ export function ConversationThreadScreen({ navigation, route }: Props) {
         buildSendMessagePayload({
           channel,
           contactId: resolvedContactId,
+          conversationId,
           message: text || ' ',
           subject: emailSubject,
           fromNumber: fromNumber ?? undefined,
@@ -440,12 +462,18 @@ export function ConversationThreadScreen({ navigation, route }: Props) {
 
       if (nextConversationId) {
         const page = await fetchMessagePage(nextConversationId);
-        setMessages((prev) => mergeThreadMessages(prev, page.messages));
+        setMessages((prev) =>
+          mergeThreadMessages(
+            prev.filter((m) => m.id !== pendingId),
+            page.messages,
+          ),
+        );
         setHasOlder(page.hasOlder);
         setOlderCursor(page.cursor);
         isNearBottomRef.current = true;
         pendingScrollRef.current = true;
         scrollToLatest();
+        scheduleDeliveryStatusPoll();
       } else {
         setMessages((prev) => prev.filter((m) => m.id !== pendingId));
       }
@@ -474,7 +502,7 @@ export function ConversationThreadScreen({ navigation, route }: Props) {
   }
 
   function retryFailed(message: ConversationMessage) {
-    const body = message.body?.trim();
+    const body = formatMessageBodyForDisplay(message.body) ?? '';
     const attachments = message.attachments ?? [];
     if (!body && attachments.length === 0) return;
     setMessages((prev) => prev.filter((m) => m.id !== message.id));
@@ -488,7 +516,7 @@ export function ConversationThreadScreen({ navigation, route }: Props) {
     if (!body && attachmentList.length === 0) return;
 
     const options: string[] = [];
-    const failed = message.id.startsWith('failed-');
+    const failed = message.id.startsWith('failed-') || isUndeliveredMessage(message);
     if (failed) options.push('Retry send');
     if (body) options.push('Copy text');
     if (attachmentList[0]) options.push('Copy attachment link');
@@ -563,17 +591,18 @@ export function ConversationThreadScreen({ navigation, route }: Props) {
       }
       const msg = item.message;
       const activity = isActivityMessage(msg.messageType);
+      const failed = item.failed || isUndeliveredMessage(msg);
       return (
         <MessageBubble
-          body={msg.body}
+          body={formatMessageBodyForDisplay(msg.body)}
           meta={formatMessageMeta(msg)}
           outbound={!activity && isOutboundMessage(msg.direction)}
           activity={activity}
           pending={item.pending}
-          failed={item.failed}
+          failed={failed}
           attachments={msg.attachments}
           onLongPress={() => showMessageActions(msg)}
-          onRetry={item.failed ? () => retryFailed(msg) : undefined}
+          onRetry={failed ? () => retryFailed(msg) : undefined}
         />
       );
     },

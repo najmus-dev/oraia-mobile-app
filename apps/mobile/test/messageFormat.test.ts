@@ -9,10 +9,24 @@ import {
   isActivityMessage,
   isImageAttachmentUrl,
   isOutboundMessage,
+  isUndeliveredMessage,
   resolveMessageChannel,
   resolveSendChannels,
   smsSegmentInfo,
 } from '../src/lib/messageFormat';
+
+describe('isUndeliveredMessage', () => {
+  it('detects failed outbound SMS', () => {
+    assert.equal(
+      isUndeliveredMessage({ direction: 'outbound', status: 'failed', messageType: 'TYPE_SMS' }),
+      true,
+    );
+    assert.equal(
+      isUndeliveredMessage({ direction: 'inbound', status: 'failed', messageType: 'TYPE_SMS' }),
+      false,
+    );
+  });
+});
 
 describe('isOutboundMessage', () => {
   it('detects outbound directions', () => {

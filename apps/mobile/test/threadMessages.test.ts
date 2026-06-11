@@ -66,6 +66,21 @@ describe('mergeThreadMessages', () => {
     const merged = mergeThreadMessages([pending], [server]);
     assert.deepEqual(merged.map((m) => m.id), ['srv-1']);
   });
+
+  it('drops optimistic pending when GHL appends SMS compliance footer', () => {
+    const pending = {
+      ...msg('pending-1', '2024-01-02T10:00:00.000Z', 'Test', 'outbound'),
+      id: 'pending-1',
+    };
+    const server = msg(
+      'srv-1',
+      '2024-01-02T10:00:01.000Z',
+      'Test\nReply STOP to unsubscribe.\nThanks, ORAIA CRM',
+      'outbound',
+    );
+    const merged = mergeThreadMessages([pending], [server]);
+    assert.deepEqual(merged.map((m) => m.id), ['srv-1']);
+  });
 });
 
 describe('prependOlderMessages', () => {

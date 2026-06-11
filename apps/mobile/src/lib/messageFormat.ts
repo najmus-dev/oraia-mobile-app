@@ -1,8 +1,15 @@
 import type { ConversationMessage, MessageChannel } from './conversations';
+export { formatMessageBodyForDisplay, stripSmsComplianceFooter } from './smsCompliance';
 
 export function isOutboundMessage(direction?: string): boolean {
   const d = direction?.toLowerCase();
   return d === 'outbound' || d === 'outgoing';
+}
+
+export function isUndeliveredMessage(message: Pick<ConversationMessage, 'direction' | 'status' | 'messageType'>): boolean {
+  if (isActivityMessage(message.messageType) || !isOutboundMessage(message.direction)) return false;
+  const status = (message.status ?? '').toLowerCase();
+  return status === 'failed' || status === 'undelivered';
 }
 
 /** Human-readable delivery label for outbound messages. */

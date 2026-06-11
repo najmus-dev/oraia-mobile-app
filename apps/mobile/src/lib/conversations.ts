@@ -1,3 +1,5 @@
+import { formatMessageBodyForDisplay } from './smsCompliance';
+
 export type MessageChannel = 'SMS' | 'Email';
 
 export type InboxFilter = 'all' | 'recents' | 'unread' | 'starred';
@@ -114,7 +116,7 @@ export function conversationChannelKind(lastMessageType?: string): 'sms' | 'emai
 export function formatConversationPreview(item: Conversation): string {
   const kind = conversationChannelKind(item.lastMessageType);
   if (kind === 'call') return 'Call';
-  const body = item.lastMessageBody?.trim();
+  const body = formatMessageBodyForDisplay(item.lastMessageBody);
   if (body) return body;
   if (kind === 'email') return 'Email';
   if (kind === 'sms') return 'Text message';
@@ -151,6 +153,7 @@ export function buildSendMessagePayload(params: {
   channel: MessageChannel;
   contactId: string;
   message: string;
+  conversationId?: string;
   subject?: string;
   fromNumber?: string;
   toNumber?: string;
@@ -161,6 +164,7 @@ export function buildSendMessagePayload(params: {
     contactId: params.contactId,
     message: params.message,
   };
+  if (params.conversationId?.trim()) body.conversationId = params.conversationId.trim();
   if (params.attachments?.length) body.attachments = params.attachments;
   if (params.channel === 'Email') {
     const subject = params.subject?.trim() || 'Message from ORAIA';
