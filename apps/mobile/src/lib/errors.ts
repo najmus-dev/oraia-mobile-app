@@ -24,6 +24,9 @@ export function formatError(e: unknown): string {
     if (e.status === 429) {
       return 'The server is busy. Wait a moment, then tap Retry.';
     }
+    if (e.code === 'GHL_AUTH_ERROR' || e.status === 503) {
+      return 'CRM connection is temporarily unavailable. Wait a moment and try again.';
+    }
     return e.message;
   }
   if (e instanceof Error) return e.message;

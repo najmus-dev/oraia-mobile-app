@@ -17,6 +17,10 @@ healthRouter.get('/health', (_req, res) => {
 /** GHL OAuth token status for production monitoring (no secrets). */
 healthRouter.get('/health/ghl-token', async (_req, res) => {
   try {
+    const before = await tokenVault.getCompanyTokenHealth();
+    if (before.needsRefresh) {
+      await tokenVault.refreshCompanyTokenIfExpiring();
+    }
     const token = await tokenVault.getCompanyTokenHealth();
     const expired = (token.expiresInMinutes ?? 0) <= 0;
     const ok = token.configured && token.oauthRedirectConfigured && !expired;

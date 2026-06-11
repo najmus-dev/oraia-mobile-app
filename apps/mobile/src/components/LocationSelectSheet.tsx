@@ -12,6 +12,7 @@ import {
 import { useSheetBottomPadding } from '../lib/safeArea';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../lib/api';
+import { formatError } from '../lib/errors';
 import {
   type LocationItem,
   type LocationsResponse,
@@ -73,7 +74,7 @@ export function LocationSelectSheet({
       });
       setLocations(res.locations ?? []);
     } catch (e) {
-      Alert.alert('Locations', e instanceof Error ? e.message : String(e));
+      Alert.alert('Could not load locations', formatError(e));
     } finally {
       setLoading(false);
     }

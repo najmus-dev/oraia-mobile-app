@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { isUnauthorizedError, mapMeUserToAuthUser } from '../src/lib/auth';
-import { ApiError } from '../src/lib/errors';
+import { ApiError, formatError } from '../src/lib/errors';
 
 describe('mapMeUserToAuthUser', () => {
   it('maps BFF user shape', () => {
@@ -23,5 +23,12 @@ describe('isUnauthorizedError', () => {
   it('detects 401 ApiError', () => {
     assert.equal(isUnauthorizedError(new ApiError('x', 401)), true);
     assert.equal(isUnauthorizedError(new ApiError('x', 403)), false);
+  });
+});
+
+describe('formatError', () => {
+  it('shows friendly message for GHL CRM outages', () => {
+    const msg = formatError(new ApiError('raw', 503, 'GHL_AUTH_ERROR'));
+    assert.match(msg, /CRM connection is temporarily unavailable/i);
   });
 });

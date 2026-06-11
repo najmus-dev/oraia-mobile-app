@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { config } from '../config';
 import { decrypt, encrypt } from '../lib/crypto';
 import { AppError } from '../lib/errors';
@@ -179,6 +180,13 @@ export const tokenVault = {
         message,
         hint: 'Re-install the marketplace app or visit /api/oauth/callback with a new auth code',
       });
+      if (axios.isAxiosError(err)) {
+        throw new AppError(
+          503,
+          'CRM connection is temporarily unavailable. Please try again in a moment.',
+          'GHL_AUTH_ERROR',
+        );
+      }
       throw err;
     }
   },

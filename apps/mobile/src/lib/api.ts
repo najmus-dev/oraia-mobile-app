@@ -16,8 +16,9 @@ export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
   unauthorizedHandler = handler;
 }
 
-function handleAuthFailure(status?: number) {
-  if (status === 401 && unauthorizedHandler) {
+/** Only clear the ORAIA login session for our JWT auth failures — not GHL/CRM errors. */
+function handleAuthFailure(status?: number, code?: string) {
+  if (status === 401 && code === 'UNAUTHORIZED' && unauthorizedHandler) {
     unauthorizedHandler();
   }
 }
@@ -95,8 +96,9 @@ export class ApiClient {
     });
     const text = await res.text();
     if (!res.ok) {
-      handleAuthFailure(res.status);
-      throw parseApiError(text || `HTTP ${res.status}`, res.status);
+      const err = parseApiError(text || `HTTP ${res.status}`, res.status);
+      handleAuthFailure(res.status, err.code);
+      throw err;
     }
     return text ? (JSON.parse(text) as T) : (undefined as T);
   }
@@ -113,8 +115,9 @@ export class ApiClient {
     });
     const text = await res.text();
     if (!res.ok) {
-      handleAuthFailure(res.status);
-      throw parseApiError(text || `HTTP ${res.status}`, res.status);
+      const err = parseApiError(text || `HTTP ${res.status}`, res.status);
+      handleAuthFailure(res.status, err.code);
+      throw err;
     }
     return text ? (JSON.parse(text) as T) : (undefined as T);
   }
@@ -129,8 +132,9 @@ export class ApiClient {
     });
     const text = await res.text();
     if (!res.ok) {
-      handleAuthFailure(res.status);
-      throw parseApiError(text || `HTTP ${res.status}`, res.status);
+      const err = parseApiError(text || `HTTP ${res.status}`, res.status);
+      handleAuthFailure(res.status, err.code);
+      throw err;
     }
     return text ? (JSON.parse(text) as T) : (undefined as T);
   }
@@ -145,8 +149,9 @@ export class ApiClient {
     });
     if (!res.ok) {
       const text = await res.text();
-      handleAuthFailure(res.status);
-      throw parseApiError(text || `HTTP ${res.status}`, res.status);
+      const err = parseApiError(text || `HTTP ${res.status}`, res.status);
+      handleAuthFailure(res.status, err.code);
+      throw err;
     }
   }
 }
