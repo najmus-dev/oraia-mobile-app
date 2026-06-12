@@ -175,10 +175,15 @@ export const tokenVault = {
       logger.info('Company token refreshed', { companyId: record.companyId });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      const ghlBody = axios.isAxiosError(err)
+        ? (err.response?.data as { message?: string } | undefined)?.message
+        : undefined;
       logger.error('Company token refresh failed', {
         companyId: record.companyId,
         message,
-        hint: 'Re-install the marketplace app or visit /api/oauth/callback with a new auth code',
+        ghlStatus: axios.isAxiosError(err) ? err.response?.status : undefined,
+        ghlBody,
+        hint: 'Refresh token in MongoDB is invalid or was rotated. Re-install the marketplace app (OAuth callback) — do not seed:force with an old .env refresh token.',
       });
       if (axios.isAxiosError(err)) {
         throw new AppError(

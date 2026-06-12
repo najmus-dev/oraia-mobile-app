@@ -18,15 +18,32 @@ healthRouter.get('/health', (_req, res) => {
 healthRouter.get('/health/ghl-token', async (_req, res) => {
   try {
     const before = await tokenVault.getCompanyTokenHealth();
+    let refreshError: string | undefined;
     if (before.needsRefresh) {
-      await tokenVault.refreshCompanyTokenIfExpiring();
+      try {
+        await tokenVault.refreshCompanyTokenIfExpiring();
+      } catch (err) {
+        refreshError = err instanceof Error ? err.message : String(err);
+      }
     }
     const token = await tokenVault.getCompanyTokenHealth();
     const expired = (token.expiresInMinutes ?? 0) <= 0;
-    const ok = token.configured && token.oauthRedirectConfigured && !expired;
+    const ok =
+      token.configured && token.oauthRedirectConfigured && !expired && !refreshError;
     res.status(ok ? 200 : 503).json({
-      status: ok ? (token.needsRefresh ? 'refreshing_soon' : 'ok') : 'attention',
+      status: refreshError
+        ? 'refresh_failed'
+        : ok
+          ? token.needsRefresh
+            ? 'refreshing_soon'
+            : 'ok'
+          : 'attention',
       ...token,
+      refreshError,
+      recovery:
+        refreshError || expired
+          ? 'Re-install the GHL marketplace app to obtain a new authorization code, or run seed:force with a fresh token pair from OAuth (not a stale refresh token).'
+          : undefined,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
