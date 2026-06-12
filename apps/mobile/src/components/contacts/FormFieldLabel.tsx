@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { theme } from '../../theme';
+import { useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 import { PrimaryBadge } from './PrimaryBadge';
 
 type Props = {
@@ -10,6 +11,7 @@ type Props = {
 };
 
 export function FormFieldLabel({ label, required, primary }: Props) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.row}>
       <Text style={styles.label}>
@@ -21,17 +23,20 @@ export function FormFieldLabel({ label, required, primary }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.sm,
+    gap: theme.spacing.xs,
     marginBottom: theme.spacing.sm,
   },
   label: {
-    color: theme.colors.mutedTextOnDark,
+    flexShrink: 1,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
   },
   required: { color: theme.colors.danger },
 });
+}

@@ -2,8 +2,9 @@ import React from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useHeaderTopPadding } from '../../lib/safeArea';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 import { LocationAvatar } from '../LocationAvatar';
-import { theme } from '../../theme';
 
 type Props = {
   contactName: string;
@@ -26,6 +27,8 @@ export function ConversationThreadHeader({
   onBack,
   onOpenContact,
 }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const paddingTop = useHeaderTopPadding();
   const hasEmail = Boolean(contactEmail?.trim());
   const hasPhone = Boolean(contactPhone?.trim());
@@ -69,22 +72,22 @@ export function ConversationThreadHeader({
               <Ionicons
                 name={starred ? 'star' : 'star-outline'}
                 size={22}
-                color={starred ? '#FBBF24' : theme.colors.white}
+                color={starred ? theme.colors.warning : theme.colors.shellForeground}
               />
             </Pressable>
           ) : null}
           {hasEmail ? (
             <Pressable onPress={mail} style={styles.iconBtn} hitSlop={8} accessibilityLabel="Email contact">
-              <Ionicons name="mail-outline" size={22} color={theme.colors.white} />
+              <Ionicons name="mail-outline" size={22} color={theme.colors.shellForeground} />
             </Pressable>
           ) : null}
           {hasPhone ? (
             <Pressable onPress={dial} style={styles.iconBtn} hitSlop={8} accessibilityLabel="Call contact">
-              <Ionicons name="call-outline" size={22} color={theme.colors.white} />
+              <Ionicons name="call-outline" size={22} color={theme.colors.shellForeground} />
             </Pressable>
           ) : null}
           <Pressable onPress={onOpenContact} style={styles.iconBtn} hitSlop={8}>
-            <Ionicons name="ellipsis-vertical" size={20} color={theme.colors.white} />
+            <Ionicons name="ellipsis-vertical" size={20} color={theme.colors.shellForeground} />
           </Pressable>
         </View>
       </View>
@@ -92,38 +95,40 @@ export function ConversationThreadHeader({
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    paddingHorizontal: theme.spacing.md,
-    paddingBottom: theme.spacing.md,
-    backgroundColor: theme.colors.shell,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.colors.border,
-  },
-  row: { flexDirection: 'row', alignItems: 'center' },
-  iconBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  identity: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    marginHorizontal: theme.spacing.xs,
-  },
-  identityText: { flex: 1, minWidth: 0 },
-  name: {
-    color: theme.colors.white,
-    fontFamily: theme.typography.fontFamily.semiBold,
-    fontSize: theme.typography.fontSize.md,
-  },
-  sub: {
-    color: theme.colors.mutedTextOnDark,
-    fontFamily: theme.typography.fontFamily.regular,
-    fontSize: theme.typography.fontSize.xs,
-  },
-  actions: { flexDirection: 'row', alignItems: 'center' },
-});
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
+    wrap: {
+      paddingHorizontal: theme.spacing.md,
+      paddingBottom: theme.spacing.md,
+      backgroundColor: theme.colors.shell,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.border,
+    },
+    row: { flexDirection: 'row', alignItems: 'center' },
+    iconBtn: {
+      width: 36,
+      height: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    identity: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+      marginHorizontal: theme.spacing.xs,
+    },
+    identityText: { flex: 1, minWidth: 0 },
+    name: {
+      color: theme.colors.shellForeground,
+      fontFamily: theme.typography.fontFamily.semiBold,
+      fontSize: theme.typography.fontSize.md,
+    },
+    sub: {
+      color: theme.colors.shellForegroundMuted,
+      fontFamily: theme.typography.fontFamily.regular,
+      fontSize: theme.typography.fontSize.xs,
+    },
+    actions: { flexDirection: 'row', alignItems: 'center' },
+  });
+}

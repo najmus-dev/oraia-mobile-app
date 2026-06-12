@@ -13,6 +13,7 @@ import {
 } from '../lib/ghlWebhookEvents';
 import { assertGhlWebhookAuthorized } from '../lib/webhookAuth';
 import { upsertNotification } from '../services/notificationService';
+import { conversationNotificationDedupeKey } from '../lib/notificationHelpers';
 import { sendConversationPush } from '../services/pushService';
 import { tokenVault } from '../services/tokenVault';
 
@@ -75,16 +76,15 @@ webhooksRouter.post('/ghl', async (req, res, next) => {
         const preview = inboundMessagePreview(inbound);
         const fromLabel = inbound.from?.trim();
         const title = fromLabel ? `Message from ${fromLabel}` : 'New message';
-        const dedupeKey = inbound.messageId
-          ? `message:${inbound.messageId}`
-          : `conversation:message:${inbound.conversationId}:${Date.now()}`;
         await upsertNotification({
           locationId: inbound.locationId,
           type: 'conversations',
           title,
           body: preview,
-          dedupeKey,
+          dedupeKey: conversationNotificationDedupeKey(inbound.conversationId),
           targetGhlUserId: inbound.assignedTo,
+          occurredAt: inbound.dateAdded,
+          markUnread: true,
           action: {
             kind: 'conversation',
             conversationId: inbound.conversationId,

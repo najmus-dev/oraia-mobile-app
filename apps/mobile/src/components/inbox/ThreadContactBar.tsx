@@ -1,7 +1,8 @@
 import React from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 
 type Props = {
   phone?: string;
@@ -10,6 +11,8 @@ type Props = {
 };
 
 export function ThreadContactBar({ phone, email, onViewContact }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const hasPhone = Boolean(phone?.trim());
   const hasEmail = Boolean(email?.trim());
 
@@ -48,46 +51,48 @@ export function ThreadContactBar({ phone, email, onViewContact }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.sm,
-    backgroundColor: theme.colors.shell,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.colors.border,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    maxWidth: '46%',
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: theme.colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  chipText: {
-    color: theme.colors.textOnDark,
-    fontFamily: theme.typography.fontFamily.regular,
-    fontSize: theme.typography.fontSize.xs,
-    flexShrink: 1,
-  },
-  profileLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 'auto',
-    gap: 2,
-  },
-  profileLinkOnly: { marginLeft: 0 },
-  profileText: {
-    color: theme.colors.link,
-    fontFamily: theme.typography.fontFamily.medium,
-    fontSize: theme.typography.fontSize.xs,
-  },
-});
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
+    wrap: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.lg,
+      paddingBottom: theme.spacing.sm,
+      backgroundColor: theme.colors.shell,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.border,
+    },
+    chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      maxWidth: '46%',
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: 4,
+      borderRadius: 999,
+      backgroundColor: theme.colors.surfaceMuted,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    chipText: {
+      color: theme.colors.foreground,
+      fontFamily: theme.typography.fontFamily.regular,
+      fontSize: theme.typography.fontSize.xs,
+      flexShrink: 1,
+    },
+    profileLink: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginLeft: 'auto',
+      gap: 2,
+    },
+    profileLinkOnly: { marginLeft: 0 },
+    profileText: {
+      color: theme.colors.link,
+      fontFamily: theme.typography.fontFamily.medium,
+      fontSize: theme.typography.fontSize.xs,
+    },
+  });
+}

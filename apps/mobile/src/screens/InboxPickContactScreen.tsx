@@ -16,7 +16,9 @@ import { setCachedContactChannels } from '../lib/contactCache';
 import { lookupConversationForContact } from '../lib/conversationsApi';
 import { FAB_LIST_PADDING_BOTTOM } from '../lib/fabLayout';
 import { formatError } from '../lib/errors';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
+import { finishWizardFlow } from '../lib/stackNavigation';
 import { useAppState } from '../state/AppState';
 import { LocationAvatar } from '../components/LocationAvatar';
 import type { InboxStackParamList } from '../navigation/InboxStack';
@@ -24,6 +26,8 @@ import type { InboxStackParamList } from '../navigation/InboxStack';
 type Props = NativeStackScreenProps<InboxStackParamList, 'PickContactForMessage'>;
 
 export function InboxPickContactScreen({ navigation, route }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { channel } = route.params;
   const { token, locationId } = useAppState();
   const [initialLoading, setInitialLoading] = useState(true);
@@ -90,13 +94,16 @@ export function InboxPickContactScreen({ navigation, route }: Props) {
     setOpening(true);
     try {
       const existing = await lookupConversationForContact({ token, locationId }, picked.id);
-      navigation.replace('ConversationThread', {
-        conversationId: existing?.id,
-        contactId: picked.id,
-        contactName: picked.name,
-        contactPhone: picked.phone,
-        contactEmail: picked.email,
-        channel,
+      finishWizardFlow(navigation, {
+        name: 'ConversationThread',
+        params: {
+          conversationId: existing?.id,
+          contactId: picked.id,
+          contactName: picked.name,
+          contactPhone: picked.phone,
+          contactEmail: picked.email,
+          channel,
+        },
       });
     } catch (e) {
       Alert.alert('Conversation', formatError(e));
@@ -112,12 +119,12 @@ export function InboxPickContactScreen({ navigation, route }: Props) {
       <AppBar title={title} onBack={() => navigation.goBack()} />
 
       <View style={styles.search}>
-        <Ionicons name="search" size={18} color={theme.colors.mutedTextOnDark} />
+        <Ionicons name="search" size={18} color={theme.colors.foregroundMuted} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Search by name, phone number, email, or…"
-          placeholderTextColor={theme.colors.mutedTextOnDark}
+          placeholderTextColor={theme.colors.inputPlaceholder}
           style={styles.searchInput}
           autoCapitalize="none"
           autoCorrect={false}
@@ -178,7 +185,8 @@ export function InboxPickContactScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   search: {
     marginHorizontal: theme.spacing.lg,
@@ -195,7 +203,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     paddingVertical: theme.spacing.md,
     fontFamily: theme.typography.fontFamily.regular,
   },
@@ -211,19 +219,19 @@ const styles = StyleSheet.create({
   },
   rowBody: { flex: 1, minWidth: 0 },
   name: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.md,
   },
   sub: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
     marginTop: 2,
   },
   empty: {
     textAlign: 'center',
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     marginTop: theme.spacing.xl,
     fontFamily: theme.typography.fontFamily.regular,
   },
@@ -236,8 +244,9 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md,
   },
   openingText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
   },
 });
+}

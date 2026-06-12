@@ -23,7 +23,9 @@ import {
   scheduleFormToPayload,
   validateScheduleForm,
 } from '../lib/scheduleAppointment';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
+import { finishWizardFlow } from '../lib/stackNavigation';
 import { useAppState } from '../state/AppState';
 import { AppBar } from '../components/AppBar';
 import { BottomSheet } from '../components/BottomSheet';
@@ -37,6 +39,8 @@ import type { CalendarStackParamList } from '../navigation/CalendarStack';
 type Props = NativeStackScreenProps<CalendarStackParamList, 'ScheduleAppointment'>;
 
 export function ScheduleAppointmentScreen({ navigation, route }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const scrollBottom = useFullScreenBottomInset();
   const { contact, eventId } = route.params;
   const isReschedule = Boolean(eventId);
@@ -159,9 +163,9 @@ export function ScheduleAppointmentScreen({ navigation, route }: Props) {
           payload,
           { headers: withAuthHeaders({ token, locationId }) },
         );
-        navigation.replace('AppointmentDetail', {
-          eventId,
-          title: payload.title,
+        finishWizardFlow(navigation, {
+          name: 'AppointmentDetail',
+          params: { eventId, title: payload.title },
         });
         return;
       }
@@ -172,13 +176,16 @@ export function ScheduleAppointmentScreen({ navigation, route }: Props) {
       );
       const createdEventId = res.appointment?.id;
       if (createdEventId) {
-        navigation.replace('AppointmentDetail', {
-          eventId: createdEventId,
-          title: res.appointment?.title ?? payload.title,
+        finishWizardFlow(navigation, {
+          name: 'AppointmentDetail',
+          params: {
+            eventId: createdEventId,
+            title: res.appointment?.title ?? payload.title,
+          },
         });
       } else {
         Alert.alert('Created', 'Appointment saved.');
-        navigation.popToTop();
+        finishWizardFlow(navigation, { name: 'CalendarList' });
       }
     } catch (e) {
       Alert.alert(isReschedule ? 'Update failed' : 'Create failed', formatError(e));
@@ -364,7 +371,8 @@ export function ScheduleAppointmentScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   body: { padding: theme.spacing.lg, gap: theme.spacing.lg },
   contactCard: {
@@ -378,13 +386,13 @@ const styles = StyleSheet.create({
   },
   contactBody: { flex: 1, minWidth: 0 },
   contactName: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.md,
   },
   contactSub: {
     marginTop: 4,
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
   },
@@ -427,14 +435,15 @@ const styles = StyleSheet.create({
     borderBottomColor: theme.colors.border,
   },
   sheetRowText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.md,
   },
   emptySlots: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     textAlign: 'center',
     paddingVertical: theme.spacing.lg,
   },
 });
+}

@@ -20,8 +20,9 @@ import {
   locationItemName,
   matchesLocationQuery,
 } from '../lib/locationTypes';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
 import { useAppState } from '../state/AppState';
-import { theme } from '../theme';
+import type { OraiaTheme } from '../theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LocationAvatar } from './LocationAvatar';
 import { AuthShell } from './AuthShell';
@@ -51,6 +52,13 @@ export function LocationSelectSheet({
   onSelected,
   presentation = 'modal',
 }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles((t) => createStyles(t, presentation));
+  const onShellCanvas = presentation === 'fullscreen';
+  const pinMutedColor = onShellCanvas
+    ? theme.colors.shellForegroundMuted
+    : theme.colors.foregroundMuted;
+  const closeIconColor = onShellCanvas ? theme.colors.shellForeground : theme.colors.foreground;
   const sheetBottom = useSheetBottomPadding();
   const {
     token,
@@ -158,7 +166,7 @@ export function LocationSelectSheet({
     const address = locationItemAddress(item);
 
     return (
-      <View style={styles.row}>
+      <View style={[styles.row, isCurrent && styles.rowCurrent]}>
         <Pressable style={styles.rowMain} onPress={() => select(item)}>
           <LocationAvatar name={locationItemName(item)} logoUrl={item.logoUrl} size={44} />
           <View style={styles.rowBody}>
@@ -189,7 +197,7 @@ export function LocationSelectSheet({
           <Ionicons
             name={pinned ? 'pin' : 'pin-outline'}
             size={18}
-            color={pinned ? theme.colors.link : theme.colors.mutedTextOnDark}
+            color={pinned ? theme.colors.link : pinMutedColor}
           />
         </Pressable>
       </View>
@@ -245,12 +253,12 @@ export function LocationSelectSheet({
 
   const search = (
     <View style={styles.searchWrap}>
-      <Ionicons name="search" size={18} color={theme.colors.mutedTextOnDark} />
+      <Ionicons name="search" size={18} color={pinMutedColor} />
       <TextInput
         value={query}
         onChangeText={setQuery}
         placeholder="Search for a sub-account"
-        placeholderTextColor={theme.colors.mutedTextOnDark}
+        placeholderTextColor={theme.colors.inputPlaceholder}
         style={styles.searchInput}
         autoCapitalize="none"
         autoCorrect={false}
@@ -269,7 +277,7 @@ export function LocationSelectSheet({
           accessibilityRole="button"
           accessibilityLabel="Close"
         >
-          <Ionicons name="close" size={22} color={theme.colors.textOnDark} />
+          <Ionicons name="close" size={22} color={closeIconColor} />
         </Pressable>
         <Text style={styles.sheetTitle}>Select Location</Text>
         <View style={styles.closeBtn} />
@@ -297,7 +305,7 @@ export function LocationSelectSheet({
       <View style={styles.fullscreenHeading}>
         <Text style={styles.fullscreenTitle}>Choose a location</Text>
         <Text style={styles.fullscreenSubtitle}>
-          Select the sub-account you want to work in today.
+          Select your workspace
         </Text>
       </View>
 
@@ -328,7 +336,14 @@ export function LocationSelectSheet({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme, presentation: 'modal' | 'fullscreen') {
+  const onShellCanvas = presentation === 'fullscreen';
+  const titleColor = onShellCanvas ? theme.colors.shellForeground : theme.colors.foreground;
+  const mutedColor = onShellCanvas
+    ? theme.colors.shellForegroundMuted
+    : theme.colors.foregroundMuted;
+
+  return StyleSheet.create({
   fullscreenRoot: {
     flex: 1,
     backgroundColor: theme.colors.shell,
@@ -358,14 +373,14 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.lg,
   },
   fullscreenTitle: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.shellForeground,
     fontFamily: theme.typography.fontFamily.bold,
     fontSize: theme.typography.fontSize['2xl'],
     lineHeight: theme.typography.lineHeight.xl,
   },
   fullscreenSubtitle: {
     marginTop: theme.spacing.sm,
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.shellForegroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.md,
     lineHeight: theme.typography.lineHeight.md,
@@ -385,14 +400,14 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: `${theme.colors.black}8C`,
   },
   sheet: {
     maxHeight: '88%',
     minHeight: '55%',
-    backgroundColor: theme.colors.shellElevated,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: theme.colors.sheet,
+    borderTopLeftRadius: theme.radius.xl,
+    borderTopRightRadius: theme.radius.xl,
     borderWidth: 1,
     borderBottomWidth: 0,
     borderColor: theme.colors.border,
@@ -420,7 +435,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sheetTitle: {
-    color: theme.colors.textOnDark,
+    color: titleColor,
     fontFamily: theme.typography.fontFamily.bold,
     fontSize: theme.typography.fontSize.lg,
   },
@@ -431,14 +446,14 @@ const styles = StyleSheet.create({
     marginHorizontal: theme.spacing.lg,
     marginBottom: theme.spacing.md,
     paddingHorizontal: theme.spacing.lg,
-    borderRadius: 12,
+    borderRadius: theme.radius.md,
     borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
+    borderColor: onShellCanvas ? theme.colors.border : theme.colors.borderLight,
+    backgroundColor: onShellCanvas ? theme.colors.surface : theme.colors.surfaceMuted,
   },
   searchInput: {
     flex: 1,
-    color: theme.colors.textOnDark,
+    color: titleColor,
     fontFamily: theme.typography.fontFamily.regular,
     paddingVertical: theme.spacing.md,
     fontSize: theme.typography.fontSize.md,
@@ -460,7 +475,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.border,
   },
   sectionTitle: {
-    color: theme.colors.mutedTextOnDark,
+    color: mutedColor,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
     textTransform: 'uppercase',
@@ -471,6 +486,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: theme.colors.border,
+  },
+  rowCurrent: {
+    backgroundColor: `${theme.colors.primary}12`,
+    borderRadius: theme.radius.md,
+    marginBottom: theme.spacing.xs,
+    borderBottomWidth: 0,
   },
   rowMain: {
     flex: 1,
@@ -488,25 +509,27 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   rowTitle: {
-    color: theme.colors.textOnDark,
+    color: titleColor,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.md,
     flexShrink: 1,
   },
   currentBadge: {
-    backgroundColor: 'rgba(76, 126, 255, 0.2)',
-    borderRadius: 6,
+    backgroundColor: `${theme.colors.primary}1F`,
+    borderRadius: theme.radius.sm,
+    borderWidth: 1,
+    borderColor: `${theme.colors.primary}40`,
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
   currentBadgeText: {
-    color: theme.colors.link,
+    color: theme.colors.primary,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.xs,
   },
   rowAddress: {
     marginTop: 4,
-    color: theme.colors.mutedTextOnDark,
+    color: mutedColor,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
     lineHeight: theme.typography.lineHeight.sm,
@@ -523,13 +546,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.xl,
   },
   emptyTitle: {
-    color: theme.colors.textOnDark,
+    color: titleColor,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.lg,
   },
   emptySub: {
     marginTop: theme.spacing.sm,
-    color: theme.colors.mutedTextOnDark,
+    color: mutedColor,
     fontFamily: theme.typography.fontFamily.regular,
     textAlign: 'center',
     lineHeight: theme.typography.lineHeight.md,
@@ -543,4 +566,5 @@ const styles = StyleSheet.create({
     color: theme.colors.link,
     fontFamily: theme.typography.fontFamily.semiBold,
   },
-});
+  });
+}

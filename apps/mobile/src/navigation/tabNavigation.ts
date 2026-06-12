@@ -1,6 +1,12 @@
-import type { EventArg, NavigationProp, ParamListBase } from '@react-navigation/native';
+import {
+  CommonActions,
+  type EventArg,
+  type NavigationProp,
+  type ParamListBase,
+} from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { MainTabParamList } from './MainTabs';
+import { buildTabStackResetRoutes, shouldResetTabStackToRoot, type NestedStackState } from './tabStackReset';
 
 /** Walk up the tree until we find the bottom tab navigator. */
 export function getTabNavigation(
@@ -31,6 +37,26 @@ type TabRootConfig = {
   rootScreen: string;
 };
 
+/** Collapse a tab's nested stack to a single root screen and focus that tab. */
+export function resetTabStackToRoot(
+  tabNavigation: NavigationProp<ParamListBase>,
+  tabName: keyof MainTabParamList,
+  rootScreen: string,
+): boolean {
+  const state = tabNavigation.getState();
+  const nextRoutes = buildTabStackResetRoutes(state.routes, tabName, rootScreen);
+  if (!nextRoutes) return false;
+
+  const tabIndex = state.routes.findIndex((r) => r.name === tabName);
+  tabNavigation.dispatch(
+    CommonActions.reset({
+      index: tabIndex,
+      routes: nextRoutes,
+    }),
+  );
+  return true;
+}
+
 /** GHL-style tab bar: tapping a tab always returns to that tab's root screen when nested. */
 export function createTabPressToRootListener({ tabName, rootScreen }: TabRootConfig) {
   return ({
@@ -38,19 +64,14 @@ export function createTabPressToRootListener({ tabName, rootScreen }: TabRootCon
   }: {
     navigation: BottomTabNavigationProp<MainTabParamList>;
   }) => ({
-    tabPress: (_event: EventArg<'tabPress', true>) => {
+    tabPress: (e: EventArg<'tabPress', true>) => {
       const state = navigation.getState();
       const tabRoute = state.routes.find((r) => r.name === tabName);
-      const nestedState = tabRoute?.state;
-      if (!nestedState?.routes?.length) return;
+      const nestedState = tabRoute?.state as NestedStackState | undefined;
+      if (!shouldResetTabStackToRoot(nestedState, rootScreen)) return;
 
-      const index = nestedState.index ?? 0;
-      const focused = nestedState.routes[index]?.name;
-      if (index === 0 && focused === rootScreen) return;
-
-      navigation.navigate(tabName, {
-        screen: rootScreen,
-      } as never);
+      e.preventDefault();
+      resetTabStackToRoot(navigation, tabName, rootScreen);
     },
   });
 }

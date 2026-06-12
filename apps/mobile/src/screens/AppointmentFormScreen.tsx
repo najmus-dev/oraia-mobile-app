@@ -22,7 +22,9 @@ import {
 } from '../lib/appointments';
 import { formatError } from '../lib/errors';
 import { useFullScreenBottomInset } from '../lib/safeArea';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
+import { finishWizardFlow } from '../lib/stackNavigation';
 import { useAppState } from '../state/AppState';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { TextField } from '../components/TextField';
@@ -37,6 +39,8 @@ type Props = NativeStackScreenProps<CalendarStackParamList, 'AppointmentForm'>;
 
 export function AppointmentFormScreen({ navigation, route }: Props) {
   const scrollBottom = useFullScreenBottomInset();
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const eventId = route.params?.eventId;
   const isEdit = Boolean(eventId);
   const { token, locationId } = useAppState();
@@ -121,9 +125,9 @@ export function AppointmentFormScreen({ navigation, route }: Props) {
         await api.putJson(`/api/calendar/appointments/${eventId}`, payload, {
           headers: withAuthHeaders({ token, locationId }),
         });
-        navigation.replace('AppointmentDetail', {
-          eventId,
-          title: values.title.trim(),
+        finishWizardFlow(navigation, {
+          name: 'AppointmentDetail',
+          params: { eventId, title: values.title.trim() },
         });
       } else {
         const res = await api.postJson<{ appointment: { id?: string } }>(
@@ -133,13 +137,16 @@ export function AppointmentFormScreen({ navigation, route }: Props) {
         );
         const created = normalizeAppointment(res.appointment);
         if (created.id) {
-          navigation.replace('AppointmentDetail', {
-            eventId: created.id,
-            title: created.title ?? values.title.trim(),
+          finishWizardFlow(navigation, {
+            name: 'AppointmentDetail',
+            params: {
+              eventId: created.id,
+              title: created.title ?? values.title.trim(),
+            },
           });
         } else {
           Alert.alert('Created', 'Appointment saved.');
-          navigation.goBack();
+          finishWizardFlow(navigation, { name: 'CalendarList' });
         }
       }
     } catch (e) {
@@ -263,13 +270,14 @@ export function AppointmentFormScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   flex: { flex: 1 },
   body: { padding: theme.spacing.xl, gap: theme.spacing.lg },
   loader: { marginTop: theme.spacing['2xl'] },
   sectionLabel: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
     textTransform: 'uppercase',
@@ -277,7 +285,7 @@ const styles = StyleSheet.create({
   },
   hint: {
     marginTop: -theme.spacing.sm,
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
   },
@@ -289,3 +297,4 @@ const styles = StyleSheet.create({
   },
   saveBtn: { marginTop: theme.spacing.md },
 });
+}

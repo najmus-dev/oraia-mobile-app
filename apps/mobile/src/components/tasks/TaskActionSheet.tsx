@@ -2,7 +2,8 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheet } from '../BottomSheet';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 import type { Task } from '../../lib/tasks';
 
 type Props = {
@@ -24,6 +25,8 @@ export function TaskActionSheet({
   onViewContact,
   onDelete,
 }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   if (!task) return null;
 
   const canMutate = Boolean(task.contactId);
@@ -79,10 +82,10 @@ function ActionRow({
         size={20}
         color={
           disabled
-            ? theme.colors.mutedTextOnDark
+            ? theme.colors.foregroundMuted
             : destructive
               ? theme.colors.danger
-              : theme.colors.textOnDark
+              : theme.colors.foreground
         }
       />
       <Text
@@ -98,7 +101,8 @@ function ActionRow({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -108,7 +112,7 @@ const styles = StyleSheet.create({
     borderBottomColor: theme.colors.border,
   },
   actionText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.md,
   },
@@ -119,13 +123,14 @@ const styles = StyleSheet.create({
     opacity: 0.45,
   },
   actionTextDisabled: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
   },
   hint: {
     paddingTop: theme.spacing.md,
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
     lineHeight: theme.typography.lineHeight.sm,
   },
 });
+}

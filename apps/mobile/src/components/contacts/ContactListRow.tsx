@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 import { ContactAvatar } from './ContactAvatar';
 import {
   contactDisplayName,
@@ -13,6 +14,7 @@ type Props = {
 };
 
 export function ContactListRow({ contact, onPress }: Props) {
+  const styles = useThemedStyles(createStyles);
   const name = contactDisplayName(contact);
   return (
     <Pressable
@@ -40,7 +42,8 @@ export function ContactListRow({ contact, onPress }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -52,14 +55,15 @@ const styles = StyleSheet.create({
   rowPressed: { opacity: 0.82 },
   body: { flex: 1, minWidth: 0 },
   name: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.md,
   },
   sub: {
     marginTop: 2,
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
   },
 });
+}

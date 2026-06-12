@@ -1,7 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { type Opportunity, formatOpportunityMoney } from '../../lib/opportunities';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 
 type Props = {
   opportunity: Opportunity;
@@ -14,6 +15,7 @@ export const OpportunityCard = React.memo(function OpportunityCard({
   onPress,
   onLongPress,
 }: Props) {
+  const styles = useThemedStyles(createStyles);
   const valueLabel =
     opportunity.monetaryValue != null ? formatOpportunityMoney(opportunity.monetaryValue) : null;
 
@@ -30,7 +32,8 @@ export const OpportunityCard = React.memo(function OpportunityCard({
   );
 });
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   card: {
     backgroundColor: theme.colors.surface,
     borderRadius: 12,
@@ -40,7 +43,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.sm,
   },
   title: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.sm,
     lineHeight: theme.typography.lineHeight.sm,
@@ -53,9 +56,10 @@ const styles = StyleSheet.create({
   },
   status: {
     marginTop: theme.spacing.xs,
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
     textTransform: 'capitalize',
   },
 });
+}

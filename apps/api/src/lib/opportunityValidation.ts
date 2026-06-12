@@ -6,7 +6,6 @@ export type OpportunityCreateBody = {
   status: string;
   monetaryValue?: number;
   source?: string;
-  companyName?: string;
   assignedTo?: string;
 };
 
@@ -47,7 +46,6 @@ export function validateOpportunityCreateBody(body: unknown): OpportunityCreateB
   }
 
   const source = typeof record.source === 'string' ? record.source.trim() : '';
-  const companyName = typeof record.companyName === 'string' ? record.companyName.trim() : '';
   const assignedTo = typeof record.assignedTo === 'string' ? record.assignedTo.trim() : '';
 
   return {
@@ -58,7 +56,6 @@ export function validateOpportunityCreateBody(body: unknown): OpportunityCreateB
     status,
     monetaryValue,
     ...(source ? { source } : {}),
-    ...(companyName ? { companyName } : {}),
     ...(assignedTo ? { assignedTo } : {}),
   };
 }
@@ -106,14 +103,13 @@ export function validateOpportunityUpdateBody(body: unknown): Record<string, unk
   if ('source' in record) {
     out.source = typeof record.source === 'string' ? record.source.trim() : '';
   }
-  if ('companyName' in record) {
-    out.companyName = typeof record.companyName === 'string' ? record.companyName.trim() : '';
-  }
   if ('assignedTo' in record) {
     out.assignedTo = typeof record.assignedTo === 'string' ? record.assignedTo.trim() : '';
   }
 
-  if (Object.keys(out).length === 0) {
+  const hasExtras =
+    'followerIds' in record || 'contactTags' in record || 'businessName' in record;
+  if (Object.keys(out).length === 0 && !hasExtras) {
     throw new Error('At least one field is required to update');
   }
 

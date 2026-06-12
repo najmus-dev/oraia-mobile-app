@@ -1,7 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 
 type Props = {
   title: string;
@@ -11,6 +12,8 @@ type Props = {
 };
 
 export function TasksEmptyState({ title, subtitle, actionLabel, onAction }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.wrap}>
       <View style={styles.iconRing}>
@@ -28,7 +31,8 @@ export function TasksEmptyState({ title, subtitle, actionLabel, onAction }: Prop
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   wrap: {
     flex: 1,
     alignItems: 'center',
@@ -43,18 +47,18 @@ const styles = StyleSheet.create({
     borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(91, 127, 212, 0.15)',
+    backgroundColor: `${theme.colors.primary}26`,
     marginBottom: theme.spacing.lg,
   },
   title: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.lg,
     textAlign: 'center',
   },
   sub: {
     marginTop: theme.spacing.sm,
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.md,
     textAlign: 'center',
@@ -77,3 +81,4 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.md,
   },
 });
+}

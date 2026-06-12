@@ -1,7 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 
 type Props = {
   label: string;
@@ -9,6 +10,8 @@ type Props = {
 };
 
 export function ContactFilterPill({ label, onPress }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <Pressable style={styles.pill} onPress={onPress} accessibilityRole="button">
       <Text style={styles.label} numberOfLines={1}>
@@ -19,7 +22,8 @@ export function ContactFilterPill({ label, onPress }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   pill: {
     alignSelf: 'flex-start',
     maxWidth: '100%',
@@ -31,7 +35,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: 'rgba(47, 45, 121, 0.55)',
     borderWidth: 1,
-    borderColor: 'rgba(134, 182, 255, 0.25)',
+    borderColor: `${theme.colors.primary}40`,
   },
   label: {
     flexShrink: 1,
@@ -40,3 +44,4 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
   },
 });
+}

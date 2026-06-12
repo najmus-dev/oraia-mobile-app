@@ -8,7 +8,8 @@ import {
   taskStatusLabel,
   type Task,
 } from '../../lib/tasks';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 
 type Props = {
   task: Task;
@@ -16,6 +17,8 @@ type Props = {
 };
 
 export function TaskRow({ task, onPress }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const dueLabel = formatTaskDueDate(task.dueDate);
   const assignee = task.assigneeName?.trim() || 'Unassigned';
   const bodyPreview = stripTaskBodyHtml(task.body);
@@ -76,18 +79,19 @@ export function TaskRow({ task, onPress }: Props) {
 
       <View style={styles.footer}>
         <View style={styles.assigneeChip}>
-          <Ionicons name="person-outline" size={14} color={theme.colors.mutedTextOnDark} />
+          <Ionicons name="person-outline" size={14} color={theme.colors.foregroundMuted} />
           <Text style={styles.assigneeText} numberOfLines={1}>
             {assignee}
           </Text>
         </View>
-        <Ionicons name="chevron-forward" size={16} color={theme.colors.mutedTextOnDark} />
+        <Ionicons name="chevron-forward" size={16} color={theme.colors.foregroundMuted} />
       </View>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   card: {
     marginHorizontal: theme.spacing.lg,
     marginBottom: theme.spacing.md,
@@ -124,12 +128,12 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
   },
   metaDate: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.xs,
   },
   overdueDate: {
-    color: '#FCA5A5',
+    color: theme.colors.danger,
   },
   statusPill: {
     borderRadius: 999,
@@ -148,18 +152,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(239, 68, 68, 0.12)',
   },
   statusPillText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: 11,
   },
   statusPillTextCompleted: {
-    color: '#86EFAC',
+    color: theme.colors.success,
   },
   statusPillTextOverdue: {
-    color: '#FCA5A5',
+    color: theme.colors.danger,
   },
   title: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.bold,
     fontSize: theme.typography.fontSize.lg,
     lineHeight: theme.typography.lineHeight.lg,
@@ -167,17 +171,17 @@ const styles = StyleSheet.create({
   },
   titleCompleted: {
     textDecorationLine: 'line-through',
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
   },
   body: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
     lineHeight: theme.typography.lineHeight.sm,
     marginBottom: theme.spacing.md,
   },
   mutedText: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
   },
   footer: {
     flexDirection: 'row',
@@ -194,8 +198,9 @@ const styles = StyleSheet.create({
   },
   assigneeText: {
     flex: 1,
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
   },
 });
+}

@@ -131,6 +131,20 @@ export function contactDisplayName(c: Pick<Contact, 'firstName' | 'lastName' | '
   return c.name?.trim() || fromParts || 'Unnamed';
 }
 
+/** Multi-line clipboard text (name, phone, email) — matches GHL mobile copy behavior. */
+export function formatContactClipboardText(
+  contact: Pick<Contact, 'firstName' | 'lastName' | 'name' | 'phone' | 'email'>,
+): string {
+  const lines: string[] = [];
+  const name = contactDisplayName(contact);
+  if (name !== 'Unnamed') lines.push(name);
+  const phone = contact.phone?.trim();
+  if (phone) lines.push(phone);
+  const email = contact.email?.trim();
+  if (email) lines.push(email);
+  return lines.join('\n');
+}
+
 export function contactInitials(c: Pick<Contact, 'firstName' | 'lastName' | 'name' | 'phone'>): string {
   const name = contactDisplayName(c);
   if (name !== 'Unnamed') {

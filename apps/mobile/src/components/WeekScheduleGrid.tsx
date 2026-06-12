@@ -16,7 +16,8 @@ import {
   WEEK_GRID_HOURS,
   type WeekGridEvent,
 } from '../lib/weekScheduleGrid';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
 
 export type ScheduleEvent = WeekGridEvent;
 
@@ -50,6 +51,7 @@ const DayColumn = React.memo(function DayColumn({
   active: boolean;
   onEventPress: (event: ScheduleEvent) => void;
 }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.dayCol}>
       {WEEK_GRID_HOURS.map((h) => (
@@ -84,6 +86,8 @@ export function WeekScheduleGrid({
   loading = false,
   emptyHint,
 }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const scrollRef = useRef<ScrollView>(null);
 
   const weekStart = useMemo(
@@ -203,7 +207,7 @@ export function WeekScheduleGrid({
 
       {loading ? (
         <View style={styles.loadingOverlay} pointerEvents="none">
-          <ActivityIndicator color={theme.colors.link} size="large" />
+          <ActivityIndicator color={theme.colors.scrimSpinner} size="large" />
           <Text style={styles.loadingText}>Loading appointments…</Text>
         </View>
       ) : null}
@@ -211,7 +215,8 @@ export function WeekScheduleGrid({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   wrap: { flex: 1, position: 'relative' },
   nav: {
     flexDirection: 'row',
@@ -223,7 +228,7 @@ const styles = StyleSheet.create({
   rangeLabel: {
     flex: 1,
     textAlign: 'center',
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.sm,
     marginHorizontal: theme.spacing.sm,
@@ -238,7 +243,7 @@ const styles = StyleSheet.create({
   },
   tzLabel: {
     width: 40,
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: 10,
     textAlign: 'center',
@@ -246,7 +251,7 @@ const styles = StyleSheet.create({
   },
   dayHead: { flex: 1, alignItems: 'center', gap: 2 },
   dayLetter: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: 11,
   },
@@ -259,7 +264,7 @@ const styles = StyleSheet.create({
   },
   dayNumCircleActive: { backgroundColor: theme.colors.link },
   dayNum: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
   },
@@ -274,7 +279,7 @@ const styles = StyleSheet.create({
   timeCol: { width: 44 },
   timeCell: { justifyContent: 'flex-start', paddingTop: 2 },
   timeLabel: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: 10,
     textAlign: 'right',
@@ -293,7 +298,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: theme.colors.border,
   },
-  hourCellActive: { backgroundColor: 'rgba(96, 165, 250, 0.06)' },
+  hourCellActive: { backgroundColor: `${theme.colors.primary}0F` },
   eventBlock: {
     position: 'absolute',
     left: 2,
@@ -319,21 +324,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyHintText: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
     textAlign: 'center',
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    backgroundColor: theme.colors.scrim,
     alignItems: 'center',
     justifyContent: 'center',
     gap: theme.spacing.sm,
   },
   loadingText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.scrimForeground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
   },
 });
+}

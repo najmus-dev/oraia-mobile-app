@@ -2,7 +2,8 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheet } from '../BottomSheet';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 
 type Props = {
   visible: boolean;
@@ -12,6 +13,8 @@ type Props = {
 };
 
 export function NewContactSheet({ visible, onClose, onAddContact, onScanCard }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <BottomSheet visible={visible} onClose={onClose} title="New Contact">
       <View style={styles.actions}>
@@ -45,7 +48,8 @@ export function NewContactSheet({ visible, onClose, onAddContact, onScanCard }: 
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   actions: {
     gap: theme.spacing.lg,
     paddingBottom: theme.spacing.lg,
@@ -62,11 +66,12 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(134, 182, 255, 0.18)',
+    backgroundColor: `${theme.colors.primary}2E`,
   },
   actionLabel: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.md,
   },
 });
+}

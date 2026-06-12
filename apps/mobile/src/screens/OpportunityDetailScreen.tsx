@@ -4,7 +4,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { api, withAuthHeaders } from '../lib/api';
 import { formatError } from '../lib/errors';
 import { useFullScreenBottomInset } from '../lib/safeArea';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
 import { useAppState } from '../state/AppState';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Button } from '../components/Button';
@@ -12,6 +13,7 @@ import { ChipSelect } from '../components/ChipSelect';
 import { DetailRow } from '../components/DetailRow';
 import { contactDisplayName, type Contact, type ContactResponse } from '../lib/contacts';
 import { navigateToContactDetail } from '../lib/navigation';
+import { finishWizardFlow, popWizardBack } from '../lib/stackNavigation';
 import {
   type Opportunity,
   type Pipeline,
@@ -25,6 +27,8 @@ type Props = NativeStackScreenProps<AppsStackParamList, 'OpportunityDetail'>;
 export function OpportunityDetailScreen({ navigation, route }: Props) {
   const { opportunityId, title: routeTitle } = route.params;
   const scrollBottom = useFullScreenBottomInset();
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { token, locationId } = useAppState();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -100,7 +104,7 @@ export function OpportunityDetailScreen({ navigation, route }: Props) {
       await api.delete(`/api/opportunities/${opportunityId}`, {
         headers: withAuthHeaders({ token, locationId }),
       });
-      navigation.navigate('PipelineHome');
+      finishWizardFlow(navigation, { name: 'PipelineHome' });
     } catch (e) {
       Alert.alert('Delete failed', formatError(e));
     } finally {
@@ -133,7 +137,7 @@ export function OpportunityDetailScreen({ navigation, route }: Props) {
       <ScreenHeader
         title={title}
         subtitle={loading ? 'Loading…' : (opportunity?.status ?? 'open')}
-        onBack={() => navigation.goBack()}
+        onBack={() => popWizardBack(navigation, 'PipelineHome')}
         actionIcon="create-outline"
         onAction={() =>
           navigation.navigate('OpportunityForm', { opportunityId })
@@ -183,17 +187,19 @@ export function OpportunityDetailScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   body: { padding: theme.spacing.xl, gap: theme.spacing.md },
   sectionTitle: {
     marginTop: theme.spacing.lg,
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.md,
   },
   muted: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
   },
 });
+}

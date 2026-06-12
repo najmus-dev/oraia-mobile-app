@@ -3,7 +3,8 @@ import { FlatList, Pressable, StyleSheet, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheet } from '../BottomSheet';
 import { ContactSearchBar } from './ContactSearchBar';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 import type { ContactSmartList } from '../../lib/contacts';
 
 type Props = {
@@ -15,6 +16,8 @@ type Props = {
 };
 
 export function ContactFilterSheet({ visible, onClose, lists, selectedId, onSelect }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [query, setQuery] = useState('');
 
   useEffect(() => {
@@ -61,7 +64,8 @@ export function ContactFilterSheet({ visible, onClose, lists, selectedId, onSele
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   list: {
     maxHeight: 420,
     marginTop: theme.spacing.md,
@@ -76,8 +80,9 @@ const styles = StyleSheet.create({
   },
   rowLabel: {
     flex: 1,
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.md,
   },
 });
+}

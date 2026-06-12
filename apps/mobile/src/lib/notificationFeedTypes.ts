@@ -18,6 +18,8 @@ export type NotificationItem = {
   title: string;
   body: string;
   action: NotificationAction;
+  /** CRM event time — prefer over createdAt for display and sorting. */
+  occurredAt?: string;
   createdAt: string;
   readAt?: string;
 };

@@ -7,7 +7,8 @@ import {
   formatConversationPreview,
   formatConversationWhen,
 } from '../../lib/conversations';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 import { ConversationAvatar } from './ConversationAvatar';
 
 type Props = {
@@ -21,6 +22,8 @@ export const ConversationListRow = React.memo(function ConversationListRow({
   onOpenThread,
   onLongPressRow,
 }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const unread = (item.unreadCount ?? 0) > 0;
   const kind = conversationChannelKind(item.lastMessageType);
   const isCall = kind === 'call';
@@ -56,7 +59,7 @@ export const ConversationListRow = React.memo(function ConversationListRow({
 
         <View style={styles.previewRow}>
           {isCall ? (
-            <Ionicons name="call-outline" size={13} color={theme.colors.mutedTextOnDark} />
+            <Ionicons name="call-outline" size={13} color={theme.colors.foregroundMuted} />
           ) : null}
           <Text style={[styles.preview, unread && styles.previewUnread]} numberOfLines={1}>
             {preview}
@@ -73,76 +76,78 @@ export const ConversationListRow = React.memo(function ConversationListRow({
   );
 });
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.colors.border,
-    backgroundColor: theme.colors.background,
-  },
-  body: { flex: 1, minWidth: 0 },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: theme.spacing.sm,
-  },
-  name: {
-    flex: 1,
-    color: theme.colors.textOnDark,
-    fontFamily: theme.typography.fontFamily.semiBold,
-    fontSize: theme.typography.fontSize.md,
-  },
-  nameUnread: {
-    fontFamily: theme.typography.fontFamily.bold,
-  },
-  meta: {
-    alignItems: 'flex-end',
-    gap: 4,
-  },
-  time: {
-    color: theme.colors.mutedTextOnDark,
-    fontFamily: theme.typography.fontFamily.regular,
-    fontSize: theme.typography.fontSize.xs,
-  },
-  previewRow: {
-    marginTop: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  preview: {
-    flex: 1,
-    color: theme.colors.mutedTextOnDark,
-    fontFamily: theme.typography.fontFamily.regular,
-    fontSize: theme.typography.fontSize.sm,
-  },
-  previewUnread: {
-    color: theme.colors.textOnDark,
-    fontFamily: theme.typography.fontFamily.medium,
-  },
-  unreadBadge: {
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#22C55E',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  unreadText: {
-    color: '#052E12',
-    fontFamily: theme.typography.fontFamily.bold,
-    fontSize: 10,
-  },
-  assigned: {
-    marginTop: 2,
-    color: '#86B6FF',
-    fontFamily: theme.typography.fontFamily.regular,
-    fontSize: theme.typography.fontSize.xs,
-  },
-});
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: theme.spacing.md,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: 10,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.border,
+      backgroundColor: theme.colors.background,
+    },
+    body: { flex: 1, minWidth: 0 },
+    topRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      gap: theme.spacing.sm,
+    },
+    name: {
+      flex: 1,
+      color: theme.colors.foreground,
+      fontFamily: theme.typography.fontFamily.semiBold,
+      fontSize: theme.typography.fontSize.md,
+    },
+    nameUnread: {
+      fontFamily: theme.typography.fontFamily.bold,
+    },
+    meta: {
+      alignItems: 'flex-end',
+      gap: 4,
+    },
+    time: {
+      color: theme.colors.foregroundMuted,
+      fontFamily: theme.typography.fontFamily.regular,
+      fontSize: theme.typography.fontSize.xs,
+    },
+    previewRow: {
+      marginTop: 2,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    preview: {
+      flex: 1,
+      color: theme.colors.foregroundMuted,
+      fontFamily: theme.typography.fontFamily.regular,
+      fontSize: theme.typography.fontSize.sm,
+    },
+    previewUnread: {
+      color: theme.colors.foreground,
+      fontFamily: theme.typography.fontFamily.medium,
+    },
+    unreadBadge: {
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      backgroundColor: theme.colors.success,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 4,
+    },
+    unreadText: {
+      color: theme.colors.text,
+      fontFamily: theme.typography.fontFamily.bold,
+      fontSize: 10,
+    },
+    assigned: {
+      marginTop: 2,
+      color: theme.colors.link,
+      fontFamily: theme.typography.fontFamily.regular,
+      fontSize: theme.typography.fontSize.xs,
+    },
+  });
+}

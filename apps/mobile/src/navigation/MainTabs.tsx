@@ -8,7 +8,7 @@ import { InboxStack } from './InboxStack';
 import { SearchStack } from './SearchStack';
 import { CalendarStack } from './CalendarStack';
 import { AppsStack } from './AppsStack';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
 import { shouldHideTabBar } from './tabBarVisibility';
 import { createTabPressToRootListener } from './tabNavigation';
 import { TAB_BAR_BASE_HEIGHT } from '../lib/safeArea';
@@ -37,14 +37,35 @@ function TabIcon({
   name: keyof typeof Ionicons.glyphMap;
   outlineName: keyof typeof Ionicons.glyphMap;
 }) {
+  const theme = useTheme();
+  const styles = useThemedStyles((t) =>
+    StyleSheet.create({
+      iconWrap: {
+        width: 40,
+        height: 28,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 14,
+      },
+      iconWrapActive: {
+        backgroundColor: t.colors.primary,
+      },
+    }),
+  );
+
   return (
     <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-      <Ionicons name={focused ? name : outlineName} size={22} color={color} />
+      <Ionicons
+        name={focused ? name : outlineName}
+        size={22}
+        color={focused ? theme.colors.white : color}
+      />
     </View>
   );
 }
 
 export function MainTabs() {
+  const theme = useTheme();
   const { token, locationId } = useAppState();
   const [unreadCount, setUnreadCount] = useState(0);
   const insets = useSafeAreaInsets();
@@ -99,10 +120,10 @@ export function MainTabs() {
         const hideTabBar = shouldHideTabBar(route.name, route);
         return {
         headerShown: false,
-        sceneStyle: { backgroundColor: theme.colors.shell },
+        sceneStyle: { backgroundColor: theme.colors.background },
         lazy: true,
-        tabBarActiveTintColor: theme.colors.white,
-        tabBarInactiveTintColor: theme.colors.mutedTextOnDark,
+        tabBarActiveTintColor: theme.colors.isDark ? theme.colors.white : theme.colors.tabActive,
+        tabBarInactiveTintColor: theme.colors.foregroundMuted,
         tabBarStyle: hideTabBar ? { display: 'none' } : baseTabBarStyle,
         tabBarLabelStyle: {
           fontFamily: theme.typography.fontFamily.medium,
@@ -132,7 +153,7 @@ export function MainTabs() {
         component={InboxStack}
         listeners={createTabPressToRootListener({ tabName: 'InboxTab', rootScreen: 'InboxList' })}
         options={{
-          title: 'Conversations',
+          title: 'Inbox',
           tabBarBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
           tabBarBadgeStyle: {
             backgroundColor: theme.colors.danger,
@@ -189,16 +210,3 @@ export function MainTabs() {
     </Tab.Navigator>
   );
 }
-
-const styles = StyleSheet.create({
-  iconWrap: {
-    width: 40,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 14,
-  },
-  iconWrapActive: {
-    backgroundColor: theme.colors.primary,
-  },
-});

@@ -56,8 +56,10 @@ function readDndSettings(value: unknown): ContactDndSettings | undefined {
 
 function readTags(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
-  const tags = value.filter((t): t is string => typeof t === 'string' && t.trim().length > 0);
-  return tags.length > 0 ? tags : undefined;
+  return value
+    .filter((t): t is string => typeof t === 'string')
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
 }
 
 export function validateContactCreateBody(body: unknown, partial = false): ContactWriteBody {

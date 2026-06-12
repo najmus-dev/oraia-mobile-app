@@ -2,7 +2,8 @@ import React from 'react';
 import { Pressable, StyleSheet, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { FAB_BOTTOM, FAB_RIGHT, FAB_SIZE } from '../lib/fabLayout';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
 
 type Props = {
   onPress: () => void;
@@ -18,6 +19,9 @@ export function FloatingActionButton({
   bottom = FAB_BOTTOM,
   style,
 }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   return (
     <Pressable
       style={[styles.fab, { bottom, right: FAB_RIGHT }, style]}
@@ -30,20 +34,18 @@ export function FloatingActionButton({
   );
 }
 
-const styles = StyleSheet.create({
-  fab: {
-    position: 'absolute',
-    width: FAB_SIZE,
-    height: FAB_SIZE,
-    borderRadius: 16,
-    backgroundColor: theme.colors.link,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOpacity: 0.28,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    zIndex: 20,
-  },
-});
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
+    fab: {
+      position: 'absolute',
+      width: FAB_SIZE,
+      height: FAB_SIZE,
+      borderRadius: theme.radius.lg,
+      backgroundColor: theme.colors.link,
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...theme.shadows.fab,
+      zIndex: 20,
+    },
+  });
+}

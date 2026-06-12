@@ -35,6 +35,10 @@ export type CreateNotificationInput = {
   dedupeKey: string;
   targetGhlUserId?: string;
   action?: NotificationAction;
+  /** When the underlying CRM event happened (message time, due date, etc.). */
+  occurredAt?: string | Date;
+  /** Re-open as unread when the same dedupe key gets new activity (e.g. inbound message). */
+  markUnread?: boolean;
 };
 
 export function parseNotificationType(value: unknown): NotificationType | undefined {

@@ -25,4 +25,8 @@ describe('ghlLocationScope', () => {
       status: 'unread',
     });
   });
+
+  it('supports pipelines list with locationId only', () => {
+    assert.deepEqual(withRequiredLocationQuery('loc_pipelines'), { locationId: 'loc_pipelines' });
+  });
 });

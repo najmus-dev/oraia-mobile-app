@@ -3,7 +3,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useHeaderTopPadding } from '../lib/safeArea';
 import { locationDisplayName } from '../lib/locationDisplay';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
 import { LocationAvatar } from './LocationAvatar';
 
 type Props = {
@@ -29,6 +30,8 @@ export function DashboardHeader({
   welcomeName,
   notificationCount,
 }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const paddingTop = useHeaderTopPadding();
   const subAccountName = locationDisplayName(locationName);
   const addressLine = locationAddress?.trim() || '';
@@ -48,7 +51,7 @@ export function DashboardHeader({
             <Text style={styles.brandTitle} numberOfLines={1}>
               {subAccountName}
             </Text>
-            <Ionicons name="chevron-down" size={18} color={theme.colors.mutedTextOnDark} />
+            <Ionicons name="chevron-down" size={18} color={theme.colors.shellForegroundMuted} />
           </Pressable>
           {addressLine ? (
             <Text style={styles.brandAddress} numberOfLines={2}>
@@ -65,7 +68,7 @@ export function DashboardHeader({
               accessibilityRole="button"
               accessibilityLabel="Notifications"
             >
-              <Ionicons name="notifications-outline" size={20} color={theme.colors.white} />
+              <Ionicons name="notifications-outline" size={20} color={theme.colors.shellForeground} />
               {showBadge ? <View style={styles.badgeDot} /> : null}
             </Pressable>
           ) : null}
@@ -77,7 +80,7 @@ export function DashboardHeader({
               accessibilityRole="button"
               accessibilityLabel="Settings"
             >
-              <Ionicons name="settings-outline" size={20} color={theme.colors.white} />
+              <Ionicons name="settings-outline" size={20} color={theme.colors.shellForeground} />
             </Pressable>
           ) : null}
         </View>
@@ -93,7 +96,7 @@ export function DashboardHeader({
               accessibilityRole="button"
               accessibilityLabel="Refresh"
             >
-              <Ionicons name="refresh" size={20} color={theme.colors.white} />
+              <Ionicons name="refresh" size={20} color={theme.colors.shellForeground} />
             </Pressable>
           ) : null}
         </View>
@@ -102,66 +105,68 @@ export function DashboardHeader({
   );
 }
 
-const styles = StyleSheet.create({
-  header: {
-    paddingHorizontal: theme.spacing.xl,
-    paddingBottom: theme.spacing.lg,
-    backgroundColor: theme.colors.shellElevated,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: theme.spacing.md,
-  },
-  brandTextCol: { flex: 1, minWidth: 0, paddingTop: 2 },
-  brandTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
-  brandTitle: {
-    color: theme.colors.white,
-    fontFamily: theme.typography.fontFamily.bold,
-    fontSize: theme.typography.fontSize.lg,
-    flexShrink: 1,
-  },
-  brandAddress: {
-    marginTop: 4,
-    color: theme.colors.mutedTextOnDark,
-    fontFamily: theme.typography.fontFamily.regular,
-    fontSize: theme.typography.fontSize.sm,
-    lineHeight: theme.typography.lineHeight.sm,
-  },
-  welcomeRow: {
-    marginTop: theme.spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  welcomeText: {
-    color: theme.colors.white,
-    fontFamily: theme.typography.fontFamily.semiBold,
-    fontSize: theme.typography.fontSize.xl,
-    flex: 1,
-  },
-  refreshBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md },
-  headerIconBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeDot: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: theme.colors.danger,
-    borderWidth: 1.5,
-    borderColor: theme.colors.shellElevated,
-  },
-});
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
+    header: {
+      paddingHorizontal: theme.spacing.xl,
+      paddingBottom: theme.spacing.lg,
+      backgroundColor: theme.colors.shellElevated,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: theme.spacing.md,
+    },
+    brandTextCol: { flex: 1, minWidth: 0, paddingTop: 2 },
+    brandTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+    brandTitle: {
+      color: theme.colors.shellForeground,
+      fontFamily: theme.typography.fontFamily.bold,
+      fontSize: theme.typography.fontSize.lg,
+      flexShrink: 1,
+    },
+    brandAddress: {
+      marginTop: 4,
+      color: theme.colors.shellForegroundMuted,
+      fontFamily: theme.typography.fontFamily.regular,
+      fontSize: theme.typography.fontSize.sm,
+      lineHeight: theme.typography.lineHeight.sm,
+    },
+    welcomeRow: {
+      marginTop: theme.spacing.lg,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    welcomeText: {
+      color: theme.colors.shellForeground,
+      fontFamily: theme.typography.fontFamily.semiBold,
+      fontSize: theme.typography.fontSize.xl,
+      flex: 1,
+    },
+    refreshBtn: {
+      width: 36,
+      height: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerActions: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md },
+    headerIconBtn: {
+      width: 36,
+      height: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    badgeDot: {
+      position: 'absolute',
+      top: 4,
+      right: 4,
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: theme.colors.danger,
+      borderWidth: 1.5,
+      borderColor: theme.colors.shellElevated,
+    },
+  });
+}

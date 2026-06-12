@@ -3,7 +3,8 @@ import { Dimensions, Pressable, ScrollView, StyleSheet, Text, View } from 'react
 import { Ionicons } from '@expo/vector-icons';
 import { type Opportunity, formatOpportunityMoney } from '../../lib/opportunities';
 import { computeStageStats } from '../../lib/opportunityPipeline';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 import { OpportunityCard } from './OpportunityCard';
 
 type Props = {
@@ -25,6 +26,8 @@ export function OpportunityKanbanColumn({
   onMove,
   height = Dimensions.get('window').height * 0.58,
 }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const stats = computeStageStats(opportunities);
 
   return (
@@ -38,7 +41,7 @@ export function OpportunityKanbanColumn({
       </Text>
 
       <Pressable style={styles.createBtn} onPress={onCreate}>
-        <Ionicons name="add" size={18} color={theme.colors.textOnDark} />
+        <Ionicons name="add" size={18} color={theme.colors.foreground} />
         <Text style={styles.createText}>Create Opportunity</Text>
       </Pressable>
 
@@ -63,24 +66,25 @@ export function OpportunityKanbanColumn({
 
 const COLUMN_WIDTH = 300;
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   column: {
     width: COLUMN_WIDTH,
     marginRight: theme.spacing.md,
-    backgroundColor: '#151A1F',
+    backgroundColor: theme.colors.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: theme.colors.border,
     padding: theme.spacing.md,
   },
   stageTitle: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.bold,
     fontSize: theme.typography.fontSize.md,
     marginBottom: theme.spacing.xs,
   },
   stageMeta: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.xs,
     marginBottom: theme.spacing.md,
@@ -91,19 +95,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: theme.spacing.xs,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: theme.colors.border,
     borderRadius: 12,
     paddingVertical: theme.spacing.md,
     marginBottom: theme.spacing.md,
     backgroundColor: theme.colors.surface,
   },
   createText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.sm,
   },
   cardsScroll: { flex: 1 },
   cardsContent: { paddingBottom: theme.spacing.sm },
 });
+}
 
 export { COLUMN_WIDTH };

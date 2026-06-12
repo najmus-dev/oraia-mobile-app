@@ -10,8 +10,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { api, withAuthHeaders } from '../lib/api';
 import { type ContactResponse, type PickedContact, contactToPicked } from '../lib/contacts';
 import { formatError } from '../lib/errors';
@@ -23,20 +23,28 @@ import {
   type Pipeline,
   OPPORTUNITY_STATUS_OPTIONS,
   defaultStageIdForPipeline,
-  emptyOpportunityFormValues,
+  formatFollowerLabel,
   formValuesToOpportunityPayload,
   opportunityToFormValues,
   stagesForPipeline,
   validateOpportunityForm,
 } from '../lib/opportunities';
 import {
+  applyPickedAssignee,
+  applyPickedContact,
+  applyPickedFollowers,
   clearOpportunityFormDraft,
+  hasOpportunityContact,
   type OpportunityFormDraft,
   opportunityFormOwnerKey,
   readOpportunityFormDraft,
+  resolveOpportunityFormDraft,
   writeOpportunityFormDraft,
 } from '../lib/opportunityFormDraft';
-import { theme } from '../theme';
+import { ContactTagsField } from '../components/contacts/ContactTagsField';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
+import { finishWizardFlow } from '../lib/stackNavigation';
 import { useAppState } from '../state/AppState';
 import { AppBar } from '../components/AppBar';
 import { BottomSheet } from '../components/BottomSheet';
@@ -48,6 +56,8 @@ type Props = NativeStackScreenProps<AppsStackParamList, 'OpportunityForm'>;
 type PickerKind = 'pipeline' | 'stage' | 'status' | 'contact' | null;
 
 export function OpportunityFormScreen({ navigation, route }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const scrollBottom = useFullScreenBottomInset();
   const { token, locationId } = useAppState();
   const opportunityId = route.params?.opportunityId;
@@ -55,72 +65,144 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
   const ownerKey = opportunityFormOwnerKey({ opportunityId });
   const initialPipelineId = route.params?.pipelineId ?? '';
   const initialStageId = route.params?.pipelineStageId ?? '';
-  const redirectedForContact = useRef(false);
+  const contactGatePassed = useRef(false);
   const pipelinesLoaded = useRef(false);
+  const savedFollowerIds = useRef<string[]>([]);
+  const savedContactTags = useRef<string[]>([]);
+  const savedBusinessName = useRef('');
+
+  const initialDraft = useMemo(
+    () =>
+      resolveOpportunityFormDraft({
+        ownerKey,
+        pipelineId: initialPipelineId,
+        pipelineStageId: initialStageId,
+        pickedContact: route.params?.pickedContact ?? null,
+        pickedAssignee: route.params?.pickedAssignee ?? null,
+        pickedFollowerIds: route.params?.pickedFollowerIds ?? null,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once per mount
+    [],
+  );
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [pickedContact, setPickedContact] = useState<PickedContact | null>(
-    route.params?.pickedContact ?? null,
+    initialDraft.pickedContact,
   );
   const [picker, setPicker] = useState<PickerKind>(null);
-  const [ownerDisplayName, setOwnerDisplayName] = useState(
-    route.params?.pickedAssignee?.name ?? '',
-  );
-  const [values, setValues] = useState(() =>
-    emptyOpportunityFormValues({
-      pipelineId: initialPipelineId,
-      pipelineStageId: initialStageId,
-      contactId: route.params?.pickedContact?.id ?? '',
-      name: route.params?.pickedContact?.name ?? '',
-    }),
+  const [ownerDisplayName, setOwnerDisplayName] = useState(initialDraft.ownerName);
+  const [followerNames, setFollowerNames] = useState(initialDraft.followerNames);
+  const [values, setValues] = useState(initialDraft.values);
+
+  const draftRef = useRef<OpportunityFormDraft>(initialDraft);
+  draftRef.current = { values, pickedContact, ownerName: ownerDisplayName, followerNames };
+
+  const commitDraft = useCallback(
+    (next: OpportunityFormDraft) => {
+      draftRef.current = next;
+      setValues(next.values);
+      setPickedContact(next.pickedContact);
+      setOwnerDisplayName(next.ownerName);
+      setFollowerNames(next.followerNames);
+      writeOpportunityFormDraft(ownerKey, next);
+    },
+    [ownerKey],
   );
 
-  const persistDraft = useCallback(
-    (patch?: Partial<OpportunityFormDraft>) => {
-      writeOpportunityFormDraft(ownerKey, {
-        values: patch?.values ?? values,
-        pickedContact: patch?.pickedContact !== undefined ? patch.pickedContact : pickedContact,
-        ownerName: patch?.ownerName ?? ownerDisplayName,
-      });
-    },
-    [ownerKey, values, pickedContact, ownerDisplayName],
-  );
+  const syncDraft = useCallback(() => {
+    writeOpportunityFormDraft(ownerKey, draftRef.current);
+  }, [ownerKey]);
 
   useEffect(() => {
-    persistDraft();
-  }, [persistDraft]);
+    draftRef.current = { values, pickedContact, ownerName: ownerDisplayName, followerNames };
+    writeOpportunityFormDraft(ownerKey, draftRef.current);
+  }, [ownerKey, values, pickedContact, ownerDisplayName, followerNames]);
 
   useFocusEffect(
     useCallback(() => {
+      if (
+        route.params?.pickedContact ||
+        route.params?.pickedAssignee ||
+        route.params?.pickedFollowerIds
+      ) {
+        return;
+      }
       const stored = readOpportunityFormDraft(ownerKey);
       if (!stored) return;
-      setValues(stored.values);
-      setPickedContact(stored.pickedContact);
-      setOwnerDisplayName(stored.ownerName);
-    }, [ownerKey]),
+      commitDraft(stored);
+    }, [
+      ownerKey,
+      commitDraft,
+      route.params?.pickedContact,
+      route.params?.pickedAssignee,
+      route.params?.pickedFollowerIds,
+    ]),
   );
 
   useEffect(() => {
     const incoming = route.params?.pickedContact;
     if (!incoming) return;
-    setPickedContact(incoming);
-    setValues((prev) => ({
-      ...prev,
-      contactId: incoming.id,
-      name: prev.name.trim() ? prev.name : incoming.name,
-    }));
+    contactGatePassed.current = true;
+    const next = applyPickedContact(draftRef.current, incoming);
+    commitDraft(next);
     navigation.setParams({ pickedContact: undefined });
-  }, [route.params?.pickedContact, navigation]);
+    if (!token || !locationId) return;
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    (async () => {
+      try {
+        const contactRes = await api.getJson<ContactResponse>(
+          `/api/contacts/${incoming.id}`,
+          { headers: withAuthHeaders({ token, locationId }) },
+        );
+        const contactTags = contactRes.contact.tags ?? [];
+        const businessName = contactRes.contact.companyName?.trim() ?? '';
+        savedContactTags.current = contactTags;
+        savedBusinessName.current = businessName;
+        setValues((prev) => ({
+          ...prev,
+          contactTags,
+          businessName: businessName || prev.businessName,
+        }));
+      } catch {
+        savedContactTags.current = [];
+      }
+    })();
+  }, [route.params?.pickedContact, navigation, commitDraft, token, locationId]);
 
   useEffect(() => {
     const picked = route.params?.pickedAssignee;
     if (!picked) return;
-    setOwnerDisplayName(picked.name);
-    setValues((prev) => ({ ...prev, assignedTo: picked.id }));
+    contactGatePassed.current = true;
+    commitDraft(applyPickedAssignee(draftRef.current, picked));
     navigation.setParams({ pickedAssignee: undefined });
-  }, [route.params?.pickedAssignee, navigation]);
+  }, [route.params?.pickedAssignee, navigation, commitDraft]);
+
+  useEffect(() => {
+    const ids = route.params?.pickedFollowerIds;
+    if (!ids) return;
+    contactGatePassed.current = true;
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    (async () => {
+      let namesById: Record<string, string> | undefined;
+      if (token && locationId && ids.length) {
+        try {
+          const assignees = await api.getJson<{ users: { id: string; name: string }[] }>(
+            '/api/tasks/assignees',
+            { headers: withAuthHeaders({ token, locationId }) },
+          );
+          namesById = Object.fromEntries(
+            (assignees.users ?? []).map((u) => [u.id, u.name]),
+          );
+        } catch {
+          namesById = undefined;
+        }
+      }
+      commitDraft(applyPickedFollowers(draftRef.current, ids, namesById));
+      navigation.setParams({ pickedFollowerIds: undefined });
+    })();
+  }, [route.params?.pickedFollowerIds, navigation, commitDraft, token, locationId]);
 
   const loadPipelines = useCallback(async () => {
     if (!token || !locationId) return;
@@ -138,7 +220,11 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
           { headers: withAuthHeaders({ token, locationId }) },
         );
         const opp = oppRes.opportunity;
-        setValues(opportunityToFormValues(opp));
+        const formValues = opportunityToFormValues(opp);
+        const followerIds = opp.followerIds ?? [];
+        savedFollowerIds.current = followerIds;
+        let contactTags: string[] = [];
+        let businessName = formValues.businessName;
         if (opp.contactId?.trim()) {
           try {
             const contactRes = await api.getJson<ContactResponse>(
@@ -146,21 +232,30 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
               { headers: withAuthHeaders({ token, locationId }) },
             );
             setPickedContact(contactToPicked(contactRes.contact));
+            contactTags = contactRes.contact.tags ?? [];
+            businessName = contactRes.contact.companyName?.trim() || formValues.businessName;
           } catch {
             setPickedContact({ id: opp.contactId.trim(), name: 'Contact' });
           }
         }
+        savedContactTags.current = contactTags;
+        savedBusinessName.current = businessName;
+        setValues({ ...formValues, contactTags, followerIds, businessName });
+        let namesById: Record<string, string> = {};
+        try {
+          const assignees = await api.getJson<{ users: { id: string; name: string }[] }>(
+            '/api/tasks/assignees',
+            { headers: withAuthHeaders({ token, locationId }) },
+          );
+          namesById = Object.fromEntries((assignees.users ?? []).map((u) => [u.id, u.name]));
+        } catch {
+          namesById = {};
+        }
         if (opp.assignedTo?.trim()) {
-          try {
-            const assignees = await api.getJson<{ users: { id: string; name: string }[] }>(
-              '/api/tasks/assignees',
-              { headers: withAuthHeaders({ token, locationId }) },
-            );
-            const owner = (assignees.users ?? []).find((u) => u.id === opp.assignedTo);
-            setOwnerDisplayName(owner?.name ?? '');
-          } catch {
-            setOwnerDisplayName('');
-          }
+          setOwnerDisplayName(namesById[opp.assignedTo] ?? '');
+        }
+        if (followerIds.length) {
+          setFollowerNames(followerIds.map((id) => namesById[id] ?? 'Follower'));
         }
       } else if (!pipelinesLoaded.current) {
         setValues((prev) => {
@@ -187,15 +282,21 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
     loadPipelines();
   }, [loadPipelines]);
 
+  const hasContact = hasOpportunityContact({ pickedContact, values });
+
   useEffect(() => {
-    if (isEdit || pickedContact || loading || redirectedForContact.current) return;
-    redirectedForContact.current = true;
+    if (isEdit || loading || contactGatePassed.current) return;
+    if (hasContact) {
+      contactGatePassed.current = true;
+      return;
+    }
+    contactGatePassed.current = true;
     navigation.replace('PickContact', {
       flow: 'opportunity',
       pipelineId: initialPipelineId || undefined,
       pipelineStageId: initialStageId || undefined,
     });
-  }, [pickedContact, loading, navigation, initialPipelineId, initialStageId, isEdit]);
+  }, [hasContact, loading, navigation, initialPipelineId, initialStageId, isEdit]);
 
   const stages = useMemo(
     () => stagesForPipeline(pipelines, values.pipelineId),
@@ -211,7 +312,7 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
     : '';
 
   function openOwnerPicker() {
-    persistDraft();
+    syncDraft();
     navigation.navigate('SelectAssignees', {
       mode: 'single',
       selectedIds: values.assignedTo ? [values.assignedTo] : [],
@@ -219,8 +320,27 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
     });
   }
 
+  function openFollowersPicker() {
+    syncDraft();
+    navigation.navigate('SelectAssignees', {
+      mode: 'multi',
+      selectedIds: values.followerIds,
+      returnTo: 'OpportunityForm',
+    });
+  }
+
+  const followerLabel = formatFollowerLabel(values.followerIds, followerNames);
+
+  function showSyncWarnings(warnings?: { field: string; message: string }[]) {
+    if (!warnings?.length) return;
+    Alert.alert(
+      'Saved with warnings',
+      warnings.map((w) => w.message).join('\n'),
+    );
+  }
+
   function openContactPicker() {
-    persistDraft();
+    syncDraft();
     navigation.navigate('PickContact', {
       flow: 'opportunity',
       pipelineId: values.pipelineId,
@@ -250,25 +370,33 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
 
     setSaving(true);
     try {
-      const payload = formValuesToOpportunityPayload(values);
+      const payload = formValuesToOpportunityPayload(values, {
+        previousContactTags: savedContactTags.current,
+        previousFollowerIds: savedFollowerIds.current,
+        previousBusinessName: savedBusinessName.current,
+      });
+      const headers = withAuthHeaders({ token, locationId });
+      type WriteResponse = OpportunityResponse & {
+        warnings?: { field: string; message: string }[];
+      };
       if (isEdit && opportunityId) {
-        await api.putJson(
+        const res = await api.putJson<WriteResponse>(
           `/api/opportunities/${opportunityId}`,
           payload,
-          { headers: withAuthHeaders({ token, locationId }) },
+          { headers },
         );
-        navigation.replace('OpportunityDetail', {
-          opportunityId,
-          title: values.name.trim(),
+        savedFollowerIds.current = [...values.followerIds];
+        savedContactTags.current = [...values.contactTags];
+        savedBusinessName.current = values.businessName.trim();
+        showSyncWarnings(res.warnings);
+        finishWizardFlow(navigation, {
+          name: 'OpportunityDetail',
+          params: { opportunityId, title: values.name.trim() },
         });
         clearOpportunityFormDraft(ownerKey);
         return;
       }
-      const res = await api.postJson<OpportunityResponse>(
-        '/api/opportunities',
-        formValuesToOpportunityPayload(values),
-        { headers: withAuthHeaders({ token, locationId }) },
-      );
+      const res = await api.postJson<WriteResponse>('/api/opportunities', payload, { headers });
       const createdId = res.opportunity?.id;
       if (!createdId) {
         Alert.alert('Created', 'Opportunity saved, but could not open detail (missing id).');
@@ -276,19 +404,32 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
         navigation.navigate('PipelineHome');
         return;
       }
+      savedFollowerIds.current = [...values.followerIds];
+      savedContactTags.current = [...values.contactTags];
+      savedBusinessName.current = values.businessName.trim();
+      showSyncWarnings(res.warnings);
       clearOpportunityFormDraft(ownerKey);
-      navigation.replace('OpportunityDetail', {
-        opportunityId: createdId,
-        title: values.name.trim(),
+      finishWizardFlow(navigation, {
+        name: 'OpportunityDetail',
+        params: { opportunityId: createdId, title: values.name.trim() },
       });
     } catch (e) {
-      Alert.alert('Create failed', formatError(e));
+      Alert.alert(isEdit ? 'Save failed' : 'Create failed', formatError(e));
     } finally {
       setSaving(false);
     }
   }
 
-  if (!isEdit && !pickedContact && !loading) return null;
+  if (!isEdit && !hasContact && !loading) {
+    return (
+      <View style={styles.container}>
+        <AppBar title="Add Opportunity" onBack={() => navigation.goBack()} />
+        <View style={styles.center}>
+          <Text style={styles.loadingText}>Select a contact to continue.</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -333,7 +474,7 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
                 value={values.name}
                 onChangeText={(t) => setField('name', t)}
                 placeholder="Enter opportunity name"
-                placeholderTextColor={theme.colors.mutedTextOnDark}
+                placeholderTextColor={theme.colors.inputPlaceholder}
                 style={styles.input}
                 autoCapitalize="words"
               />
@@ -367,11 +508,9 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
 
             <FormPickerField
               label="Followers"
-              value=""
-              placeholder="Add Followers"
-              onPress={() =>
-                Alert.alert('Followers', 'Followers are managed in GHL web for now.')
-              }
+              value={followerLabel}
+              placeholder="Add followers"
+              onPress={openFollowersPicker}
             />
 
             <Field label="Value">
@@ -381,7 +520,7 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
                   value={values.monetaryValue}
                   onChangeText={(t) => setField('monetaryValue', t)}
                   placeholder="Enter value"
-                  placeholderTextColor={theme.colors.mutedTextOnDark}
+                  placeholderTextColor={theme.colors.inputPlaceholder}
                   style={[styles.input, styles.moneyInput]}
                   keyboardType="numeric"
                 />
@@ -393,7 +532,7 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
                 value={values.source}
                 onChangeText={(t) => setField('source', t)}
                 placeholder="Add source"
-                placeholderTextColor={theme.colors.mutedTextOnDark}
+                placeholderTextColor={theme.colors.inputPlaceholder}
                 style={styles.input}
               />
             </Field>
@@ -403,17 +542,19 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
                 value={values.businessName}
                 onChangeText={(t) => setField('businessName', t)}
                 placeholder="Business name"
-                placeholderTextColor={theme.colors.mutedTextOnDark}
+                placeholderTextColor={theme.colors.inputPlaceholder}
                 style={styles.input}
                 autoCapitalize="words"
               />
             </Field>
 
-            <FormPickerField
-              label="Tags"
-              value=""
-              placeholder="Add tags"
-              onPress={() => Alert.alert('Tags', 'Tags are managed in GHL web for now.')}
+            <ContactTagsField
+              token={token}
+              locationId={locationId}
+              label="Contact tags"
+              hint="Tags apply to the linked contact in GHL."
+              selected={values.contactTags}
+              onChange={(contactTags) => setField('contactTags', contactTags)}
             />
           </ScrollView>
         </KeyboardAvoidingView>
@@ -468,6 +609,8 @@ export function OpportunityFormScreen({ navigation, route }: Props) {
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  const styles = useThemedStyles(createStyles);
+
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -476,24 +619,25 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   flex: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.xl },
   loadingText: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
   },
   body: { padding: theme.spacing.lg, gap: theme.spacing.md },
   sectionTitle: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.bold,
     fontSize: theme.typography.fontSize.lg,
     marginBottom: theme.spacing.xs,
   },
   field: { gap: 6 },
   fieldLabel: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
   },
@@ -503,7 +647,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.md,
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     backgroundColor: theme.colors.surface,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.md,
@@ -513,19 +657,19 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: theme.spacing.lg,
     zIndex: 1,
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.md,
   },
   moneyInput: { flex: 1, paddingLeft: theme.spacing.xl + 8 },
   emptyTitle: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.lg,
   },
   emptySub: {
     marginTop: theme.spacing.sm,
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     textAlign: 'center',
   },
@@ -535,10 +679,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: theme.colors.border,
   },
-  sheetRowActive: { backgroundColor: 'rgba(96, 165, 250, 0.08)' },
+  sheetRowActive: { backgroundColor: `${theme.colors.primary}14` },
   sheetRowText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.md,
   },
 });
+}

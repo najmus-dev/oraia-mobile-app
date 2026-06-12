@@ -28,7 +28,8 @@ import {
   type OpportunitySortField,
   type OpportunitySortOrder,
 } from '../lib/opportunityPipeline';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
 import { useAppState } from '../state/AppState';
 import { AppBar } from '../components/AppBar';
 import { BottomSheet } from '../components/BottomSheet';
@@ -43,6 +44,8 @@ import type { AppsStackParamList } from '../navigation/AppsStack';
 type Props = NativeStackScreenProps<AppsStackParamList, 'PipelineHome'>;
 
 export function PipelineScreen({ navigation }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { token, locationId } = useAppState();
   const [pipelinesLoading, setPipelinesLoading] = useState(true);
   const [dealsLoading, setDealsLoading] = useState(false);
@@ -176,19 +179,19 @@ export function PipelineScreen({ navigation }: Props) {
       />
 
       <View style={styles.search}>
-        <Ionicons name="search" size={18} color={theme.colors.mutedTextOnDark} />
+        <Ionicons name="search" size={18} color={theme.colors.foregroundMuted} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Search Opportunities"
-          placeholderTextColor={theme.colors.mutedTextOnDark}
+          placeholderTextColor={theme.colors.inputPlaceholder}
           style={styles.searchInput}
           autoCapitalize="none"
           autoCorrect={false}
         />
         {query.length > 0 ? (
           <Pressable onPress={() => setQuery('')} hitSlop={8}>
-            <Ionicons name="close-circle" size={20} color={theme.colors.mutedTextOnDark} />
+            <Ionicons name="close-circle" size={20} color={theme.colors.foregroundMuted} />
           </Pressable>
         ) : null}
       </View>
@@ -309,7 +312,7 @@ export function PipelineScreen({ navigation }: Props) {
           <Ionicons
             name={sortOrder === 'asc' ? 'arrow-up' : 'arrow-down'}
             size={16}
-            color={theme.colors.textOnDark}
+            color={theme.colors.foreground}
           />
           <Text style={styles.sortOrderText}>{sortOrder === 'asc' ? 'Ascending' : 'Descending'}</Text>
         </Pressable>
@@ -396,7 +399,8 @@ export function PipelineScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   center: { flex: 1, justifyContent: 'center' },
   search: {
@@ -414,7 +418,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.regular,
     paddingVertical: theme.spacing.md,
   },
@@ -434,7 +438,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   refreshHintText: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
   },
@@ -446,10 +450,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: theme.colors.border,
   },
-  sheetRowActive: { backgroundColor: 'rgba(96, 165, 250, 0.06)' },
+  sheetRowActive: { backgroundColor: `${theme.colors.primary}0F` },
   sheetRowText: {
     flex: 1,
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.md,
   },
@@ -466,12 +470,12 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   sortOrderText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
   },
   filterSectionLabel: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.xs,
     textTransform: 'uppercase',
@@ -492,3 +496,4 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.sm,
   },
 });
+}

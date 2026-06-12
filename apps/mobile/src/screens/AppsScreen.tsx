@@ -7,18 +7,22 @@ import { LocationSelectSheet } from '../components/LocationSelectSheet';
 import {
   CRM_APPS,
   CRM_APP_SECTIONS,
+  crmAppAccent,
   openCrmApp,
   type CrmAppDef,
 } from '../lib/crmApps';
 import { TAB_LIST_BOTTOM_PADDING } from '../lib/safeArea';
 import { getTabNavigation, navigateToTabScreen } from '../lib/navigation';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
 import { useAppState } from '../state/AppState';
-import { theme } from '../theme';
+import type { OraiaTheme } from '../theme';
 import type { AppsStackParamList } from '../navigation/AppsStack';
 
 type Props = NativeStackScreenProps<AppsStackParamList, 'AppsHome'>;
 
 export function AppsScreen({ navigation }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { locationName, locationAddress, locationLogoUrl } = useAppState();
   const [query, setQuery] = useState('');
   const [locationSheetOpen, setLocationSheetOpen] = useState(false);
@@ -55,19 +59,19 @@ export function AppsScreen({ navigation }: Props) {
       />
 
       <View style={styles.searchWrap}>
-        <Ionicons name="search" size={18} color={theme.colors.mutedTextOnDark} />
+        <Ionicons name="search" size={18} color={theme.colors.foregroundMuted} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Search Apps"
-          placeholderTextColor={theme.colors.mutedTextOnDark}
+          placeholderTextColor={theme.colors.inputPlaceholder}
           style={styles.searchInput}
           autoCapitalize="none"
           autoCorrect={false}
         />
         {query.length > 0 ? (
           <Pressable onPress={() => setQuery('')} hitSlop={8}>
-            <Ionicons name="close-circle" size={20} color={theme.colors.mutedTextOnDark} />
+            <Ionicons name="close-circle" size={20} color={theme.colors.foregroundMuted} />
           </Pressable>
         ) : null}
       </View>
@@ -103,10 +107,14 @@ export function AppsScreen({ navigation }: Props) {
 }
 
 function AppTile({ app, onPress }: { app: CrmAppDef; onPress: () => void }) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
+  const accent = crmAppAccent(app, theme);
+
   return (
     <Pressable style={styles.appTile} onPress={onPress} accessibilityRole="button">
-      <View style={[styles.appIconCircle, { borderColor: `${app.accent}55` }]}>
-        <Ionicons name={app.icon} size={22} color={app.accent} />
+      <View style={[styles.appIconCircle, { borderColor: `${accent}55` }]}>
+        <Ionicons name={app.icon} size={22} color={accent} />
       </View>
       <Text style={styles.appLabel} numberOfLines={2}>
         {app.label}
@@ -115,23 +123,25 @@ function AppTile({ app, onPress }: { app: CrmAppDef; onPress: () => void }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.shell },
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.colors.background },
   searchWrap: {
     marginHorizontal: theme.spacing.lg,
+    marginTop: theme.spacing.md,
     marginBottom: theme.spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.sm,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: 12,
+    borderRadius: theme.radius.md,
     backgroundColor: theme.colors.surface,
     paddingHorizontal: theme.spacing.lg,
   },
   searchInput: {
     flex: 1,
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.regular,
     paddingVertical: theme.spacing.md,
   },
@@ -144,7 +154,7 @@ const styles = StyleSheet.create({
     padding: theme.spacing.lg,
   },
   sectionTitle: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.md,
     marginBottom: theme.spacing.lg,
@@ -170,15 +180,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   appLabel: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
     textAlign: 'center',
   },
   empty: {
     textAlign: 'center',
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     marginTop: theme.spacing.xl,
   },
-});
+  });
+}

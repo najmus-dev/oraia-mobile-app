@@ -5,7 +5,8 @@ import {
   conversationChannelKind,
   conversationNameInitials,
 } from '../../lib/conversations';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 
 type Props = {
   name?: string;
@@ -14,6 +15,8 @@ type Props = {
 };
 
 export function ConversationAvatar({ name, lastMessageType, size = 48 }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const initials = conversationNameInitials(name);
   const kind = conversationChannelKind(lastMessageType);
   const badgeIcon =
@@ -33,32 +36,34 @@ export function ConversationAvatar({ name, lastMessageType, size = 48 }: Props) 
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    position: 'relative',
-  },
-  avatar: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#1C2230',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  initials: {
-    color: theme.colors.textOnDark,
-    fontFamily: theme.typography.fontFamily.semiBold,
-  },
-  badge: {
-    position: 'absolute',
-    right: -2,
-    bottom: -2,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#22C55E',
-    borderWidth: 2,
-    borderColor: theme.colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
+    wrap: {
+      position: 'relative',
+    },
+    avatar: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.colors.surfaceElevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    initials: {
+      color: theme.colors.foreground,
+      fontFamily: theme.typography.fontFamily.semiBold,
+    },
+    badge: {
+      position: 'absolute',
+      right: -2,
+      bottom: -2,
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: theme.colors.success,
+      borderWidth: 2,
+      borderColor: theme.colors.background,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+  });
+}

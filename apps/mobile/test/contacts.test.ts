@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   contactDisplayName,
+  formatContactClipboardText,
   contactInitials,
   contactMatchesTag,
   contactToFormValues,
@@ -22,6 +23,27 @@ describe('contactDisplayName', () => {
 
   it('falls back to Unnamed', () => {
     assert.equal(contactDisplayName({}), 'Unnamed');
+  });
+});
+
+describe('formatContactClipboardText', () => {
+  it('joins name, phone, and email on separate lines', () => {
+    assert.equal(
+      formatContactClipboardText({
+        firstName: 'Jane',
+        lastName: 'Doe',
+        phone: '+1 (555) 555-0100',
+        email: 'jane@example.com',
+      }),
+      'Jane Doe\n+1 (555) 555-0100\njane@example.com',
+    );
+  });
+
+  it('omits empty fields', () => {
+    assert.equal(
+      formatContactClipboardText({ firstName: 'Sam', lastName: 'Lee' }),
+      'Sam Lee',
+    );
   });
 });
 

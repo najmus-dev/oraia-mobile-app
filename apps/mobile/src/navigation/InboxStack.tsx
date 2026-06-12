@@ -3,7 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ConversationsScreen } from '../screens/ConversationsScreen';
 import { ConversationThreadScreen } from '../screens/ConversationThreadScreen';
 import { InboxPickContactScreen } from '../screens/InboxPickContactScreen';
-import { theme } from '../theme';
+import { useTheme } from '../hooks/useTheme';
 import type { MessageChannel } from '../lib/conversations';
 
 export type InboxStackParamList = {
@@ -23,11 +23,12 @@ export type InboxStackParamList = {
 const Stack = createNativeStackNavigator<InboxStackParamList>();
 
 export function InboxStack() {
+  const theme = useTheme();
   return (
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: theme.colors.shell },
+        contentStyle: { backgroundColor: theme.colors.background },
         animation: 'slide_from_right',
       }}
     >

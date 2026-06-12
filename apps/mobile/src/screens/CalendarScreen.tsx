@@ -28,7 +28,8 @@ import {
 } from '../lib/calendarView';
 import { formatError } from '../lib/errors';
 import { FAB_LIST_PADDING_BOTTOM } from '../lib/fabLayout';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
 import { useAppState } from '../state/AppState';
 import { AppBar } from '../components/AppBar';
 import { ErrorBanner } from '../components/ErrorBanner';
@@ -48,11 +49,24 @@ const VIEW_LABELS: Record<CalendarViewMode, string> = {
   monthly: 'Monthly View',
 };
 
-function ContentLoadingOverlay({ message }: { message: string }) {
+function ContentLoadingOverlay({
+  message,
+  overScrim = false,
+}: {
+  message: string;
+  overScrim?: boolean;
+}) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.contentLoading} pointerEvents="none">
-      <ActivityIndicator color={theme.colors.link} size="large" />
-      <Text style={styles.contentLoadingText}>{message}</Text>
+      <ActivityIndicator
+        color={overScrim ? theme.colors.scrimSpinner : theme.colors.primary}
+        size="large"
+      />
+      <Text style={overScrim ? styles.contentLoadingTextOnScrim : styles.contentLoadingText}>
+        {message}
+      </Text>
     </View>
   );
 }
@@ -64,6 +78,7 @@ const CalendarEventRow = React.memo(function CalendarEventRow({
   event: CalendarListEvent;
   onPress: (event: CalendarListEvent) => void;
 }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.rowWrap}>
       <ListRow
@@ -76,6 +91,8 @@ const CalendarEventRow = React.memo(function CalendarEventRow({
 });
 
 export function CalendarScreen({ navigation }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { token, locationId, locationName } = useAppState();
 
   const [viewMode, setViewMode] = useState<CalendarViewMode>('list');
@@ -262,7 +279,7 @@ export function CalendarScreen({ navigation }: Props) {
       <View style={styles.contentArea}>
         {loadState.updating ? (
           <View style={styles.contentLoadingOverlay} pointerEvents="none">
-            <ContentLoadingOverlay message="Updating appointments…" />
+            <ContentLoadingOverlay message="Updating appointments…" overScrim />
           </View>
         ) : null}
         <SectionList
@@ -291,22 +308,22 @@ export function CalendarScreen({ navigation }: Props) {
 
       <View style={styles.toolbar}>
         <Pressable style={styles.viewBtn} onPress={() => setCalendarSheetOpen(true)}>
-          <Ionicons name="calendar-outline" size={18} color={theme.colors.textOnDark} />
+          <Ionicons name="calendar-outline" size={18} color={theme.colors.foreground} />
           <Text style={styles.viewBtnText} numberOfLines={1}>
             {calendarId
               ? calendars.find((c) => c.id === calendarId)?.name ?? 'Calendar'
               : 'All calendars'}
           </Text>
-          <Ionicons name="chevron-down" size={16} color={theme.colors.mutedTextOnDark} />
+          <Ionicons name="chevron-down" size={16} color={theme.colors.foregroundMuted} />
         </Pressable>
         <Pressable style={styles.viewBtn} onPress={() => setViewSheetOpen(true)}>
           <Ionicons
             name={viewMode === 'weekly' ? 'grid-outline' : 'list-outline'}
             size={18}
-            color={theme.colors.textOnDark}
+            color={theme.colors.foreground}
           />
           <Text style={styles.viewBtnText}>{VIEW_LABELS[viewMode]}</Text>
-          <Ionicons name="chevron-down" size={16} color={theme.colors.mutedTextOnDark} />
+          <Ionicons name="chevron-down" size={16} color={theme.colors.foregroundMuted} />
         </Pressable>
         <Pressable style={styles.todayBtn} onPress={goToToday}>
           <Text style={styles.todayText}>Today</Text>
@@ -316,7 +333,7 @@ export function CalendarScreen({ navigation }: Props) {
       {locationName ? (
         <View style={styles.locationRow}>
           <View style={styles.filterChip}>
-            <Ionicons name="business-outline" size={14} color={theme.colors.mutedTextOnDark} />
+            <Ionicons name="business-outline" size={14} color={theme.colors.foregroundMuted} />
             <Text style={styles.filterChipText} numberOfLines={1}>
               {locationName}
             </Text>
@@ -428,7 +445,8 @@ export function CalendarScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   toolbar: {
     flexDirection: 'row',
@@ -452,7 +470,7 @@ const styles = StyleSheet.create({
   },
   viewBtnText: {
     flex: 1,
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
   },
@@ -478,7 +496,7 @@ const styles = StyleSheet.create({
   periodLabel: {
     flex: 1,
     textAlign: 'center',
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.md,
   },
@@ -502,7 +520,7 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
   },
   filterChipText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
   },
@@ -522,7 +540,7 @@ const styles = StyleSheet.create({
   contentLoadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 2,
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    backgroundColor: theme.colors.scrim,
   },
   contentLoading: {
     flex: 1,
@@ -533,7 +551,12 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   contentLoadingText: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foreground,
+    fontFamily: theme.typography.fontFamily.medium,
+    fontSize: theme.typography.fontSize.sm,
+  },
+  contentLoadingTextOnScrim: {
+    color: theme.colors.scrimForeground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
   },
@@ -544,7 +567,7 @@ const styles = StyleSheet.create({
     paddingBottom: FAB_LIST_PADDING_BOTTOM,
   },
   sectionTitle: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.md,
     marginBottom: theme.spacing.xs,
@@ -559,14 +582,14 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     marginTop: theme.spacing.lg,
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.lg,
     textAlign: 'center',
   },
   emptySub: {
     marginTop: theme.spacing.sm,
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     textAlign: 'center',
   },
@@ -579,7 +602,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   sheetRowText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.md,
   },
@@ -598,8 +621,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   newLabel: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.md,
   },
 });
+}

@@ -1,7 +1,8 @@
 import React from 'react';
 import { StyleSheet, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 import type { ContactFormValues } from '../../lib/contacts';
 
 type Props = {
@@ -20,10 +21,12 @@ function DndRow({
   value: boolean;
   onValueChange: (next: boolean) => void;
 }) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.row}>
       <View style={styles.rowLeft}>
-        <Ionicons name={icon} size={18} color={theme.colors.mutedTextOnDark} />
+        <Ionicons name={icon} size={18} color={theme.colors.foregroundMuted} />
         <Text style={styles.rowLabel}>{label}</Text>
       </View>
       <Switch
@@ -37,6 +40,8 @@ function DndRow({
 }
 
 export function ContactFormDndSection({ values, onChange }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Assign DND settings</Text>
@@ -73,13 +78,14 @@ export function ContactFormDndSection({ values, onChange }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   section: {
     gap: theme.spacing.sm,
     paddingTop: theme.spacing.sm,
   },
   sectionTitle: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
     marginBottom: theme.spacing.xs,
@@ -97,7 +103,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rowLabel: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
   },
@@ -113,8 +119,9 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.border,
   },
   orText: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
   },
 });
+}

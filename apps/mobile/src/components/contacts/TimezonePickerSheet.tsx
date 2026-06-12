@@ -3,7 +3,8 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheet } from '../BottomSheet';
 import { ContactSearchBar } from './ContactSearchBar';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 import {
   ALL_TIMEZONES,
   RECOMMENDED_TIMEZONES,
@@ -18,6 +19,8 @@ type Props = {
 };
 
 export function TimezonePickerSheet({ visible, onClose, selectedId, onSelect }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [query, setQuery] = useState('');
 
   const filteredAll = useMemo(() => {
@@ -45,7 +48,7 @@ export function TimezonePickerSheet({ visible, onClose, selectedId, onSelect }: 
         <Ionicons
           name={selected ? 'radio-button-on' : 'radio-button-off'}
           size={20}
-          color={selected ? theme.colors.link : theme.colors.mutedTextOnDark}
+          color={selected ? theme.colors.link : theme.colors.foregroundMuted}
         />
       </Pressable>
     );
@@ -74,12 +77,13 @@ export function TimezonePickerSheet({ visible, onClose, selectedId, onSelect }: 
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   list: { maxHeight: 460, marginTop: theme.spacing.md },
   section: {
     marginTop: theme.spacing.lg,
     marginBottom: theme.spacing.sm,
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
     textTransform: 'uppercase',
@@ -96,19 +100,20 @@ const styles = StyleSheet.create({
   },
   rowSelected: {
     borderWidth: 1,
-    borderColor: 'rgba(134, 182, 255, 0.45)',
+    borderColor: `${theme.colors.primary}73`,
     backgroundColor: 'rgba(47, 45, 121, 0.25)',
   },
   rowBody: { flex: 1 },
   rowLabel: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
   },
   rowSub: {
     marginTop: 2,
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.xs,
   },
 });
+}

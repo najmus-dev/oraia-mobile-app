@@ -3,8 +3,13 @@ import { describe, it } from 'node:test';
 import {
   defaultStageIdForPipeline,
   extractOpportunityId,
+  followerSyncDiff,
+  formatFollowerLabel,
   formatOpportunityMoney,
+  contactTagsSame,
   formValuesToOpportunityPayload,
+  parseOpportunityFollowerIds,
+  shouldSyncContactTags,
   validateOpportunityForm,
 } from '../src/lib/opportunities';
 
@@ -21,6 +26,8 @@ describe('validateOpportunityForm', () => {
         source: '',
         businessName: '',
         assignedTo: '',
+        followerIds: [],
+        contactTags: [],
       }) ?? '',
       /deal name/i,
     );
@@ -38,6 +45,8 @@ describe('validateOpportunityForm', () => {
         source: '',
         businessName: '',
         assignedTo: '',
+        followerIds: [],
+        contactTags: [],
       }),
       null,
     );
@@ -55,6 +64,8 @@ describe('validateOpportunityForm', () => {
         source: '',
         businessName: '',
         assignedTo: '',
+        followerIds: [],
+        contactTags: [],
       }) ?? '',
       /valid deal value/i,
     );
@@ -72,9 +83,27 @@ describe('validateOpportunityForm', () => {
         source: '',
         businessName: '',
         assignedTo: '',
+        followerIds: [],
+        contactTags: [],
       }) ?? '',
       /phone number/i,
     );
+  });
+});
+
+describe('contactTagsSame', () => {
+  it('ignores tag order', () => {
+    assert.equal(contactTagsSame(['VIP', 'Lead'], ['lead', 'vip']), true);
+  });
+});
+
+describe('shouldSyncContactTags', () => {
+  it('skips unchanged tags on edit', () => {
+    assert.equal(shouldSyncContactTags(['VIP'], ['VIP']), false);
+  });
+
+  it('syncs when tags changed', () => {
+    assert.equal(shouldSyncContactTags(['VIP', 'Hot'], ['VIP']), true);
   });
 });
 
@@ -90,12 +119,76 @@ describe('formValuesToOpportunityPayload', () => {
       source: 'Referral',
       businessName: 'Acme LLC',
       assignedTo: 'user_1',
+      followerIds: [],
+      contactTags: [],
     });
     assert.equal(payload.status, 'won');
     assert.equal(payload.source, 'Referral');
-    assert.equal(payload.companyName, 'Acme LLC');
+    assert.equal(payload.businessName, 'Acme LLC');
+    assert.equal(payload.companyName, undefined);
     assert.equal(payload.assignedTo, 'user_1');
     assert.equal(payload.monetaryValue, 1200);
+  });
+
+  it('includes followerIds and changed contactTags', () => {
+    const payload = formValuesToOpportunityPayload(
+      {
+        name: 'Acme',
+        contactId: 'con_1',
+        monetaryValue: '',
+        pipelineId: 'pipe_1',
+        pipelineStageId: 'stage_1',
+        status: 'open',
+        source: '',
+        businessName: '',
+        assignedTo: '',
+        followerIds: ['u1'],
+        contactTags: ['VIP'],
+      },
+      { previousContactTags: [] },
+    );
+    assert.deepEqual(payload.followerIds, ['u1']);
+    assert.deepEqual(payload.contactTags, ['VIP']);
+  });
+
+  it('includes businessName when changed', () => {
+    const payload = formValuesToOpportunityPayload(
+      {
+        name: 'Acme',
+        contactId: 'con_1',
+        monetaryValue: '',
+        pipelineId: 'pipe_1',
+        pipelineStageId: 'stage_1',
+        status: 'open',
+        source: '',
+        businessName: 'Acme LLC',
+        assignedTo: '',
+        followerIds: [],
+        contactTags: [],
+      },
+      { previousBusinessName: '' },
+    );
+    assert.equal(payload.businessName, 'Acme LLC');
+  });
+
+  it('omits unchanged contactTags', () => {
+    const payload = formValuesToOpportunityPayload(
+      {
+        name: 'Acme',
+        contactId: 'con_1',
+        monetaryValue: '',
+        pipelineId: 'pipe_1',
+        pipelineStageId: 'stage_1',
+        status: 'open',
+        source: '',
+        businessName: '',
+        assignedTo: '',
+        followerIds: [],
+        contactTags: ['VIP'],
+      },
+      { previousContactTags: ['VIP'] },
+    );
+    assert.equal(payload.contactTags, undefined);
   });
 
   it('omits empty optional fields', () => {
@@ -109,9 +202,11 @@ describe('formValuesToOpportunityPayload', () => {
       source: '',
       businessName: '',
       assignedTo: '',
+      followerIds: [],
+      contactTags: [],
     });
     assert.equal(payload.source, undefined);
-    assert.equal(payload.companyName, undefined);
+    assert.equal(payload.businessName, undefined);
     assert.equal(payload.assignedTo, undefined);
     assert.equal(payload.monetaryValue, undefined);
   });
@@ -130,6 +225,36 @@ describe('extractOpportunityId', () => {
 
   it('reads root id', () => {
     assert.equal(extractOpportunityId({ id: 'opp_2' }), 'opp_2');
+  });
+});
+
+describe('parseOpportunityFollowerIds', () => {
+  it('reads string and object follower ids', () => {
+    assert.deepEqual(
+      parseOpportunityFollowerIds({
+        opportunity: { followers: ['u1', { id: 'u2' }] },
+      }),
+      ['u1', 'u2'],
+    );
+  });
+});
+
+describe('followerSyncDiff', () => {
+  it('computes add and remove sets', () => {
+    assert.deepEqual(followerSyncDiff(['a', 'b'], ['b', 'c']), {
+      toAdd: ['c'],
+      toRemove: ['a'],
+    });
+  });
+});
+
+describe('formatFollowerLabel', () => {
+  it('joins short name lists', () => {
+    assert.equal(formatFollowerLabel(['u1', 'u2'], ['Alex', 'Sam']), 'Alex, Sam');
+  });
+
+  it('summarizes longer lists', () => {
+    assert.equal(formatFollowerLabel(['u1', 'u2', 'u3'], ['A', 'B', 'C']), '3 followers');
   });
 });
 

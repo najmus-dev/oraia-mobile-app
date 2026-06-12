@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
 
 export function TextField({
   label,
@@ -19,6 +20,9 @@ export function TextField({
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad';
 }) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   return (
     <View>
       {label ? <Text style={styles.label}>{label}</Text> : null}
@@ -27,7 +31,7 @@ export function TextField({
         onChangeText={onChangeText}
         style={[styles.input, !label && styles.inputNoLabel]}
         placeholder={placeholder}
-        placeholderTextColor={theme.colors.mutedText}
+        placeholderTextColor={theme.colors.inputPlaceholder}
         secureTextEntry={secureTextEntry}
         autoCapitalize={autoCapitalize}
         keyboardType={keyboardType}
@@ -36,21 +40,22 @@ export function TextField({
   );
 }
 
-const styles = StyleSheet.create({
-  label: { color: theme.colors.mutedTextOnDark, fontFamily: theme.typography.fontFamily.medium },
-  input: {
-    marginTop: theme.spacing.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 12,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    color: theme.colors.textOnDark,
-    backgroundColor: theme.colors.surface,
-    fontFamily: theme.typography.fontFamily.regular,
-  },
-  inputNoLabel: {
-    marginTop: 0,
-  },
-});
-
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
+    label: { color: theme.colors.foregroundMuted, fontFamily: theme.typography.fontFamily.medium },
+    input: {
+      marginTop: theme.spacing.sm,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: theme.radius.md,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      color: theme.colors.foreground,
+      backgroundColor: theme.colors.surface,
+      fontFamily: theme.typography.fontFamily.regular,
+    },
+    inputNoLabel: {
+      marginTop: 0,
+    },
+  });
+}

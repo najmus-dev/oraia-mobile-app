@@ -1,7 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 
 type Props = {
   pipelineName: string;
@@ -20,6 +21,8 @@ export function OpportunityFilterBar({
   onFiltersPress,
   onSortPress,
 }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const filtersActive = filterCount > 0;
 
   return (
@@ -33,7 +36,7 @@ export function OpportunityFilterBar({
         <Text style={styles.chipText} numberOfLines={1} ellipsizeMode="tail">
           {pipelineName}
         </Text>
-        <Ionicons name="chevron-down" size={14} color={theme.colors.mutedTextOnDark} />
+        <Ionicons name="chevron-down" size={14} color={theme.colors.foregroundMuted} />
       </Pressable>
 
       <Pressable
@@ -59,13 +62,14 @@ export function OpportunityFilterBar({
         <Text style={styles.chipText} numberOfLines={1}>
           {sortLabel}
         </Text>
-        <Ionicons name="swap-vertical" size={14} color={theme.colors.mutedTextOnDark} />
+        <Ionicons name="swap-vertical" size={14} color={theme.colors.foregroundMuted} />
       </Pressable>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -83,7 +87,7 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: theme.colors.border,
     paddingHorizontal: theme.spacing.md,
     backgroundColor: theme.colors.surfaceElevated,
   },
@@ -96,17 +100,17 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   chipActive: {
-    backgroundColor: 'rgba(91, 127, 212, 0.32)',
-    borderColor: 'rgba(134, 182, 255, 0.45)',
+    backgroundColor: `${theme.colors.primary}52`,
+    borderColor: `${theme.colors.primary}73`,
   },
   chipText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
     flexShrink: 1,
   },
   chipTextActive: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
   },
   badge: {
     minWidth: 20,
@@ -124,3 +128,4 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
 });
+}

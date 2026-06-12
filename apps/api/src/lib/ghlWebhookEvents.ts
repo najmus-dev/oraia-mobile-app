@@ -10,6 +10,7 @@ export type InboundMessageWebhook = {
   direction?: string;
   from?: string;
   subject?: string;
+  dateAdded?: string;
 };
 
 export function normalizeWebhookEventType(body: { type?: string; event?: string; installType?: string }): string {
@@ -43,6 +44,12 @@ export function parseInboundMessage(body: unknown): InboundMessageWebhook | null
     direction: typeof record.direction === 'string' ? record.direction : undefined,
     from: typeof record.from === 'string' ? record.from : undefined,
     subject: typeof record.subject === 'string' ? record.subject : undefined,
+    dateAdded:
+      typeof record.dateAdded === 'string'
+        ? record.dateAdded
+        : typeof record.timestamp === 'string'
+          ? record.timestamp
+          : undefined,
   };
 }
 

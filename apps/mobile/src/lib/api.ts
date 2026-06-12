@@ -139,6 +139,25 @@ export class ApiClient {
     return text ? (JSON.parse(text) as T) : (undefined as T);
   }
 
+  async deleteJson<T>(path: string, body: unknown, init?: RequestInit): Promise<T> {
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      ...init,
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(init?.headers ?? {}),
+      },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      const err = parseApiError(text || `HTTP ${res.status}`, res.status);
+      handleAuthFailure(res.status, err.code);
+      throw err;
+    }
+    return text ? (JSON.parse(text) as T) : (undefined as T);
+  }
+
   async delete(path: string, init?: RequestInit): Promise<void> {
     const res = await fetch(`${this.baseUrl}${path}`, {
       ...init,

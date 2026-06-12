@@ -533,7 +533,7 @@ export class GhlClient {
   async createOpportunity(locationId: string, body: Record<string, unknown>): Promise<unknown> {
     const headers = await this.authHeaders(locationId);
     const { data } = await this.http.post(
-      '/opportunities',
+      '/opportunities/',
       { ...body, locationId },
       { headers: { ...headers, 'Content-Type': 'application/json' } },
     );
@@ -571,6 +571,7 @@ export class GhlClient {
     const headers = await this.authHeaders(locationId);
     const { data } = await this.http.get<GhlPipelinesResponse>('/opportunities/pipelines', {
       headers,
+      params: withRequiredLocationQuery(locationId),
     });
     return data;
   }
@@ -592,6 +593,33 @@ export class GhlClient {
     await this.http.delete(`/opportunities/${opportunityId}`, {
       headers,
     });
+  }
+
+  async addOpportunityFollowers(
+    opportunityId: string,
+    locationId: string,
+    followers: string[],
+  ): Promise<unknown> {
+    const headers = await this.authHeaders(locationId);
+    const { data } = await this.http.post(
+      `/opportunities/${opportunityId}/followers`,
+      { followers },
+      { headers: { ...headers, 'Content-Type': 'application/json' } },
+    );
+    return data;
+  }
+
+  async removeOpportunityFollowers(
+    opportunityId: string,
+    locationId: string,
+    followers: string[],
+  ): Promise<unknown> {
+    const headers = await this.authHeaders(locationId);
+    const { data } = await this.http.delete(`/opportunities/${opportunityId}/followers`, {
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      data: { followers },
+    });
+    return data;
   }
 
   async searchLocationTasks(

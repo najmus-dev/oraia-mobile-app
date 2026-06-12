@@ -20,6 +20,7 @@ import {
   type ContactTasksResponse,
   contactAddressLine,
   contactDisplayName,
+  formatContactClipboardText,
 } from '../lib/contacts';
 import {
   type ContactNotesResponse,
@@ -32,9 +33,11 @@ import {
   navigateToContactMessage,
   navigateToScheduleForContact,
 } from '../lib/navigation';
+import { finishWizardFlow, popWizardBack } from '../lib/stackNavigation';
 import { formatError } from '../lib/errors';
 import { useFullScreenBottomInset } from '../lib/safeArea';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
 import { useAppState } from '../state/AppState';
 import { AppBar } from '../components/AppBar';
 import { Button } from '../components/Button';
@@ -60,6 +63,8 @@ function DetailField({
   value?: string;
   hideEmpty: boolean;
 }) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const trimmed = value?.trim();
   if (hideEmpty && !trimmed) return null;
   return (
@@ -71,6 +76,8 @@ function DetailField({
 }
 
 export function ContactDetailScreen({ navigation, route }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { contactId } = route.params;
   const scrollBottom = useFullScreenBottomInset();
   const { token, locationId } = useAppState();
@@ -295,7 +302,7 @@ export function ContactDetailScreen({ navigation, route }: Props) {
       await api.delete(`/api/contacts/${contactId}`, {
         headers: withAuthHeaders({ token, locationId }),
       });
-      navigation.navigate('ContactsList');
+      finishWizardFlow(navigation, { name: 'ContactsList' });
     } catch (e) {
       Alert.alert('Delete failed', formatError(e));
     } finally {
@@ -322,10 +329,16 @@ export function ContactDetailScreen({ navigation, route }: Props) {
     }
   }
 
-  async function copyName() {
+  async function copyContact() {
     if (!contact) return;
-    await Clipboard.setStringAsync(displayName);
-    Alert.alert('Copied', 'Contact name copied to clipboard.');
+    setMenuOpen(false);
+    const text = formatContactClipboardText(contact);
+    if (!text) {
+      Alert.alert('Copy contact', 'No contact details to copy.');
+      return;
+    }
+    await Clipboard.setStringAsync(text);
+    Alert.alert('Copied', 'Contact details copied to clipboard.');
   }
 
   function openEditContact() {
@@ -341,7 +354,7 @@ export function ContactDetailScreen({ navigation, route }: Props) {
     <View style={styles.container}>
       <AppBar
         title={displayName}
-        onBack={() => navigation.goBack()}
+        onBack={() => popWizardBack(navigation, 'ContactsList')}
         rightIcon="ellipsis-vertical"
         onRightPress={() => setMenuOpen((v) => !v)}
       />
@@ -350,6 +363,7 @@ export function ContactDetailScreen({ navigation, route }: Props) {
         visible={menuOpen}
         onClose={() => setMenuOpen(false)}
         items={[
+          { label: 'Copy contact', onPress: () => { void copyContact(); } },
           { label: 'Edit contact', onPress: openEditContact },
           { label: 'Delete contact', onPress: confirmDelete, destructive: true, disabled: deleting },
         ]}
@@ -387,8 +401,12 @@ export function ContactDetailScreen({ navigation, route }: Props) {
 
               <View style={styles.nameRow}>
                 <Text style={styles.profileName}>{displayName}</Text>
-                <Pressable onPress={copyName} hitSlop={8}>
-                  <Ionicons name="copy-outline" size={18} color={theme.colors.mutedTextOnDark} />
+                <Pressable
+                  onPress={() => { void copyContact(); }}
+                  hitSlop={8}
+                  accessibilityLabel="Copy contact details"
+                >
+                  <Ionicons name="copy-outline" size={18} color={theme.colors.foregroundMuted} />
                 </Pressable>
               </View>
 
@@ -513,7 +531,7 @@ export function ContactDetailScreen({ navigation, route }: Props) {
                     value={noteDraft}
                     onChangeText={setNoteDraft}
                     placeholder="Add a note about this contact…"
-                    placeholderTextColor={theme.colors.mutedTextOnDark}
+                    placeholderTextColor={theme.colors.inputPlaceholder}
                     style={styles.noteInput}
                     multiline
                     maxLength={4000}
@@ -552,7 +570,8 @@ export function ContactDetailScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   profile: {
     alignItems: 'center',
@@ -582,13 +601,13 @@ const styles = StyleSheet.create({
     maxWidth: 140,
   },
   tagChipText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
   },
   tagEmpty: {
     flex: 1,
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.xs,
   },
@@ -604,7 +623,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
   },
   tagPillText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
   },
@@ -614,7 +633,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   profileName: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.bold,
     fontSize: theme.typography.fontSize.xl,
   },
@@ -641,18 +660,18 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.sm,
   },
   toggleLabel: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
   },
   detailField: { gap: theme.spacing.xs },
   detailLabel: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
   },
   detailValue: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
   },
@@ -670,7 +689,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     borderRadius: 12,
     padding: theme.spacing.md,
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
     lineHeight: theme.typography.lineHeight.md,
@@ -686,13 +705,13 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surfaceMuted,
   },
   noteMeta: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
     marginBottom: theme.spacing.xs,
   },
   noteBody: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
     lineHeight: theme.typography.lineHeight.md,
@@ -703,21 +722,22 @@ const styles = StyleSheet.create({
     borderBottomColor: theme.colors.border,
   },
   oppTitle: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.sm,
   },
   oppMeta: {
     marginTop: theme.spacing.xs,
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.xs,
   },
   emptyTab: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
     textAlign: 'center',
     marginTop: theme.spacing.lg,
   },
 });
+}

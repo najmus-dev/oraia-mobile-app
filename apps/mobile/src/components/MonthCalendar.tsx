@@ -2,7 +2,8 @@ import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { addMonths, isSameDay, toDateKey } from '../lib/dates';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
 
 type Props = {
   month: Date;
@@ -15,6 +16,8 @@ type Props = {
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export function MonthCalendar({ month, selected, onSelect, onChangeMonth, markedDates }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const cells = useMemo(() => {
     const start = new Date(month.getFullYear(), month.getMonth(), 1);
     const end = new Date(month.getFullYear(), month.getMonth() + 1, 0);
@@ -67,7 +70,8 @@ export function MonthCalendar({ month, selected, onSelect, onChangeMonth, marked
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   wrap: { gap: theme.spacing.sm },
   nav: {
     flexDirection: 'row',
@@ -76,7 +80,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.sm,
   },
   monthLabel: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.md,
   },
@@ -84,7 +88,7 @@ const styles = StyleSheet.create({
   weekday: {
     flex: 1,
     textAlign: 'center',
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
   },
@@ -104,7 +108,7 @@ const styles = StyleSheet.create({
   },
   dayCircleActive: { backgroundColor: theme.colors.link },
   dayText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
   },
@@ -117,3 +121,4 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 });
+}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { NavigationContainer, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { RootStackParamList } from './types';
@@ -8,39 +8,63 @@ import { usePushNotifications } from '../hooks/usePushNotifications';
 import { navigationRef } from '../lib/navigationRef';
 import { useAppState } from '../state/AppState';
 import { MainTabs } from './MainTabs';
-import { theme } from '../theme';
+import { getActiveRouteName, NavigationStatusBar } from './NavigationStatusBar';
+import { useTheme } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-const navTheme: Theme = {
-  dark: true,
-  colors: {
-    primary: theme.colors.primary,
-    background: theme.colors.shell,
-    card: theme.colors.shell,
-    text: theme.colors.textOnDark,
-    border: theme.colors.border,
-    notification: theme.colors.danger,
-  },
-  fonts: {
-    regular: { fontFamily: theme.typography.fontFamily.regular, fontWeight: '400' },
-    medium: { fontFamily: theme.typography.fontFamily.medium, fontWeight: '500' },
-    bold: { fontFamily: theme.typography.fontFamily.bold, fontWeight: '700' },
-    heavy: { fontFamily: theme.typography.fontFamily.bold, fontWeight: '800' },
-  },
-};
+
+function createNavTheme(theme: OraiaTheme): Theme {
+  return {
+    dark: theme.colorScheme === 'dark',
+    colors: {
+      primary: theme.colors.primary,
+      background: theme.colors.background,
+      card: theme.colors.shell,
+      text: theme.colors.shellForeground,
+      border: theme.colors.border,
+      notification: theme.colors.danger,
+    },
+    fonts: {
+      regular: { fontFamily: theme.typography.fontFamily.regular, fontWeight: '400' },
+      medium: { fontFamily: theme.typography.fontFamily.medium, fontWeight: '500' },
+      bold: { fontFamily: theme.typography.fontFamily.bold, fontWeight: '700' },
+      heavy: { fontFamily: theme.typography.fontFamily.bold, fontWeight: '800' },
+    },
+  };
+}
 
 export function AppNavigator() {
+  const theme = useTheme();
+  const navTheme = useMemo(() => createNavTheme(theme), [theme]);
   const { token, locationId } = useAppState();
   usePushNotifications();
 
   const navKey = !token ? 'guest' : !locationId ? 'pick-location' : 'main';
+  const bootstrapRoute = !token ? 'Login' : !locationId ? 'LocationPicker' : undefined;
+  const [activeRoute, setActiveRoute] = useState<string | undefined>(bootstrapRoute);
+
+  const syncActiveRoute = useCallback(() => {
+    if (!navigationRef.isReady()) return;
+    setActiveRoute(getActiveRouteName(navigationRef.getRootState()));
+  }, []);
+
+  useEffect(() => {
+    setActiveRoute(bootstrapRoute);
+  }, [navKey, bootstrapRoute]);
 
   return (
-    <NavigationContainer ref={navigationRef} key={navKey} theme={navTheme}>
+    <NavigationContainer
+      ref={navigationRef}
+      key={navKey}
+      theme={navTheme}
+      onReady={syncActiveRoute}
+      onStateChange={syncActiveRoute}
+    >
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: theme.colors.shell },
+          contentStyle: { backgroundColor: theme.colors.background },
           animation: 'fade',
         }}
       >
@@ -52,6 +76,7 @@ export function AppNavigator() {
           <Stack.Screen name="Main" component={MainTabs} />
         )}
       </Stack.Navigator>
+      <NavigationStatusBar routeName={activeRoute} />
     </NavigationContainer>
   );
 }

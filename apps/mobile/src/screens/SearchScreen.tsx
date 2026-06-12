@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { api, withAuthHeaders } from '../lib/api';
 import {
   CRM_APPS,
+  crmAppAccent,
   crmAppList,
   filterAppsByQuery,
   openCrmApp,
@@ -44,8 +45,9 @@ import { navigateToAppointmentDetail, navigateToContactDetail, navigateToTabScre
 import { type OpportunitiesListResponse } from '../lib/opportunities';
 import { type TasksSearchResponse } from '../lib/tasks';
 import { TAB_LIST_BOTTOM_PADDING, useHeaderTopPadding } from '../lib/safeArea';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
 import { useAppState } from '../state/AppState';
-import { theme } from '../theme';
+import type { OraiaTheme } from '../theme';
 import { InboxBrandHeader } from '../components/inbox/InboxBrandHeader';
 import { LocationSelectSheet } from '../components/LocationSelectSheet';
 import type { SearchStackParamList } from '../navigation/SearchStack';
@@ -53,6 +55,8 @@ import type { SearchStackParamList } from '../navigation/SearchStack';
 type Props = NativeStackScreenProps<SearchStackParamList, 'SearchMain'>;
 
 export function SearchScreen({ navigation }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const {
     token,
     locationId,
@@ -258,7 +262,7 @@ export function SearchScreen({ navigation }: Props) {
       </View>
 
       <View style={styles.searchWrap}>
-        <Ionicons name="search" size={18} color={theme.colors.mutedTextOnDark} />
+        <Ionicons name="search" size={18} color={theme.colors.foregroundMuted} />
         <TextInput
           value={query}
           onChangeText={(text) => {
@@ -266,7 +270,7 @@ export function SearchScreen({ navigation }: Props) {
             if (!text.trim()) setScope(null);
           }}
           placeholder="Search across all Apps"
-          placeholderTextColor={theme.colors.mutedTextOnDark}
+          placeholderTextColor={theme.colors.inputPlaceholder}
           style={styles.searchInput}
           autoCapitalize="none"
           autoCorrect={false}
@@ -280,7 +284,7 @@ export function SearchScreen({ navigation }: Props) {
             }}
             hitSlop={8}
           >
-            <Ionicons name="close-circle" size={20} color={theme.colors.mutedTextOnDark} />
+            <Ionicons name="close-circle" size={20} color={theme.colors.foregroundMuted} />
           </Pressable>
         ) : null}
       </View>
@@ -306,6 +310,7 @@ export function SearchScreen({ navigation }: Props) {
           <View style={styles.suggestedRow}>
             {suggestedApps.map((app) => {
               const scoped = scope === app.id;
+              const accent = crmAppAccent(app, theme);
               return (
                 <Pressable
                   key={app.id}
@@ -316,11 +321,11 @@ export function SearchScreen({ navigation }: Props) {
                   <View
                     style={[
                       styles.suggestedCircle,
-                      { borderColor: `${app.accent}55` },
+                      { borderColor: `${accent}55` },
                       scoped && styles.suggestedCircleActive,
                     ]}
                   >
-                    <Ionicons name={app.icon} size={22} color={app.accent} />
+                    <Ionicons name={app.icon} size={22} color={accent} />
                   </View>
                   <Text style={styles.suggestedLabel} numberOfLines={1}>
                     {app.label}
@@ -348,21 +353,24 @@ export function SearchScreen({ navigation }: Props) {
           <View style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>Apps</Text>
             <View style={styles.appsRow}>
-              {results.apps.map((app) => (
+              {results.apps.map((app) => {
+                const accent = crmAppAccent(app, theme);
+                return (
                 <Pressable
                   key={app.id}
                   style={styles.suggestedItem}
                   onPress={() => openCrmApp(app.id, parentNav ?? undefined)}
                   accessibilityRole="button"
                 >
-                  <View style={[styles.suggestedCircle, { borderColor: `${app.accent}55` }]}>
-                    <Ionicons name={app.icon} size={22} color={app.accent} />
+                  <View style={[styles.suggestedCircle, { borderColor: `${accent}55` }]}>
+                    <Ionicons name={app.icon} size={22} color={accent} />
                   </View>
                   <Text style={styles.suggestedLabel} numberOfLines={1}>
                     {app.label}
                   </Text>
                 </Pressable>
-              ))}
+              );
+              })}
             </View>
           </View>
         ) : null}
@@ -539,8 +547,9 @@ export function SearchScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.shell },
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.colors.background },
   headerWrap: { position: 'relative' },
   settingsBtn: {
     position: 'absolute',
@@ -549,6 +558,7 @@ const styles = StyleSheet.create({
   },
   searchWrap: {
     marginHorizontal: theme.spacing.lg,
+    marginTop: theme.spacing.md,
     marginBottom: theme.spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
@@ -562,7 +572,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
     padding: 0,
@@ -575,7 +585,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   scopeText: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
   },
@@ -594,7 +604,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   sectionTitle: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.md,
   },
@@ -625,14 +635,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.colors.shell,
+    backgroundColor: theme.colors.surfaceMuted,
   },
   suggestedCircleActive: {
     borderColor: theme.colors.primary,
     borderWidth: 2,
   },
   suggestedLabel: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.xs,
     textAlign: 'center',
@@ -643,7 +653,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing.md,
     borderRadius: 12,
-    backgroundColor: theme.colors.shell,
+    backgroundColor: theme.colors.surface,
     padding: theme.spacing.md,
   },
   resultIconWrap: {
@@ -656,18 +666,18 @@ const styles = StyleSheet.create({
   },
   resultTextCol: { flex: 1, minWidth: 0, gap: 2 },
   resultTitle: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.sm,
   },
   resultSubtitle: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.xs,
   },
   loader: { marginVertical: theme.spacing.xl },
   emptyHint: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
     textAlign: 'center',
@@ -681,3 +691,4 @@ const styles = StyleSheet.create({
     marginVertical: theme.spacing.md,
   },
 });
+}

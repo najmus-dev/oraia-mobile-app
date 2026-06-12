@@ -19,7 +19,8 @@ import {
 import { fetchSmsPhoneNumbers } from '../../lib/conversationsApi';
 import { smsSegmentInfo } from '../../lib/messageFormat';
 import { useDebouncedEffect } from '../../lib/useDebouncedEffect';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 import type { ApiAuth } from '../../lib/api';
 
 type Props = {
@@ -71,6 +72,8 @@ export function ThreadComposer({
   bottomInset = 0,
   availableChannels,
 }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [channelSheetOpen, setChannelSheetOpen] = useState(false);
   const [phoneSheetOpen, setPhoneSheetOpen] = useState(false);
   const [phoneSearch, setPhoneSearch] = useState('');
@@ -163,12 +166,12 @@ export function ThreadComposer({
           />
           <Text style={styles.channelPillText}>{channel}</Text>
           {channelSelectable ? (
-            <Ionicons name="chevron-down" size={14} color={theme.colors.mutedTextOnDark} />
+            <Ionicons name="chevron-down" size={14} color={theme.colors.foregroundMuted} />
           ) : null}
         </Pressable>
         {channel === 'SMS' ? (
           <Pressable style={styles.fromPill} onPress={() => setPhoneSheetOpen(true)}>
-            <Ionicons name="call-outline" size={14} color={theme.colors.mutedTextOnDark} />
+            <Ionicons name="call-outline" size={14} color={theme.colors.foregroundMuted} />
             <Text style={styles.fromPillText} numberOfLines={1}>
               {formatFromLabel(fromNumber)}
             </Text>
@@ -181,7 +184,7 @@ export function ThreadComposer({
           value={emailSubject}
           onChangeText={onEmailSubjectChange}
           placeholder="Subject"
-          placeholderTextColor={theme.colors.mutedTextOnDark}
+          placeholderTextColor={theme.colors.inputPlaceholder}
           style={styles.subjectInput}
           editable={canSend}
         />
@@ -195,7 +198,7 @@ export function ThreadComposer({
             ? channelPlaceholder(channel)
             : sendBlockedReason ?? 'Cannot send without a contact'
         }
-        placeholderTextColor={theme.colors.mutedTextOnDark}
+        placeholderTextColor={theme.colors.inputPlaceholder}
         style={styles.input}
         multiline
         maxLength={channel === 'SMS' ? 1600 : 8000}
@@ -289,12 +292,12 @@ export function ThreadComposer({
           </Pressable>
         </View>
         <View style={styles.phoneSearch}>
-          <Ionicons name="search" size={16} color={theme.colors.mutedTextOnDark} />
+          <Ionicons name="search" size={16} color={theme.colors.foregroundMuted} />
           <TextInput
             value={phoneSearch}
             onChangeText={setPhoneSearch}
             placeholder="Search numbers"
-            placeholderTextColor={theme.colors.mutedTextOnDark}
+            placeholderTextColor={theme.colors.inputPlaceholder}
             style={styles.phoneSearchInput}
           />
         </View>
@@ -326,7 +329,7 @@ export function ThreadComposer({
                 <Ionicons
                   name={selected ? 'checkmark-circle' : 'ellipse-outline'}
                   size={22}
-                  color={selected ? theme.colors.link : theme.colors.mutedTextOnDark}
+                  color={selected ? theme.colors.link : theme.colors.foregroundMuted}
                 />
               </Pressable>
             );
@@ -337,7 +340,10 @@ export function ThreadComposer({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  const linkTint = `${theme.colors.link}14`;
+
+  return StyleSheet.create({
   wrap: {
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
@@ -364,7 +370,7 @@ const styles = StyleSheet.create({
   },
   channelPillStatic: { opacity: 0.92 },
   channelPillText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.sm,
   },
@@ -383,7 +389,7 @@ const styles = StyleSheet.create({
   },
   fromPillText: {
     flex: 1,
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.xs,
   },
@@ -394,14 +400,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     marginBottom: theme.spacing.sm,
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
   },
   input: {
     minHeight: 44,
     maxHeight: 120,
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.md,
     paddingVertical: theme.spacing.sm,
@@ -441,7 +447,7 @@ const styles = StyleSheet.create({
   attachBtnDisabled: { opacity: 0.4 },
   counter: {
     flex: 1,
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.xs,
   },
@@ -472,10 +478,10 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     marginBottom: theme.spacing.sm,
   },
-  sheetRowActive: { borderColor: theme.colors.link, backgroundColor: 'rgba(96, 165, 250, 0.08)' },
+  sheetRowActive: { borderColor: theme.colors.link, backgroundColor: linkTint },
   sheetRowText: {
     flex: 1,
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.md,
   },
@@ -486,7 +492,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   phoneTitle: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.bold,
     fontSize: theme.typography.fontSize.lg,
   },
@@ -506,7 +512,7 @@ const styles = StyleSheet.create({
   },
   phoneSearchInput: {
     flex: 1,
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     paddingVertical: theme.spacing.sm,
     fontFamily: theme.typography.fontFamily.regular,
   },
@@ -521,27 +527,28 @@ const styles = StyleSheet.create({
   },
   phoneRowSelected: { borderColor: theme.colors.link },
   phoneNum: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.md,
   },
   phoneBadge: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
     marginTop: 2,
   },
   phoneMeta: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
     marginTop: 2,
   },
   phoneEmpty: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     textAlign: 'center',
     marginVertical: theme.spacing.lg,
     lineHeight: theme.typography.lineHeight.md,
   },
-});
+  });
+}

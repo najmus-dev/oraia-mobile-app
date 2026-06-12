@@ -24,6 +24,7 @@ export type Opportunity = {
   source?: string;
   assignedTo?: string;
   companyName?: string;
+  followerIds?: string[];
 };
 
 export type PipelinesResponse = {
@@ -49,6 +50,8 @@ export type OpportunityFormValues = {
   source: string;
   businessName: string;
   assignedTo: string;
+  followerIds: string[];
+  contactTags: string[];
 };
 
 export function opportunityToFormValues(o: Opportunity): OpportunityFormValues {
@@ -65,6 +68,8 @@ export function opportunityToFormValues(o: Opportunity): OpportunityFormValues {
     source: o.source?.trim() ?? '',
     businessName: o.companyName?.trim() ?? '',
     assignedTo: o.assignedTo?.trim() ?? '',
+    followerIds: o.followerIds ?? [],
+    contactTags: [],
   };
 }
 
@@ -81,7 +86,49 @@ export function emptyOpportunityFormValues(
     source: '',
     businessName: '',
     assignedTo: '',
+    followerIds: [],
+    contactTags: [],
     ...defaults,
+  };
+}
+
+export function parseOpportunityFollowerIds(raw: unknown): string[] {
+  const root =
+    raw && typeof raw === 'object' && 'opportunity' in raw
+      ? (raw as { opportunity: unknown }).opportunity
+      : raw;
+  if (!root || typeof root !== 'object') return [];
+  const followers = (root as { followers?: unknown }).followers;
+  if (!Array.isArray(followers)) return [];
+  return followers
+    .map((entry) => {
+      if (typeof entry === 'string' && entry.trim()) return entry.trim();
+      if (entry && typeof entry === 'object' && typeof (entry as { id?: string }).id === 'string') {
+        return (entry as { id: string }).id;
+      }
+      return null;
+    })
+    .filter((id): id is string => Boolean(id));
+}
+
+export function formatFollowerLabel(ids: string[], names: string[]): string {
+  if (!ids.length) return '';
+  if (names.length) {
+    if (names.length <= 2) return names.join(', ');
+    return `${names.length} followers`;
+  }
+  return ids.length === 1 ? '1 follower' : `${ids.length} followers`;
+}
+
+export function followerSyncDiff(previous: string[], next: string[]): {
+  toAdd: string[];
+  toRemove: string[];
+} {
+  const prev = new Set(previous);
+  const nxt = new Set(next);
+  return {
+    toAdd: next.filter((id) => !prev.has(id)),
+    toRemove: previous.filter((id) => !nxt.has(id)),
   };
 }
 
@@ -94,7 +141,38 @@ export function formatOpportunityMoney(value?: number): string {
   }
 }
 
-export function formValuesToOpportunityPayload(values: OpportunityFormValues): Record<string, unknown> {
+export function contactTagsSame(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const norm = (tags: string[]) => tags.map((t) => t.toLowerCase()).sort();
+  const left = norm(a);
+  const right = norm(b);
+  return left.every((tag, index) => tag === right[index]);
+}
+
+export function shouldSyncContactTags(next: string[], previous?: string[]): boolean {
+  if (previous === undefined) return next.length > 0;
+  return !contactTagsSame(next, previous);
+}
+
+export function shouldSyncFollowers(next: string[], previous?: string[]): boolean {
+  if (previous === undefined) return next.length > 0;
+  return !contactTagsSame(next, previous);
+}
+
+export function shouldSyncBusinessName(next: string, previous?: string): boolean {
+  const trimmed = next.trim();
+  if (previous === undefined) return trimmed.length > 0;
+  return trimmed !== previous.trim();
+}
+
+export function formValuesToOpportunityPayload(
+  values: OpportunityFormValues,
+  options?: {
+    previousContactTags?: string[];
+    previousFollowerIds?: string[];
+    previousBusinessName?: string;
+  },
+): Record<string, unknown> {
   const payload: Record<string, unknown> = {
     name: values.name.trim(),
     pipelineId: values.pipelineId.trim(),
@@ -108,10 +186,17 @@ export function formValuesToOpportunityPayload(values: OpportunityFormValues): R
   }
   const source = values.source.trim();
   if (source) payload.source = source;
-  const companyName = values.businessName.trim();
-  if (companyName) payload.companyName = companyName;
   const assignedTo = values.assignedTo.trim();
   if (assignedTo) payload.assignedTo = assignedTo;
+  if (shouldSyncFollowers(values.followerIds, options?.previousFollowerIds)) {
+    payload.followerIds = values.followerIds;
+  }
+  if (shouldSyncContactTags(values.contactTags, options?.previousContactTags)) {
+    payload.contactTags = values.contactTags;
+  }
+  if (shouldSyncBusinessName(values.businessName, options?.previousBusinessName)) {
+    payload.businessName = values.businessName.trim();
+  }
   return payload;
 }
 

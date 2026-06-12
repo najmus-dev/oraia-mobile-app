@@ -2,13 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Constants from 'expo-constants';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import * as SecureStore from 'expo-secure-store';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../lib/api';
 import { useFullScreenBottomInset, useHeaderTopPadding } from '../lib/safeArea';
 import { userDisplayName, userInitials } from '../lib/userDisplay';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
 import { useAppState } from '../state/AppState';
+import { useThemeState } from '../state/ThemeState';
 import { TextField } from '../components/TextField';
 import { BottomSheet } from '../components/BottomSheet';
 import { LocationSelectSheet } from '../components/LocationSelectSheet';
@@ -23,17 +23,19 @@ import {
   type AppearanceMode,
 } from '../components/settings/SettingsUi';
 import type { HomeStackParamList } from '../navigation/HomeStack';
+import type { OraiaTheme } from '../theme';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Settings'>;
 
-const APPEARANCE_KEY = 'oraia.appearance';
 const LANGUAGE_OPTIONS = [{ key: 'en', label: 'English' }] as const;
 
 export function SettingsScreen({ navigation }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
+  const { preference: appearance, setPreference: setAppearance } = useThemeState();
   const paddingTop = useHeaderTopPadding();
   const bodyBottom = useFullScreenBottomInset();
   const { user, locationId, locationName, apiBaseUrl, setApiBaseUrl, clearSession } = useAppState();
-  const [appearance, setAppearance] = useState<AppearanceMode>('dark');
   const [language, setLanguage] = useState<(typeof LANGUAGE_OPTIONS)[number]['key']>('en');
   const [languageSheetOpen, setLanguageSheetOpen] = useState(false);
   const [locationSheetOpen, setLocationSheetOpen] = useState(false);
@@ -44,36 +46,8 @@ export function SettingsScreen({ navigation }: Props) {
   const appVersion = Constants.expoConfig?.version ?? '1.0.0';
   const languageLabel = LANGUAGE_OPTIONS.find((o) => o.key === language)?.label ?? 'English';
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const stored = await SecureStore.getItemAsync(APPEARANCE_KEY);
-        if (!alive || !stored) return;
-        if (stored === 'light' || stored === 'dark' || stored === 'system') {
-          setAppearance(stored);
-        }
-      } catch {
-        /* optional preference */
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  async function onAppearanceChange(mode: AppearanceMode) {
+  function onAppearanceChange(mode: AppearanceMode) {
     setAppearance(mode);
-    try {
-      await SecureStore.setItemAsync(APPEARANCE_KEY, mode);
-    } catch {
-      /* best-effort */
-    }
-    if (mode === 'light') {
-      Alert.alert('Appearance', 'Light mode is coming soon. The app currently uses dark theme.');
-    } else if (mode === 'system') {
-      Alert.alert('Appearance', 'System appearance will follow your device setting in a future update.');
-    }
   }
 
   function saveApiHost() {
@@ -241,7 +215,8 @@ export function SettingsScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   body: {
     paddingHorizontal: theme.spacing.lg,
@@ -252,7 +227,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   devHint: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.xs,
   },
@@ -269,10 +244,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   sheetRowActive: {
-    backgroundColor: 'rgba(47, 45, 121, 0.35)',
+    backgroundColor: `${theme.colors.primary}59`,
   },
   sheetRowText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.md,
   },
@@ -280,4 +255,5 @@ const styles = StyleSheet.create({
     color: theme.colors.link,
     fontFamily: theme.typography.fontFamily.semiBold,
   },
-});
+  });
+}

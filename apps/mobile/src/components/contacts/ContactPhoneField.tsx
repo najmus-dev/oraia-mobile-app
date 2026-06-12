@@ -1,8 +1,9 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../../theme';
-import { PrimaryBadge } from './PrimaryBadge';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
+import { FormFieldLabel } from './FormFieldLabel';
 
 type Props = {
   phoneType: string;
@@ -21,19 +22,18 @@ export function ContactPhoneField({
   onPressCountryCode,
   onChangeText,
 }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.wrap}>
-      <View style={styles.labelRow}>
-        <Text style={styles.label}>Phone</Text>
-        <PrimaryBadge />
-      </View>
+      <FormFieldLabel label="Phone" primary />
 
       <View style={styles.field}>
         <Pressable style={styles.typeBtn} onPress={onPressType} accessibilityRole="button">
           <Text style={styles.typeText} numberOfLines={1}>
             {phoneType}
           </Text>
-          <Ionicons name="chevron-down" size={14} color={theme.colors.mutedTextOnDark} />
+          <Ionicons name="chevron-down" size={14} color={theme.colors.foregroundMuted} />
         </Pressable>
 
         <View style={styles.divider} />
@@ -44,7 +44,7 @@ export function ContactPhoneField({
           accessibilityRole="button"
         >
           <Text style={styles.codeText}>{countryCode}</Text>
-          <Ionicons name="chevron-down" size={12} color={theme.colors.mutedTextOnDark} />
+          <Ionicons name="chevron-down" size={12} color={theme.colors.foregroundMuted} />
         </Pressable>
 
         <TextInput
@@ -52,7 +52,7 @@ export function ContactPhoneField({
           onChangeText={onChangeText}
           style={styles.input}
           placeholder="(555) 555-0100"
-          placeholderTextColor={theme.colors.mutedText}
+          placeholderTextColor={theme.colors.inputPlaceholder}
           keyboardType="phone-pad"
           textContentType="telephoneNumber"
           autoComplete="tel"
@@ -63,19 +63,10 @@ export function ContactPhoneField({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   wrap: {
-    gap: theme.spacing.sm,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-  },
-  label: {
-    color: theme.colors.mutedTextOnDark,
-    fontFamily: theme.typography.fontFamily.medium,
-    fontSize: theme.typography.fontSize.xs,
+    gap: 0,
   },
   field: {
     flexDirection: 'row',
@@ -95,7 +86,7 @@ const styles = StyleSheet.create({
     maxWidth: 96,
   },
   typeText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
     flexShrink: 1,
@@ -112,7 +103,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.sm,
   },
   codeText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.sm,
   },
@@ -120,8 +111,9 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.md,
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.md,
   },
 });
+}

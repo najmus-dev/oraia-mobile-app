@@ -1,7 +1,8 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 import type { TaskSortOrder, TaskStatusFilter } from '../../lib/tasks';
 
 type Props = {
@@ -23,6 +24,8 @@ export function TaskFilterBar({
   onStatusChange,
   onSortChange,
 }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.wrap}>
       <ScrollView
@@ -36,120 +39,120 @@ export function TaskFilterBar({
           return (
             <Pressable
               key={chip.id}
-              style={[styles.statusChip, active && styles.statusChipActive]}
+              style={[styles.chip, active && styles.chipActive]}
               onPress={() => onStatusChange(chip.id)}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
             >
-              <Text style={[styles.statusText, active && styles.statusTextActive]}>{chip.label}</Text>
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>{chip.label}</Text>
             </Pressable>
           );
         })}
       </ScrollView>
 
       <View style={styles.sortRow}>
-        <Text style={styles.sortLabel}>Sort</Text>
-        <Pressable
-          style={[styles.sortChip, sortOrder === 'asc' && styles.sortChipActive]}
-          onPress={() => onSortChange('asc')}
-          accessibilityRole="button"
-          accessibilityState={{ selected: sortOrder === 'asc' }}
+        <Text style={styles.sortLabel}>Sort by</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.sortChips}
+          keyboardShouldPersistTaps="handled"
         >
-          <Ionicons
-            name="arrow-up"
-            size={14}
-            color={sortOrder === 'asc' ? theme.colors.link : theme.colors.mutedTextOnDark}
-          />
-          <Text style={[styles.sortText, sortOrder === 'asc' && styles.sortTextActive]}>Due date</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.sortChip, sortOrder === 'desc' && styles.sortChipActive]}
-          onPress={() => onSortChange('desc')}
-          accessibilityRole="button"
-          accessibilityState={{ selected: sortOrder === 'desc' }}
-        >
-          <Ionicons
-            name="arrow-down"
-            size={14}
-            color={sortOrder === 'desc' ? theme.colors.link : theme.colors.mutedTextOnDark}
-          />
-          <Text style={[styles.sortText, sortOrder === 'desc' && styles.sortTextActive]}>Due date</Text>
-        </Pressable>
+          <Pressable
+            style={[styles.chip, sortOrder === 'asc' && styles.chipActive]}
+            onPress={() => onSortChange('asc')}
+            accessibilityRole="button"
+            accessibilityState={{ selected: sortOrder === 'asc' }}
+          >
+            <Ionicons
+              name="arrow-up"
+              size={14}
+              color={sortOrder === 'asc' ? theme.colors.link : theme.colors.foregroundMuted}
+            />
+            <Text style={[styles.chipText, sortOrder === 'asc' && styles.chipTextActive]}>
+              Due date
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.chip, sortOrder === 'desc' && styles.chipActive]}
+            onPress={() => onSortChange('desc')}
+            accessibilityRole="button"
+            accessibilityState={{ selected: sortOrder === 'desc' }}
+          >
+            <Ionicons
+              name="arrow-down"
+              size={14}
+              color={sortOrder === 'desc' ? theme.colors.link : theme.colors.foregroundMuted}
+            />
+            <Text style={[styles.chipText, sortOrder === 'desc' && styles.chipTextActive]}>
+              Due date
+            </Text>
+          </Pressable>
+        </ScrollView>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.colors.border,
-    backgroundColor: theme.colors.shell,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.sm,
-    paddingBottom: theme.spacing.sm,
-  },
-  statusChip: {
-    height: 34,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.14)',
-    paddingHorizontal: theme.spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.surfaceElevated,
-  },
-  statusChipActive: {
-    backgroundColor: theme.colors.link,
-    borderColor: theme.colors.link,
-  },
-  statusText: {
-    color: theme.colors.textOnDark,
-    fontFamily: theme.typography.fontFamily.medium,
-    fontSize: theme.typography.fontSize.sm,
-  },
-  statusTextActive: {
-    color: theme.colors.navy,
-  },
-  sortRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.md,
-  },
-  sortLabel: {
-    color: theme.colors.mutedTextOnDark,
-    fontFamily: theme.typography.fontFamily.medium,
-    fontSize: theme.typography.fontSize.xs,
-    marginRight: 2,
-  },
-  sortChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    height: 30,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    paddingHorizontal: theme.spacing.md,
-    backgroundColor: 'transparent',
-  },
-  sortChipActive: {
-    borderColor: 'rgba(134, 182, 255, 0.45)',
-    backgroundColor: 'rgba(91, 127, 212, 0.18)',
-  },
-  sortText: {
-    color: theme.colors.mutedTextOnDark,
-    fontFamily: theme.typography.fontFamily.medium,
-    fontSize: theme.typography.fontSize.xs,
-  },
-  sortTextActive: {
-    color: theme.colors.textOnDark,
-  },
-});
+function createStyles(theme: OraiaTheme) {
+  const activeTint = `${theme.colors.link}1F`;
+
+  return StyleSheet.create({
+    wrap: {
+      backgroundColor: theme.colors.background,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.border,
+      paddingTop: theme.spacing.sm,
+    },
+    statusRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.lg,
+      paddingBottom: theme.spacing.sm,
+    },
+    sortRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: theme.spacing.lg,
+      paddingBottom: theme.spacing.md,
+      gap: theme.spacing.sm,
+    },
+    sortLabel: {
+      color: theme.colors.foregroundMuted,
+      fontFamily: theme.typography.fontFamily.medium,
+      fontSize: theme.typography.fontSize.sm,
+      flexShrink: 0,
+    },
+    sortChips: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+    },
+    chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      height: 36,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      paddingHorizontal: theme.spacing.md,
+      justifyContent: 'center',
+      backgroundColor: theme.colors.surface,
+    },
+    chipActive: {
+      borderColor: theme.colors.link,
+      backgroundColor: activeTint,
+    },
+    chipText: {
+      color: theme.colors.foregroundMuted,
+      fontFamily: theme.typography.fontFamily.medium,
+      fontSize: theme.typography.fontSize.sm,
+    },
+    chipTextActive: {
+      color: theme.colors.link,
+      fontFamily: theme.typography.fontFamily.semiBold,
+    },
+  });
+}

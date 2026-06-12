@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, TextStyle } from 'react-native';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
 
 export type AppIconName =
   | 'home'
@@ -50,19 +50,21 @@ export function Icon({
   color?: string;
   style?: TextStyle;
 }) {
+  const theme = useTheme();
+  const styles = useThemedStyles(() =>
+    StyleSheet.create({
+      base: {
+        fontSize: 18,
+        lineHeight: 18,
+        includeFontPadding: false,
+        textAlignVertical: 'center',
+      },
+    }),
+  );
+
   return (
     <Text style={[styles.base, { color: color ?? theme.colors.white }, style]} accessibilityRole="image">
       {glyph[name]}
     </Text>
   );
 }
-
-const styles = StyleSheet.create({
-  base: {
-    fontSize: 18,
-    lineHeight: 18,
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-  },
-});
-

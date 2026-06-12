@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { AppError } from '../lib/errors';
+import { logger } from '../lib/logger';
 import { parseNotificationStatus, parseNotificationType } from '../lib/notificationTypes';
 import { parseTzOffsetQuery } from '../lib/dashboardDayBounds';
 import { locationGet, locationPut } from '../middleware/locationRoute';
@@ -32,10 +33,17 @@ locationGet(notificationsRouter, '/', async (req, res) => {
     const key = `${user._id.toString()}:${locationId}`;
     const last = lastSyncByKey.get(key) ?? 0;
     if (Date.now() - last >= syncThrottleMs) {
-      const ghl = getLocationGhlClient(locationId);
-      const tzOffset = parseTzOffsetQuery(req.query.tzOffset);
-      await syncNotificationsFromGhl({ ghl, user, locationId, tzOffset });
-      lastSyncByKey.set(key, Date.now());
+      try {
+        const ghl = getLocationGhlClient(locationId);
+        const tzOffset = parseTzOffsetQuery(req.query.tzOffset);
+        await syncNotificationsFromGhl({ ghl, user, locationId, tzOffset });
+        lastSyncByKey.set(key, Date.now());
+      } catch (err) {
+        logger.warn('Notification sync failed — returning cached notifications', {
+          locationId,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
   }
 

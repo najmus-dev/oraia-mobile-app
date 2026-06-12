@@ -12,10 +12,12 @@ import {
 } from '../lib/contacts';
 import { formatError } from '../lib/errors';
 import { useFullScreenBottomInset } from '../lib/safeArea';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
 import { useAppState } from '../state/AppState';
 import { AppBar } from '../components/AppBar';
 import { LocationAvatar } from '../components/LocationAvatar';
+import { returnToScreen } from '../lib/stackNavigation';
 import type { AppsStackParamList } from '../navigation/AppsStack';
 import type { CalendarStackParamList } from '../navigation/CalendarStack';
 import type { TaskFilters } from '../lib/tasks';
@@ -36,6 +38,8 @@ type PipelinePickProps = AppsPickProps;
 type Props = CalendarPickProps | AppsPickProps;
 
 export function PickContactScreen({ navigation, route }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const listBottom = useFullScreenBottomInset();
   const { flow, eventId } = route.params;
   const isTaskFilter = flow === 'taskFilter';
@@ -82,37 +86,40 @@ export function PickContactScreen({ navigation, route }: Props) {
       return;
     }
     if (flow === 'opportunity') {
-      (navigation as PipelinePickProps['navigation']).navigate({
-        name: 'OpportunityForm',
-        params: {
-          pickedContact: picked,
-          pipelineId: route.params.pipelineId,
-          pipelineStageId: route.params.pipelineStageId,
-        },
-        merge: true,
-      });
+      const params = {
+        pickedContact: picked,
+        pipelineId: route.params.pipelineId,
+        pipelineStageId: route.params.pipelineStageId,
+      };
+      const appsNav = navigation as PipelinePickProps['navigation'];
+      const hasForm = navigation.getState().routes.some((r) => r.name === 'OpportunityForm');
+      if (hasForm) {
+        returnToScreen(appsNav, 'OpportunityForm', params);
+      } else {
+        appsNav.replace('OpportunityForm', params);
+      }
       return;
     }
     if (flow === 'task') {
-      (navigation as PipelinePickProps['navigation']).navigate({
-        name: 'TaskForm',
-        params: { pickedContact: picked },
-        merge: true,
+      returnToScreen(navigation as PipelinePickProps['navigation'], 'TaskForm', {
+        pickedContact: picked,
       });
       return;
     }
     if (flow === 'taskFilter') {
       return;
     }
-    (navigation as CalendarPickProps['navigation']).navigate({
-      name: 'AppointmentForm',
-      params: { pickedContact: picked, eventId },
-      merge: true,
-    });
+    const calendarNav = navigation as CalendarPickProps['navigation'];
+    const hasForm = navigation.getState().routes.some((r) => r.name === 'AppointmentForm');
+    if (hasForm) {
+      returnToScreen(calendarNav, 'AppointmentForm', { pickedContact: picked, eventId });
+    } else {
+      calendarNav.navigate('AppointmentForm', { pickedContact: picked, eventId });
+    }
   }
 
   function applyTaskFilterContacts() {
-    (navigation as PipelinePickProps['navigation']).navigate('TaskFilters', {
+    returnToScreen(navigation as PipelinePickProps['navigation'], 'TaskFilters', {
       filters: route.params.filters,
       pickedContactIds: selectedIds,
     });
@@ -123,12 +130,12 @@ export function PickContactScreen({ navigation, route }: Props) {
       <AppBar title={isTaskFilter ? 'Select contacts' : 'Contacts'} onBack={() => navigation.goBack()} />
 
       <View style={styles.searchWrap}>
-        <Ionicons name="search" size={18} color={theme.colors.mutedTextOnDark} />
+        <Ionicons name="search" size={18} color={theme.colors.foregroundMuted} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Search by name, phone number, email, or company"
-          placeholderTextColor={theme.colors.mutedTextOnDark}
+          placeholderTextColor={theme.colors.inputPlaceholder}
           style={styles.searchInput}
           autoCapitalize="none"
           autoCorrect={false}
@@ -204,7 +211,8 @@ export function PickContactScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   searchWrap: {
     flexDirection: 'row',
@@ -219,7 +227,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.regular,
     paddingVertical: theme.spacing.md,
   },
@@ -235,20 +243,20 @@ const styles = StyleSheet.create({
   },
   rowBody: { flex: 1, minWidth: 0 },
   name: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.md,
   },
   sub: {
     marginTop: 4,
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
   },
   empty: {
     textAlign: 'center',
     marginTop: theme.spacing.xl,
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
   },
   checkbox: {
@@ -280,7 +288,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surfaceMuted,
   },
   clearText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.md,
   },
@@ -296,3 +304,4 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.md,
   },
 });
+}

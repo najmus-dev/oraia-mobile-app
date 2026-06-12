@@ -2,7 +2,8 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheet } from '../BottomSheet';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 
 export type ComposeKind = 'direct' | 'email' | 'group' | 'internal';
 
@@ -52,6 +53,9 @@ type Props = {
 };
 
 export function CreateMessageSheet({ visible, onClose, onSelect }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   return (
     <BottomSheet visible={visible} onClose={onClose}>
       <View style={styles.header}>
@@ -74,7 +78,7 @@ export function CreateMessageSheet({ visible, onClose, onSelect }: Props) {
             <Ionicons
               name={opt.icon}
               size={22}
-              color={opt.available ? theme.colors.link : theme.colors.mutedTextOnDark}
+              color={opt.available ? theme.colors.link : theme.colors.foregroundMuted}
             />
           </View>
           <View style={styles.rowText}>
@@ -91,7 +95,7 @@ export function CreateMessageSheet({ visible, onClose, onSelect }: Props) {
             <Text style={styles.rowSub}>{opt.subtitle}</Text>
           </View>
           {opt.available ? (
-            <Ionicons name="chevron-forward" size={18} color={theme.colors.mutedTextOnDark} />
+            <Ionicons name="chevron-forward" size={18} color={theme.colors.foregroundMuted} />
           ) : null}
         </Pressable>
       ))}
@@ -99,76 +103,78 @@ export function CreateMessageSheet({ visible, onClose, onSelect }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.sm,
-  },
-  headerTitle: {
-    color: theme.colors.textOnDark,
-    fontFamily: theme.typography.fontFamily.bold,
-    fontSize: theme.typography.fontSize.lg,
-  },
-  cancel: {
-    color: theme.colors.link,
-    fontFamily: theme.typography.fontFamily.semiBold,
-    fontSize: theme.typography.fontSize.md,
-  },
-  hint: {
-    color: theme.colors.mutedTextOnDark,
-    fontFamily: theme.typography.fontFamily.regular,
-    fontSize: theme.typography.fontSize.sm,
-    marginBottom: theme.spacing.md,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.md,
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.md,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
-    marginBottom: theme.spacing.sm,
-  },
-  rowDisabled: { opacity: 0.72 },
-  iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(96, 165, 250, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconMuted: { backgroundColor: theme.colors.surfaceMuted },
-  rowText: { flex: 1 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
-  rowTitle: {
-    color: theme.colors.textOnDark,
-    fontFamily: theme.typography.fontFamily.semiBold,
-    fontSize: theme.typography.fontSize.md,
-  },
-  rowTitleMuted: { color: theme.colors.mutedTextOnDark },
-  rowSub: {
-    marginTop: 2,
-    color: theme.colors.mutedTextOnDark,
-    fontFamily: theme.typography.fontFamily.regular,
-    fontSize: theme.typography.fontSize.sm,
-  },
-  soonBadge: {
-    backgroundColor: theme.colors.surfaceMuted,
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  soonText: {
-    color: theme.colors.mutedTextOnDark,
-    fontFamily: theme.typography.fontFamily.semiBold,
-    fontSize: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-});
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: theme.spacing.sm,
+    },
+    headerTitle: {
+      color: theme.colors.foreground,
+      fontFamily: theme.typography.fontFamily.bold,
+      fontSize: theme.typography.fontSize.lg,
+    },
+    cancel: {
+      color: theme.colors.link,
+      fontFamily: theme.typography.fontFamily.semiBold,
+      fontSize: theme.typography.fontSize.md,
+    },
+    hint: {
+      color: theme.colors.foregroundMuted,
+      fontFamily: theme.typography.fontFamily.regular,
+      fontSize: theme.typography.fontSize.sm,
+      marginBottom: theme.spacing.md,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.md,
+      paddingVertical: theme.spacing.md,
+      paddingHorizontal: theme.spacing.md,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
+      marginBottom: theme.spacing.sm,
+    },
+    rowDisabled: { opacity: 0.72 },
+    iconCircle: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: `${theme.colors.primary}26`,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    iconMuted: { backgroundColor: theme.colors.surfaceMuted },
+    rowText: { flex: 1 },
+    titleRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
+    rowTitle: {
+      color: theme.colors.foreground,
+      fontFamily: theme.typography.fontFamily.semiBold,
+      fontSize: theme.typography.fontSize.md,
+    },
+    rowTitleMuted: { color: theme.colors.foregroundMuted },
+    rowSub: {
+      marginTop: 2,
+      color: theme.colors.foregroundMuted,
+      fontFamily: theme.typography.fontFamily.regular,
+      fontSize: theme.typography.fontSize.sm,
+    },
+    soonBadge: {
+      backgroundColor: theme.colors.surfaceMuted,
+      borderRadius: 6,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+    },
+    soonText: {
+      color: theme.colors.foregroundMuted,
+      fontFamily: theme.typography.fontFamily.semiBold,
+      fontSize: 10,
+      textTransform: 'uppercase',
+      letterSpacing: 0.4,
+    },
+  });
+}

@@ -18,7 +18,8 @@ import {
 } from '../lib/contacts';
 import { formatError } from '../lib/errors';
 import { FAB_LIST_PADDING_BOTTOM } from '../lib/fabLayout';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
 import { useAppState } from '../state/AppState';
 import { AppBar } from '../components/AppBar';
 import { ErrorBanner } from '../components/ErrorBanner';
@@ -36,6 +37,8 @@ const PAGE_SIZE = 30;
 const DEFAULT_LISTS: ContactSmartList[] = [{ id: 'all', name: 'All Contacts', source: 'all' }];
 
 export function ContactsScreen({ navigation, route }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const paddingTop = useHeaderTopPadding();
   const { token, locationId } = useAppState();
   const [loading, setLoading] = useState(false);
@@ -244,7 +247,8 @@ export function ContactsScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   controls: {
     paddingHorizontal: theme.spacing.xl,
@@ -261,8 +265,9 @@ const styles = StyleSheet.create({
   empty: {
     marginTop: theme.spacing['2xl'],
     textAlign: 'center',
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
   },
 });
+}

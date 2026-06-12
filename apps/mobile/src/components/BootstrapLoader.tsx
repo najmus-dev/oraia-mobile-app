@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
-import { theme } from '../theme';
+import { useThemedStyles } from '../hooks/useTheme';
 
 type Props = {
   message?: string;
@@ -9,6 +9,30 @@ type Props = {
 /** Subtle branded loader for bootstrap / first paint. */
 export function BootstrapLoader({ message }: Props) {
   const spin = useRef(new Animated.Value(0)).current;
+  const styles = useThemedStyles((t) =>
+    StyleSheet.create({
+      wrap: {
+        alignItems: 'center',
+        marginTop: t.spacing['2xl'],
+        minHeight: 48,
+      },
+      ring: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        borderWidth: 2,
+        borderColor: t.colors.secondary,
+        borderTopColor: 'transparent',
+      },
+      message: {
+        marginTop: t.spacing.lg,
+        color: t.colors.shellForegroundMuted,
+        fontFamily: t.typography.fontFamily.regular,
+        fontSize: t.typography.fontSize.sm,
+        letterSpacing: 0.2,
+      },
+    }),
+  );
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -39,26 +63,3 @@ export function BootstrapLoader({ message }: Props) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: {
-    alignItems: 'center',
-    marginTop: theme.spacing['2xl'],
-    minHeight: 48,
-  },
-  ring: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: theme.colors.secondary,
-    borderTopColor: 'transparent',
-  },
-  message: {
-    marginTop: theme.spacing.lg,
-    color: theme.colors.mutedTextOnDark,
-    fontFamily: theme.typography.fontFamily.regular,
-    fontSize: theme.typography.fontSize.sm,
-    letterSpacing: 0.2,
-  },
-});

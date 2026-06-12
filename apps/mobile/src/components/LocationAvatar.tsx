@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
-import { theme } from '../theme';
+import { useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
 import { isAgencyBrandLocation, locationInitials } from '../lib/locationDisplay';
 import agencyLogo from '../../assets/oraia-logo.png';
 
@@ -11,6 +12,7 @@ type Props = {
 };
 
 export function LocationAvatar({ name, logoUrl, size = 44 }: Props) {
+  const styles = useThemedStyles(createStyles);
   const [logoFailed, setLogoFailed] = useState(false);
   const label = name?.trim() || '?';
   const useAgencyLogo = isAgencyBrandLocation(name);
@@ -41,17 +43,19 @@ export function LocationAvatar({ name, logoUrl, size = 44 }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  image: {
-    backgroundColor: theme.colors.surfaceMuted,
-  },
-  fallback: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.primary,
-  },
-  initials: {
-    color: theme.colors.white,
-    fontFamily: theme.typography.fontFamily.semiBold,
-  },
-});
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
+    image: {
+      backgroundColor: theme.colors.surfaceMuted,
+    },
+    fallback: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.colors.primary,
+    },
+    initials: {
+      color: theme.colors.white,
+      fontFamily: theme.typography.fontFamily.semiBold,
+    },
+  });
+}

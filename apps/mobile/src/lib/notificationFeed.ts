@@ -5,7 +5,9 @@ import type { NotificationStatus, NotificationType } from './notifications';
 export type { NotificationAction, NotificationItem, NotificationsResponse } from './notificationFeedTypes';
 export {
   buildNotificationsQuery,
+  dedupeNotificationItems,
   formatNotificationTime,
+  notificationActivityTime,
   notificationTypeIcon,
 } from './notificationFeedUtils';
 

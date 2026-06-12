@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, ViewStyle } from 'react-native';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
 
 export function Button({
   title,
@@ -15,6 +16,9 @@ export function Button({
   disabled?: boolean;
   style?: ViewStyle;
 }) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   return (
     <Pressable
       onPress={onPress}
@@ -41,23 +45,24 @@ export function Button({
   );
 }
 
-const styles = StyleSheet.create({
-  base: {
-    borderRadius: 12,
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
-    minHeight: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primary: { backgroundColor: theme.colors.primary },
-  dark: { backgroundColor: theme.colors.navy },
-  ghost: { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.colors.secondary },
-  danger: { backgroundColor: theme.colors.danger },
-  text: {
-    fontFamily: theme.typography.fontFamily.semiBold,
-    fontSize: theme.typography.fontSize.md,
-    lineHeight: theme.typography.lineHeight.md,
-  },
-});
-
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
+    base: {
+      borderRadius: theme.radius.md,
+      paddingVertical: theme.spacing.md,
+      paddingHorizontal: theme.spacing.lg,
+      minHeight: 48,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    primary: { backgroundColor: theme.colors.primary },
+    dark: { backgroundColor: theme.colors.navy },
+    ghost: { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.colors.secondary },
+    danger: { backgroundColor: theme.colors.danger },
+    text: {
+      fontFamily: theme.typography.fontFamily.semiBold,
+      fontSize: theme.typography.fontSize.md,
+      lineHeight: theme.typography.lineHeight.md,
+    },
+  });
+}

@@ -13,16 +13,20 @@ import { api, withAuthHeaders } from '../lib/api';
 import { formatError } from '../lib/errors';
 import { useFullScreenBottomInset } from '../lib/safeArea';
 import { type AssigneesResponse, type TaskAssignee } from '../lib/tasks';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
 import { useAppState } from '../state/AppState';
 import { AppBar } from '../components/AppBar';
 import { ErrorBanner } from '../components/ErrorBanner';
 import { ListBusyState } from '../components/ListBusyState';
+import { returnToScreen } from '../lib/stackNavigation';
 import type { AppsStackParamList } from '../navigation/AppsStack';
 
 type Props = NativeStackScreenProps<AppsStackParamList, 'SelectAssignees'>;
 
 export function SelectAssigneesScreen({ navigation, route }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const listBottom = useFullScreenBottomInset();
   const { token, locationId } = useAppState();
   const { mode, selectedIds, returnTo } = route.params;
@@ -69,31 +73,19 @@ export function SelectAssigneesScreen({ navigation, route }: Props) {
     if (mode === 'single') {
       const name = id ? users.find((u) => u.id === id)?.name ?? 'Assignee' : 'Unassigned';
       if (returnTo === 'TaskForm') {
-        navigation.navigate({
-          name: 'TaskForm',
-          params: { pickedAssignee: { id, name } },
-          merge: true,
-        });
+        returnToScreen(navigation, 'TaskForm', { pickedAssignee: { id, name } });
         return;
       }
       if (returnTo === 'OpportunityForm') {
-        navigation.navigate({
-          name: 'OpportunityForm',
-          params: { pickedAssignee: { id, name } },
-          merge: true,
-        });
+        returnToScreen(navigation, 'OpportunityForm', { pickedAssignee: { id, name } });
         return;
       }
       if (returnTo === 'ContactForm') {
-        navigation.navigate({
-          name: 'ContactForm',
-          params: { pickedAssignee: { id, name } },
-          merge: true,
-        });
+        returnToScreen(navigation, 'ContactForm', { pickedAssignee: { id, name } });
         return;
       }
       if (returnTo === 'TaskFilters' && route.params.filters) {
-        navigation.navigate('TaskFilters', {
+        returnToScreen(navigation, 'TaskFilters', {
           filters: route.params.filters,
           pickedAssigneeIds: id ? [id] : [],
         });
@@ -108,13 +100,17 @@ export function SelectAssigneesScreen({ navigation, route }: Props) {
 
   function applyMulti() {
     if (returnTo === 'TaskFilters' && route.params.filters) {
-      navigation.navigate('TaskFilters', {
+      returnToScreen(navigation, 'TaskFilters', {
         filters: route.params.filters,
         pickedAssigneeIds: selected,
       });
-    } else {
-      navigation.goBack();
+      return;
     }
+    if (returnTo === 'OpportunityForm') {
+      returnToScreen(navigation, 'OpportunityForm', { pickedFollowerIds: selected });
+      return;
+    }
+    navigation.goBack();
   }
 
   return (
@@ -122,12 +118,12 @@ export function SelectAssigneesScreen({ navigation, route }: Props) {
       <AppBar title="Select Assignees" onBack={() => navigation.goBack()} />
 
       <View style={styles.searchWrap}>
-        <Ionicons name="search" size={18} color={theme.colors.mutedTextOnDark} />
+        <Ionicons name="search" size={18} color={theme.colors.foregroundMuted} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Search assignee"
-          placeholderTextColor={theme.colors.mutedTextOnDark}
+          placeholderTextColor={theme.colors.inputPlaceholder}
           style={styles.searchInput}
           autoCapitalize="none"
           autoCorrect={false}
@@ -168,7 +164,7 @@ export function SelectAssigneesScreen({ navigation, route }: Props) {
                   <Ionicons
                     name={isCurrentSingle ? 'radio-button-on' : 'radio-button-off'}
                     size={20}
-                    color={isCurrentSingle ? theme.colors.link : theme.colors.mutedTextOnDark}
+                    color={isCurrentSingle ? theme.colors.link : theme.colors.foregroundMuted}
                   />
                 )}
                 <Text style={styles.name}>{item.name}</Text>
@@ -189,8 +185,9 @@ export function SelectAssigneesScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.shell },
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.colors.background },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -206,7 +203,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.md,
     paddingVertical: 0,
@@ -214,7 +211,7 @@ const styles = StyleSheet.create({
   empty: {
     marginTop: theme.spacing.xl,
     textAlign: 'center',
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
     paddingHorizontal: theme.spacing.lg,
@@ -243,7 +240,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.link,
   },
   name: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.md,
   },
@@ -265,3 +262,4 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.md,
   },
 });
+}

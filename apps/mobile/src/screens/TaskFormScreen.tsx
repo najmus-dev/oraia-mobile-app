@@ -36,7 +36,9 @@ import {
   taskToFormValues,
   validateTaskForm,
 } from '../lib/tasks';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
+import { finishWizardFlow } from '../lib/stackNavigation';
 import { useAppState } from '../state/AppState';
 import { AppBar } from '../components/AppBar';
 import { FormPickerField } from '../components/FormPickerField';
@@ -88,6 +90,8 @@ function resolveInitialDraft(params: Props['route']['params'], ownerKey: string)
 }
 
 export function TaskFormScreen({ navigation, route }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const scrollBottom = useFullScreenBottomInset();
   const { token, locationId } = useAppState();
   const isEdit = Boolean(route.params?.taskId && route.params?.contactId);
@@ -253,7 +257,7 @@ export function TaskFormScreen({ navigation, route }: Props) {
         });
       }
       clearTaskFormDraft(ownerKey);
-      navigation.replace('TasksHome');
+      finishWizardFlow(navigation, { name: 'TasksHome' });
     } catch (e) {
       Alert.alert(isEdit ? 'Edit task' : 'Add new task', formatError(e));
     } finally {
@@ -285,7 +289,7 @@ export function TaskFormScreen({ navigation, route }: Props) {
               onChangeText={(title) => setValues((prev) => ({ ...prev, title }))}
               style={styles.input}
               placeholder="Task title"
-              placeholderTextColor={theme.colors.mutedTextOnDark}
+              placeholderTextColor={theme.colors.inputPlaceholder}
             />
           </View>
 
@@ -296,7 +300,7 @@ export function TaskFormScreen({ navigation, route }: Props) {
               onChangeText={(body) => setValues((prev) => ({ ...prev, body }))}
               style={[styles.input, styles.textArea]}
               placeholder="Optional details"
-              placeholderTextColor={theme.colors.mutedTextOnDark}
+              placeholderTextColor={theme.colors.inputPlaceholder}
               multiline
               textAlignVertical="top"
             />
@@ -354,8 +358,9 @@ export function TaskFormScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.shell },
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.colors.background },
   flex: { flex: 1 },
   body: {
     padding: theme.spacing.lg,
@@ -363,7 +368,7 @@ const styles = StyleSheet.create({
   },
   field: { gap: 8 },
   label: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
   },
@@ -373,7 +378,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.md,
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.md,
     backgroundColor: theme.colors.surface,
@@ -383,7 +388,7 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.md,
   },
   dueValue: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.md,
   },
@@ -413,7 +418,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surfaceMuted,
   },
   cancelText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.md,
   },
@@ -429,3 +434,4 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.md,
   },
 });
+}

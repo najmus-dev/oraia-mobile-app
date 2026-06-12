@@ -1,4 +1,9 @@
 import type { NotificationStatus, NotificationType } from './notifications';
+import type { NotificationItem } from './notificationFeedTypes';
+
+export function notificationActivityTime(item: Pick<NotificationItem, 'occurredAt' | 'createdAt'>): string {
+  return item.occurredAt?.trim() || item.createdAt;
+}
 
 export function buildNotificationsQuery(input: {
   type?: NotificationType;
@@ -43,6 +48,9 @@ export function formatNotificationTime(iso: string): string {
   if (Number.isNaN(date.getTime())) return '';
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
+  if (diffMs < 0) {
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
   const diffMin = Math.floor(diffMs / 60_000);
   if (diffMin < 1) return 'Just now';
   if (diffMin < 60) return `${diffMin}m ago`;
@@ -50,5 +58,43 @@ export function formatNotificationTime(iso: string): string {
   if (diffHr < 24) return `${diffHr}h ago`;
   const diffDay = Math.floor(diffHr / 24);
   if (diffDay < 7) return `${diffDay}d ago`;
-  return date.toLocaleDateString();
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+/** Collapse duplicate conversation rows (legacy per-message notifications). */
+export function dedupeNotificationItems(items: NotificationItem[]): NotificationItem[] {
+  const conversations = new Map<string, NotificationItem>();
+  const rest: NotificationItem[] = [];
+
+  for (const item of items) {
+    const conversationId =
+      item.type === 'conversations' &&
+      item.action.kind === 'conversation' &&
+      item.action.conversationId?.trim()
+        ? item.action.conversationId.trim()
+        : null;
+
+    if (!conversationId) {
+      rest.push(item);
+      continue;
+    }
+
+    const existing = conversations.get(conversationId);
+    if (!existing) {
+      conversations.set(conversationId, item);
+      continue;
+    }
+
+    const existingTime = notificationActivityTime(existing);
+    const itemTime = notificationActivityTime(item);
+    if (itemTime > existingTime) {
+      conversations.set(conversationId, item);
+    } else if (existing.status === 'read' && item.status === 'unread') {
+      conversations.set(conversationId, { ...existing, status: 'unread' });
+    }
+  }
+
+  return [...conversations.values(), ...rest].sort(
+    (a, b) => notificationActivityTime(b).localeCompare(notificationActivityTime(a)),
+  );
 }

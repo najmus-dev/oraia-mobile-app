@@ -27,7 +27,8 @@ import {
 import { formatError } from '../lib/errors';
 import { FAB_LIST_PADDING_BOTTOM } from '../lib/fabLayout';
 import { useMyInboxAssigneeId } from '../lib/myInboxAssignee';
-import { theme } from '../theme';
+import { useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
 import { useAppState } from '../state/AppState';
 import { ContactSearchBar } from '../components/contacts/ContactSearchBar';
 import { EmptyState } from '../components/EmptyState';
@@ -49,6 +50,7 @@ import type { InboxStackParamList } from '../navigation/InboxStack';
 type Props = NativeStackScreenProps<InboxStackParamList, 'InboxList'>;
 
 export function ConversationsScreen({ navigation, route }: Props) {
+  const styles = useThemedStyles(createStyles);
   const { token, locationId, locationName, locationAddress, locationLogoUrl, user } =
     useAppState();
   const [initialLoading, setInitialLoading] = useState(true);
@@ -368,7 +370,8 @@ export function ConversationsScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   headerSection: {
     flexGrow: 0,
@@ -376,6 +379,7 @@ const styles = StyleSheet.create({
   },
   searchWrap: {
     paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.md,
     paddingBottom: theme.spacing.sm,
   },
   listBody: {
@@ -386,4 +390,5 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: { paddingBottom: FAB_LIST_PADDING_BOTTOM },
-});
+  });
+}

@@ -1,7 +1,7 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SearchScreen } from '../screens/SearchScreen';
-import { theme } from '../theme';
+import { useTheme } from '../hooks/useTheme';
 
 export type SearchStackParamList = {
   SearchMain: undefined;
@@ -10,11 +10,12 @@ export type SearchStackParamList = {
 const Stack = createNativeStackNavigator<SearchStackParamList>();
 
 export function SearchStack() {
+  const theme = useTheme();
   return (
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: theme.colors.shell },
+        contentStyle: { backgroundColor: theme.colors.background },
       }}
     >
       <Stack.Screen name="SearchMain" component={SearchScreen} />

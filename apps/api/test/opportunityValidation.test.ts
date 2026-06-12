@@ -73,7 +73,7 @@ describe('validateOpportunityCreateBody', () => {
     );
   });
 
-  it('accepts optional source, companyName, and assignedTo', () => {
+  it('accepts optional source and assignedTo', () => {
     const body = validateOpportunityCreateBody({
       name: 'Deal',
       pipelineId: 'p',
@@ -81,13 +81,13 @@ describe('validateOpportunityCreateBody', () => {
       contactId: 'c',
       status: 'won',
       source: 'Web',
-      companyName: 'Acme',
+      businessName: 'Acme',
       assignedTo: 'user_9',
     });
     assert.equal(body.source, 'Web');
-    assert.equal(body.companyName, 'Acme');
     assert.equal(body.assignedTo, 'user_9');
     assert.equal(body.status, 'won');
+    assert.equal((body as { companyName?: string }).companyName, undefined);
   });
 });
 

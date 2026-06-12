@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { useThemedStyles } from '../hooks/useTheme';
 
 type Props = {
   children: React.ReactNode;
@@ -8,6 +9,13 @@ type Props = {
 
 /** Soft fade-in after native splash — avoids a hard cut to the first screen. */
 export function ScreenEntrance({ children, style }: Props) {
+  const styles = useThemedStyles((_t) =>
+    StyleSheet.create({
+      root: {
+        flex: 1,
+      },
+    }),
+  );
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -22,9 +30,3 @@ export function ScreenEntrance({ children, style }: Props) {
 
   return <Animated.View style={[styles.root, style, { opacity }]}>{children}</Animated.View>;
 }
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
-});

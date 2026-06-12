@@ -3,7 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { HomeScreen } from '../screens/HomeScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
-import { theme } from '../theme';
+import { useTheme } from '../hooks/useTheme';
 
 export type HomeStackParamList = {
   HomeMain: undefined;
@@ -14,11 +14,12 @@ export type HomeStackParamList = {
 const Stack = createNativeStackNavigator<HomeStackParamList>();
 
 export function HomeStack() {
+  const theme = useTheme();
   return (
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: theme.colors.shell },
+        contentStyle: { backgroundColor: theme.colors.background },
         animation: 'slide_from_right',
       }}
     >

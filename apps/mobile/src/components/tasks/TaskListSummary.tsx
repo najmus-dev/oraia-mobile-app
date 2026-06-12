@@ -1,7 +1,8 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { statusFilterLabel, type TaskFilters } from '../../lib/tasks';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 
 type Props = {
   count: number;
@@ -11,6 +12,7 @@ type Props = {
 };
 
 export function TaskListSummary({ count, filters, query, loading }: Props) {
+  const styles = useThemedStyles(createStyles);
   const q = query.trim();
   let label = loading ? 'Loading…' : `${count} ${count === 1 ? 'task' : 'tasks'}`;
   if (!loading && q) label = `${count} result${count === 1 ? '' : 's'} for “${q}”`;
@@ -25,14 +27,16 @@ export function TaskListSummary({ count, filters, query, loading }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   wrap: {
     paddingHorizontal: theme.spacing.lg,
     paddingBottom: theme.spacing.sm,
   },
   text: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
   },
 });
+}

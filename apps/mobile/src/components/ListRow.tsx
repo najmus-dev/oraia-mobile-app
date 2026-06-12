@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { theme } from '../theme';
+import { useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
 
 type Props = {
   title: string;
@@ -10,6 +11,8 @@ type Props = {
 };
 
 export const ListRow = memo(function ListRow({ title, subtitle, badge, onPress }: Props) {
+  const styles = useThemedStyles(createStyles);
+
   return (
     <Pressable
       onPress={onPress}
@@ -35,41 +38,43 @@ export const ListRow = memo(function ListRow({ title, subtitle, badge, onPress }
   );
 });
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 14,
-    padding: theme.spacing.lg,
-    backgroundColor: theme.colors.surface,
-  },
-  content: { flex: 1 },
-  title: {
-    color: theme.colors.textOnDark,
-    fontFamily: theme.typography.fontFamily.semiBold,
-    fontSize: theme.typography.fontSize.md,
-  },
-  sub: {
-    marginTop: theme.spacing.xs,
-    color: theme.colors.mutedTextOnDark,
-    fontFamily: theme.typography.fontFamily.regular,
-    fontSize: theme.typography.fontSize.sm,
-  },
-  badge: {
-    marginLeft: theme.spacing.md,
-    minWidth: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: theme.colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 6,
-  },
-  badgeText: {
-    color: theme.colors.white,
-    fontFamily: theme.typography.fontFamily.semiBold,
-    fontSize: theme.typography.fontSize.xs,
-  },
-});
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: theme.radius.lg,
+      padding: theme.spacing.lg,
+      backgroundColor: theme.colors.surface,
+    },
+    content: { flex: 1 },
+    title: {
+      color: theme.colors.foreground,
+      fontFamily: theme.typography.fontFamily.semiBold,
+      fontSize: theme.typography.fontSize.md,
+    },
+    sub: {
+      marginTop: theme.spacing.xs,
+      color: theme.colors.foregroundMuted,
+      fontFamily: theme.typography.fontFamily.regular,
+      fontSize: theme.typography.fontSize.sm,
+    },
+    badge: {
+      marginLeft: theme.spacing.md,
+      minWidth: 24,
+      height: 24,
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 6,
+    },
+    badgeText: {
+      color: theme.colors.white,
+      fontFamily: theme.typography.fontFamily.semiBold,
+      fontSize: theme.typography.fontSize.xs,
+    },
+  });
+}

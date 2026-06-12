@@ -32,7 +32,9 @@ import {
 import { setCachedContactChannels } from '../lib/contactCache';
 import { formatError } from '../lib/errors';
 import { navigateToContactDetail } from '../lib/navigation';
-import { theme } from '../theme';
+import { useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
+import { popWizardBack } from '../lib/stackNavigation';
 import { useAppState } from '../state/AppState';
 import { ListBusyState } from '../components/ListBusyState';
 import { ConversationThreadHeader } from '../components/inbox/ConversationThreadHeader';
@@ -68,6 +70,7 @@ type MessagesResponse = {
 };
 
 export function ConversationThreadScreen({ navigation, route }: Props) {
+  const styles = useThemedStyles(createStyles);
   const {
     conversationId: initialConversationId,
     contactId: routeContactId,
@@ -622,7 +625,7 @@ export function ConversationThreadScreen({ navigation, route }: Props) {
         starred={starred}
         starredBusy={starredBusy}
         onToggleStar={conversationId ? toggleStarred : undefined}
-        onBack={() => navigation.goBack()}
+        onBack={() => popWizardBack(navigation, 'InboxList')}
         onOpenContact={openContact}
       />
       <ThreadContactBar
@@ -711,7 +714,8 @@ export function ConversationThreadScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   messagesPane: { flex: 1 },
   messages: { padding: theme.spacing.lg, paddingBottom: theme.spacing.md },
@@ -726,7 +730,7 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.xs,
   },
   dayText: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
   },
@@ -749,10 +753,11 @@ const styles = StyleSheet.create({
   },
   emptyHint: {
     textAlign: 'center',
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
     lineHeight: theme.typography.lineHeight.md,
     paddingHorizontal: theme.spacing.xl,
   },
-});
+  });
+}

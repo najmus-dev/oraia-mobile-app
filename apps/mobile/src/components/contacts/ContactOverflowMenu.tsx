@@ -1,7 +1,8 @@
 import React from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useHeaderTopPadding } from '../../lib/safeArea';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 
 type MenuItem = {
   label: string;
@@ -17,6 +18,7 @@ type Props = {
 };
 
 export function ContactOverflowMenu({ visible, onClose, items }: Props) {
+  const styles = useThemedStyles(createStyles);
   const paddingTop = useHeaderTopPadding();
 
   return (
@@ -51,7 +53,8 @@ export function ContactOverflowMenu({ visible, onClose, items }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   root: {
     flex: 1,
   },
@@ -69,7 +72,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     overflow: 'hidden',
-    shadowColor: '#000',
+    shadowColor: theme.colors.black,
     shadowOpacity: 0.2,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
@@ -83,7 +86,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surfaceMuted,
   },
   itemText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
   },
@@ -94,3 +97,4 @@ const styles = StyleSheet.create({
     opacity: 0.45,
   },
 });
+}

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 
 type Props = {
   title: string;
@@ -10,6 +11,8 @@ type Props = {
 };
 
 export function ContactDetailSection({ title, defaultOpen = true, children }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [open, setOpen] = useState(defaultOpen);
 
   return (
@@ -24,7 +27,7 @@ export function ContactDetailSection({ title, defaultOpen = true, children }: Pr
         <Ionicons
           name={open ? 'chevron-up' : 'chevron-down'}
           size={18}
-          color={theme.colors.mutedTextOnDark}
+          color={theme.colors.foregroundMuted}
         />
       </Pressable>
       {open ? <View style={styles.body}>{children}</View> : null}
@@ -32,7 +35,8 @@ export function ContactDetailSection({ title, defaultOpen = true, children }: Pr
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   section: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: theme.colors.border,
@@ -44,7 +48,7 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.lg,
   },
   title: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.md,
   },
@@ -53,3 +57,4 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.md,
   },
 });
+}

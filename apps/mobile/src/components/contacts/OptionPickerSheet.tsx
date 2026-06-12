@@ -2,7 +2,8 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheet } from '../BottomSheet';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 
 type Props = {
   visible: boolean;
@@ -21,6 +22,8 @@ export function OptionPickerSheet({
   onClose,
   onSelect,
 }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <BottomSheet visible={visible} onClose={onClose} title={title}>
       <View style={styles.list}>
@@ -45,7 +48,8 @@ export function OptionPickerSheet({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   list: {
     gap: theme.spacing.xs,
     paddingBottom: theme.spacing.lg,
@@ -62,7 +66,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(47, 45, 121, 0.35)',
   },
   label: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.md,
   },
@@ -71,3 +75,4 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.fontFamily.semiBold,
   },
 });
+}

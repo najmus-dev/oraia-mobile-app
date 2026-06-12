@@ -8,7 +8,9 @@ import { formatEventRange } from '../lib/dates';
 import { formatError } from '../lib/errors';
 import { navigateToContactDetail } from '../lib/navigation';
 import { useFullScreenBottomInset } from '../lib/safeArea';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
+import { popWizardBack } from '../lib/stackNavigation';
 import { useAppState } from '../state/AppState';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Button } from '../components/Button';
@@ -20,6 +22,8 @@ type Props = NativeStackScreenProps<CalendarStackParamList, 'AppointmentDetail'>
 export function AppointmentDetailScreen({ navigation, route }: Props) {
   const { eventId, title: routeTitle } = route.params;
   const scrollBottom = useFullScreenBottomInset();
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { token, locationId } = useAppState();
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
@@ -140,7 +144,7 @@ export function AppointmentDetailScreen({ navigation, route }: Props) {
       <ScreenHeader
         title={title}
         subtitle={loading ? 'Loading…' : (appointment?.appointmentStatus ?? 'Scheduled')}
-        onBack={() => navigation.goBack()}
+        onBack={() => popWizardBack(navigation, 'CalendarList')}
         actionIcon="create-outline"
         onAction={openReschedule}
         actionAccessibilityLabel="Reschedule appointment"
@@ -187,7 +191,8 @@ export function AppointmentDetailScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   body: { padding: theme.spacing.xl, gap: theme.spacing.md },
   actions: {
@@ -197,3 +202,4 @@ const styles = StyleSheet.create({
   },
   actionBtn: { flex: 1 },
 });
+}

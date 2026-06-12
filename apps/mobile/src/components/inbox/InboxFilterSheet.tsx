@@ -2,7 +2,8 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheet } from '../BottomSheet';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 import type { InboxFilter } from '../../lib/conversations';
 
 const OPTIONS: { key: InboxFilter; label: string; description?: string }[] = [
@@ -20,6 +21,9 @@ type Props = {
 };
 
 export function InboxFilterSheet({ visible, selected, onClose, onSelect }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Filters">
       <View style={styles.list}>
@@ -49,36 +53,38 @@ export function InboxFilterSheet({ visible, selected, onClose, onSelect }: Props
   );
 }
 
-const styles = StyleSheet.create({
-  list: {
-    paddingBottom: theme.spacing.lg,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.sm,
-    borderRadius: 10,
-    marginBottom: theme.spacing.xs,
-  },
-  rowActive: {
-    backgroundColor: 'rgba(47, 45, 121, 0.35)',
-  },
-  rowText: { flex: 1, marginRight: theme.spacing.md },
-  label: {
-    color: theme.colors.textOnDark,
-    fontFamily: theme.typography.fontFamily.medium,
-    fontSize: theme.typography.fontSize.md,
-  },
-  labelActive: {
-    color: theme.colors.link,
-    fontFamily: theme.typography.fontFamily.semiBold,
-  },
-  description: {
-    marginTop: 2,
-    color: theme.colors.mutedTextOnDark,
-    fontFamily: theme.typography.fontFamily.regular,
-    fontSize: theme.typography.fontSize.xs,
-  },
-});
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
+    list: {
+      paddingBottom: theme.spacing.lg,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: theme.spacing.md,
+      paddingHorizontal: theme.spacing.sm,
+      borderRadius: 10,
+      marginBottom: theme.spacing.xs,
+    },
+    rowActive: {
+      backgroundColor: 'rgba(47, 45, 121, 0.35)',
+    },
+    rowText: { flex: 1, marginRight: theme.spacing.md },
+    label: {
+      color: theme.colors.foreground,
+      fontFamily: theme.typography.fontFamily.medium,
+      fontSize: theme.typography.fontSize.md,
+    },
+    labelActive: {
+      color: theme.colors.link,
+      fontFamily: theme.typography.fontFamily.semiBold,
+    },
+    description: {
+      marginTop: 2,
+      color: theme.colors.foregroundMuted,
+      fontFamily: theme.typography.fontFamily.regular,
+      fontSize: theme.typography.fontSize.xs,
+    },
+  });
+}

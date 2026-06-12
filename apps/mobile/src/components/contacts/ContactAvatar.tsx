@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 import { contactInitials, type Contact } from '../../lib/contacts';
 
 type Props = {
@@ -9,6 +10,7 @@ type Props = {
 };
 
 export function ContactAvatar({ contact, size = 44 }: Props) {
+  const styles = useThemedStyles(createStyles);
   const initials = contactInitials(contact);
   return (
     <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}>
@@ -17,7 +19,8 @@ export function ContactAvatar({ contact, size = 44 }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   avatar: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -28,3 +31,4 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.fontFamily.semiBold,
   },
 });
+}

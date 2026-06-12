@@ -11,12 +11,16 @@ import {
   type TaskSortOrder,
   type TaskStatusFilter,
 } from '../lib/tasks';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
+import { finishWizardFlow } from '../lib/stackNavigation';
 import type { AppsStackParamList } from '../navigation/AppsStack';
 
 type Props = NativeStackScreenProps<AppsStackParamList, 'TaskFilters'>;
 
 export function TaskFilterScreen({ navigation, route }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const paddingTop = useHeaderTopPadding();
   const [filters, setFilters] = useState<TaskFilters>(route.params?.filters ?? DEFAULT_TASK_FILTERS);
 
@@ -41,7 +45,10 @@ export function TaskFilterScreen({ navigation, route }: Props) {
   }
 
   function apply() {
-    navigation.navigate('TasksHome', { appliedFilters: filters });
+    finishWizardFlow(navigation, {
+      name: 'TasksHome',
+      params: { appliedFilters: filters },
+    });
   }
 
   function clearAll() {
@@ -63,7 +70,7 @@ export function TaskFilterScreen({ navigation, route }: Props) {
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop }]}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
-          <Ionicons name="chevron-back" size={24} color={theme.colors.textOnDark} />
+          <Ionicons name="chevron-back" size={24} color={theme.colors.foreground} />
         </Pressable>
         <Text style={styles.title}>Filter</Text>
         <View style={{ width: 24 }} />
@@ -136,6 +143,9 @@ function FilterRow({
   badge?: number;
   onPress: () => void;
 }) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   return (
     <Pressable style={styles.row} onPress={onPress} accessibilityRole="button">
       <View style={styles.rowLeft}>
@@ -148,14 +158,15 @@ function FilterRow({
             <Text style={styles.badgeText}>{badge}</Text>
           </View>
         ) : null}
-        <Ionicons name="chevron-forward" size={18} color={theme.colors.mutedTextOnDark} />
+        <Ionicons name="chevron-forward" size={18} color={theme.colors.foregroundMuted} />
       </View>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.shell },
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -164,7 +175,7 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.lg,
   },
   title: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.bold,
     fontSize: theme.typography.fontSize.xl,
   },
@@ -180,12 +191,12 @@ const styles = StyleSheet.create({
   rowLeft: { flex: 1, gap: 4, paddingRight: theme.spacing.md },
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
   rowLabel: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.lg,
   },
   rowValue: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
   },
@@ -199,7 +210,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   badgeText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.bold,
     fontSize: 12,
   },
@@ -217,7 +228,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surfaceMuted,
   },
   cancelText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.md,
   },
@@ -225,7 +236,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: 12,
-    backgroundColor: 'rgba(91, 127, 212, 0.35)',
+    backgroundColor: `${theme.colors.primary}59`,
   },
   clearText: {
     color: theme.colors.link,
@@ -244,3 +255,4 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.md,
   },
 });
+}

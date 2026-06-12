@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import {
   Inter_400Regular,
@@ -10,6 +9,7 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppStateProvider, useAppState } from './src/state/AppState';
+import { ThemeProvider, useThemeState } from './src/state/ThemeState';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { ScreenEntrance } from './src/components/ScreenEntrance';
 
@@ -19,6 +19,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 
 function AppRoot() {
   const { hydrated } = useAppState();
+  const { hydrated: themeHydrated } = useThemeState();
   const splashHiddenRef = useRef(false);
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
@@ -33,7 +34,7 @@ function AppRoot() {
     await SplashScreen.hideAsync();
   }, []);
 
-  const ready = fontsLoaded && hydrated;
+  const ready = fontsLoaded && hydrated && themeHydrated;
 
   useEffect(() => {
     if (ready) {
@@ -49,7 +50,6 @@ function AppRoot() {
   return (
     <ScreenEntrance>
       <AppNavigator />
-      <StatusBar style="light" />
     </ScreenEntrance>
   );
 }
@@ -57,9 +57,11 @@ function AppRoot() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <AppStateProvider>
-        <AppRoot />
-      </AppStateProvider>
+      <ThemeProvider>
+        <AppStateProvider>
+          <AppRoot />
+        </AppStateProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

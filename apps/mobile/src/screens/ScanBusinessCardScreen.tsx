@@ -27,7 +27,9 @@ import {
 import { PHONE_COUNTRY_CODES } from '../lib/phoneFormat';
 import { formatError } from '../lib/errors';
 import { useFullScreenBottomInset } from '../lib/safeArea';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
+import { finishWizardFlow } from '../lib/stackNavigation';
 import { useAppState } from '../state/AppState';
 import { AppBar } from '../components/AppBar';
 import { TextField } from '../components/TextField';
@@ -42,6 +44,8 @@ type Props = NativeStackScreenProps<AppsStackParamList, 'ScanBusinessCard'>;
 const COUNTRY_CODE_OPTIONS = PHONE_COUNTRY_CODES.map((entry) => `${entry.code} ${entry.label}`);
 
 export function ScanBusinessCardScreen({ navigation }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const scrollBottom = useFullScreenBottomInset();
   const { token, locationId } = useAppState();
   const [frontUri, setFrontUri] = useState<string | null>(null);
@@ -100,7 +104,10 @@ export function ScanBusinessCardScreen({ navigation }: Props) {
         formValuesToPayload(values),
         { headers: withAuthHeaders({ token, locationId }) },
       );
-      navigation.replace('ContactDetail', { contactId: res.contact.id });
+      finishWizardFlow(navigation, {
+        name: 'ContactDetail',
+        params: { contactId: res.contact.id },
+      });
     } catch (e) {
       Alert.alert('Save failed', formatError(e));
     } finally {
@@ -124,7 +131,7 @@ export function ScanBusinessCardScreen({ navigation }: Props) {
               <Image source={{ uri: frontUri }} style={styles.preview} resizeMode="cover" />
             ) : (
               <View style={styles.previewPlaceholder}>
-                <Ionicons name="image-outline" size={28} color={theme.colors.mutedTextOnDark} />
+                <Ionicons name="image-outline" size={28} color={theme.colors.foregroundMuted} />
                 <Text style={styles.placeholderText}>Front side</Text>
               </View>
             )}
@@ -139,7 +146,7 @@ export function ScanBusinessCardScreen({ navigation }: Props) {
               <Image source={{ uri: backUri }} style={styles.preview} resizeMode="cover" />
             ) : (
               <View style={styles.previewPlaceholder}>
-                <Ionicons name="image-outline" size={28} color={theme.colors.mutedTextOnDark} />
+                <Ionicons name="image-outline" size={28} color={theme.colors.foregroundMuted} />
                 <Text style={styles.placeholderText}>Back side</Text>
               </View>
             )}
@@ -245,12 +252,13 @@ export function ScanBusinessCardScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   flex: { flex: 1 },
   body: { padding: theme.spacing.xl, gap: theme.spacing.lg },
   sectionTitle: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
     textTransform: 'uppercase',
@@ -258,7 +266,7 @@ const styles = StyleSheet.create({
   },
   cardBox: {
     borderWidth: 1,
-    borderColor: 'rgba(134, 182, 255, 0.25)',
+    borderColor: `${theme.colors.primary}40`,
     borderRadius: 14,
     overflow: 'hidden',
     backgroundColor: theme.colors.surfaceMuted,
@@ -271,7 +279,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   placeholderText: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
   },
@@ -296,7 +304,7 @@ const styles = StyleSheet.create({
     marginBottom: -theme.spacing.sm,
   },
   fieldLabel: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
   },
@@ -322,7 +330,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(134, 182, 255, 0.45)',
+    borderColor: `${theme.colors.primary}73`,
     paddingVertical: theme.spacing.lg,
     backgroundColor: 'rgba(47, 45, 121, 0.25)',
   },
@@ -356,15 +364,16 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   aiTitle: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.bold,
     fontSize: theme.typography.fontSize.lg,
     textAlign: 'center',
   },
   aiSub: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
     textAlign: 'center',
   },
 });
+}

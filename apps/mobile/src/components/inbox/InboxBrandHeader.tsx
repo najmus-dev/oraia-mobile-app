@@ -3,7 +3,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useHeaderTopPadding } from '../../lib/safeArea';
 import { locationDisplayName } from '../../lib/locationDisplay';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 import { LocationAvatar } from '../LocationAvatar';
 
 type Props = {
@@ -32,6 +33,8 @@ export function InboxBrandHeader({
   locationLogoUrl,
   onOpenLocation,
 }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const paddingTop = useHeaderTopPadding();
   const subtitle = inboxLocationSubtitle(locationName, locationAddress);
 
@@ -44,7 +47,7 @@ export function InboxBrandHeader({
             <Text style={styles.title} numberOfLines={1}>
               ORAIA CRM
             </Text>
-            <Ionicons name="chevron-down" size={16} color={theme.colors.mutedTextOnDark} />
+            <Ionicons name="chevron-down" size={16} color={theme.colors.shellForegroundMuted} />
           </View>
           {subtitle ? (
             <Text style={styles.subtitle} numberOfLines={1}>
@@ -57,33 +60,35 @@ export function InboxBrandHeader({
   );
 }
 
-const styles = StyleSheet.create({
-  header: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.md,
-    backgroundColor: theme.colors.background,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.md,
-  },
-  textCol: { flex: 1, minWidth: 0 },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  title: {
-    color: theme.colors.white,
-    fontFamily: theme.typography.fontFamily.bold,
-    fontSize: theme.typography.fontSize.lg,
-    flexShrink: 1,
-  },
-  subtitle: {
-    marginTop: 2,
-    color: theme.colors.mutedTextOnDark,
-    fontFamily: theme.typography.fontFamily.regular,
-    fontSize: theme.typography.fontSize.sm,
-  },
-});
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
+    header: {
+      paddingHorizontal: theme.spacing.lg,
+      paddingBottom: theme.spacing.md,
+      backgroundColor: theme.colors.shell,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.md,
+    },
+    textCol: { flex: 1, minWidth: 0 },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    title: {
+      color: theme.colors.shellForeground,
+      fontFamily: theme.typography.fontFamily.bold,
+      fontSize: theme.typography.fontSize.lg,
+      flexShrink: 1,
+    },
+    subtitle: {
+      marginTop: 2,
+      color: theme.colors.shellForegroundMuted,
+      fontFamily: theme.typography.fontFamily.regular,
+      fontSize: theme.typography.fontSize.sm,
+    },
+  });
+}

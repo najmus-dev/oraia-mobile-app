@@ -12,6 +12,8 @@ export interface INotification {
   targetGhlUserId?: string;
   action: NotificationAction;
   readAt?: Date;
+  /** CRM event time — used for sorting and "time ago" display. */
+  occurredAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -51,12 +53,13 @@ const notificationSchema = new Schema<NotificationDocument>(
     targetGhlUserId: { type: String, index: true },
     action: { type: actionSchema, default: () => ({ kind: 'none' }) },
     readAt: Date,
+    occurredAt: { type: Date, index: true },
   },
   { timestamps: true },
 );
 
-notificationSchema.index({ locationId: 1, createdAt: -1 });
-notificationSchema.index({ locationId: 1, status: 1, createdAt: -1 });
+notificationSchema.index({ locationId: 1, occurredAt: -1 });
+notificationSchema.index({ locationId: 1, status: 1, occurredAt: -1 });
 notificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
 
 export const Notification: Model<NotificationDocument> =

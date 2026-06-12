@@ -9,7 +9,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/oraia-logo.png',
-  userInterfaceStyle: 'dark',
+  userInterfaceStyle: 'automatic',
   newArchEnabled: true,
   experiments: {
     autolinkingModuleResolution: true,

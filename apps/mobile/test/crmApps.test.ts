@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { CRM_APPS, DEFAULT_PINNED_APP_IDS, filterAppsByQuery } from '../src/lib/crmApps';
+import {
+  CRM_APPS,
+  crmAppAccent,
+  DEFAULT_PINNED_APP_IDS,
+  filterAppsByQuery,
+} from '../src/lib/crmApps';
+import { createTheme } from '../src/theme/createTheme';
+import { palette } from '../src/theme/palette';
 
 describe('crmApps', () => {
   it('includes core mobile apps', () => {
@@ -16,5 +23,11 @@ describe('crmApps', () => {
     const list = filterAppsByQuery(Object.values(CRM_APPS), 'calendar');
     assert.equal(list.length, 1);
     assert.equal(list[0]?.id, 'calendar');
+  });
+
+  it('resolves brand accent colors from theme', () => {
+    const theme = createTheme('dark');
+    assert.equal(crmAppAccent(CRM_APPS.contacts, theme), palette.richIndigo);
+    assert.equal(crmAppAccent(CRM_APPS.opportunities, theme), theme.colors.success);
   });
 });

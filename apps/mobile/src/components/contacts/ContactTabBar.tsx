@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { theme } from '../../theme';
+import { useTheme, useThemedStyles } from '../../hooks/useTheme';
+import type { OraiaTheme } from '../../theme';
 
 export type ContactTab = 'details' | 'tasks' | 'notes' | 'opportunities';
 
@@ -23,6 +24,7 @@ export function ContactTabBar({
   taskCount = 0,
   opportunityCount = 0,
 }: Props) {
+  const styles = useThemedStyles(createStyles);
   const tabs: TabDef[] = [
     { id: 'details', label: 'Details' },
     { id: 'tasks', label: 'Tasks', badge: taskCount > 0 ? taskCount : undefined },
@@ -52,7 +54,8 @@ export function ContactTabBar({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   row: {
     paddingHorizontal: theme.spacing.xl,
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -69,7 +72,7 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.sm,
   },
   tabLabel: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
   },
@@ -100,3 +103,4 @@ const styles = StyleSheet.create({
     height: 2,
   },
 });
+}

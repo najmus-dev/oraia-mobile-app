@@ -27,7 +27,8 @@ import {
   hasActiveTaskFilters,
   sortTasks,
 } from '../lib/tasks';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
 import { useAppState } from '../state/AppState';
 import { ErrorBanner } from '../components/ErrorBanner';
 import { FloatingActionButton } from '../components/FloatingActionButton';
@@ -42,6 +43,8 @@ import type { AppsStackParamList } from '../navigation/AppsStack';
 type Props = NativeStackScreenProps<AppsStackParamList, 'TasksHome'>;
 
 export function TasksScreen({ navigation, route }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const paddingTop = useHeaderTopPadding();
   const { token, locationId } = useAppState();
   const [initialLoading, setInitialLoading] = useState(true);
@@ -206,7 +209,7 @@ export function TasksScreen({ navigation, route }: Props) {
       <View style={styles.topChrome}>
         <View style={[styles.header, { paddingTop }]}>
           <Pressable onPress={() => navigation.goBack()} hitSlop={8} style={styles.headerSide}>
-            <Ionicons name="chevron-back" size={24} color={theme.colors.textOnDark} />
+            <Ionicons name="chevron-back" size={24} color={theme.colors.foreground} />
           </Pressable>
           <Text style={styles.headerTitle}>Task Manager</Text>
           <View style={styles.headerSideRight}>
@@ -216,7 +219,7 @@ export function TasksScreen({ navigation, route }: Props) {
               style={styles.iconBtn}
               accessibilityLabel="Filters"
             >
-              <Ionicons name="funnel-outline" size={20} color={theme.colors.textOnDark} />
+              <Ionicons name="funnel-outline" size={20} color={theme.colors.foreground} />
               {filterBadge > 0 ? <View style={styles.filterDot} /> : null}
             </Pressable>
             <Pressable
@@ -225,19 +228,19 @@ export function TasksScreen({ navigation, route }: Props) {
               style={[styles.iconBtn, searchOpen && styles.iconBtnActive]}
               accessibilityLabel="Search tasks"
             >
-              <Ionicons name="search" size={20} color={theme.colors.textOnDark} />
+              <Ionicons name="search" size={20} color={theme.colors.foreground} />
             </Pressable>
           </View>
         </View>
 
         {searchOpen ? (
           <View style={styles.searchWrap}>
-            <Ionicons name="search" size={18} color={theme.colors.mutedTextOnDark} />
+            <Ionicons name="search" size={18} color={theme.colors.foregroundMuted} />
             <TextInput
               value={query}
               onChangeText={setQuery}
               placeholder="Search tasks"
-              placeholderTextColor={theme.colors.mutedTextOnDark}
+              placeholderTextColor={theme.colors.inputPlaceholder}
               style={styles.searchInput}
               autoFocus
               autoCapitalize="none"
@@ -245,7 +248,7 @@ export function TasksScreen({ navigation, route }: Props) {
             />
             {query.length > 0 ? (
               <Pressable onPress={() => setQuery('')} hitSlop={8}>
-                <Ionicons name="close-circle" size={20} color={theme.colors.mutedTextOnDark} />
+                <Ionicons name="close-circle" size={20} color={theme.colors.foregroundMuted} />
               </Pressable>
             ) : null}
           </View>
@@ -333,8 +336,9 @@ export function TasksScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.shell },
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.colors.background },
   topChrome: {
     flexShrink: 0,
   },
@@ -372,13 +376,13 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     textAlign: 'center',
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.lg,
   },
   iconBtn: { position: 'relative', borderRadius: 8, padding: 2 },
   iconBtnActive: {
-    backgroundColor: 'rgba(91, 127, 212, 0.25)',
+    backgroundColor: `${theme.colors.primary}40`,
   },
   filterDot: {
     position: 'absolute',
@@ -405,9 +409,10 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.md,
     paddingVertical: 0,
   },
 });
+}

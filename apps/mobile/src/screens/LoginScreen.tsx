@@ -15,7 +15,9 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../lib/api';
 import { formatError } from '../lib/errors';
-import { theme } from '../theme';
+import { brand } from '../theme/brand';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
 import { useAppState } from '../state/AppState';
 import type { RootStackParamList } from '../navigation/types';
 import { AuthShell } from '../components/AuthShell';
@@ -30,6 +32,8 @@ type LoginResponse = {
 };
 
 export function LoginScreen(_props: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { setSession } = useAppState();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -85,7 +89,7 @@ export function LoginScreen(_props: Props) {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.brandWrap}>
-              <BrandLockup size="compact" tagline="Sign in to your agency workspace" />
+              <BrandLockup size="compact" tagline={brand.tagline} />
             </View>
 
             <View style={styles.form}>
@@ -105,7 +109,7 @@ export function LoginScreen(_props: Props) {
                 editable={!loading}
                 style={[styles.input, emailError ? styles.inputError : null]}
                 placeholder="you@company.com"
-                placeholderTextColor={theme.colors.mutedText}
+                placeholderTextColor={theme.colors.formCardMuted}
                 returnKeyType="next"
               />
               {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
@@ -123,7 +127,7 @@ export function LoginScreen(_props: Props) {
                   editable={!loading}
                   style={styles.passwordInput}
                   placeholder="Enter your password"
-                  placeholderTextColor={theme.colors.mutedText}
+                  placeholderTextColor={theme.colors.formCardMuted}
                   returnKeyType="done"
                   onSubmitEditing={() => {
                     if (canSubmit) {
@@ -162,7 +166,8 @@ export function LoginScreen(_props: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
   },
@@ -182,30 +187,26 @@ const styles = StyleSheet.create({
   form: {
     borderRadius: 20,
     padding: theme.spacing.xl,
-    backgroundColor: theme.colors.white,
+    backgroundColor: theme.colors.formCard,
     borderWidth: 1,
-    borderColor: theme.colors.borderLight,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 6,
+    borderColor: theme.colors.formCardBorder,
+    ...theme.shadows.card,
   },
   formTitle: {
-    color: theme.colors.text,
+    color: theme.colors.formCardText,
     fontFamily: theme.typography.fontFamily.bold,
     fontSize: theme.typography.fontSize.xl,
   },
   formSubtitle: {
     marginTop: theme.spacing.xs,
     marginBottom: theme.spacing.lg,
-    color: theme.colors.mutedText,
+    color: theme.colors.formCardMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
     lineHeight: theme.typography.lineHeight.md,
   },
   fieldLabel: {
-    color: theme.colors.text,
+    color: theme.colors.formCardText,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.sm,
   },
@@ -215,30 +216,30 @@ const styles = StyleSheet.create({
   input: {
     marginTop: theme.spacing.sm,
     borderWidth: 1,
-    borderColor: theme.colors.borderLight,
-    borderRadius: 12,
+    borderColor: theme.colors.formCardBorder,
+    borderRadius: theme.radius.md,
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.md,
-    color: theme.colors.text,
-    backgroundColor: theme.colors.white,
+    color: theme.colors.formCardText,
+    backgroundColor: theme.colors.formCard,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.md,
   },
   passwordWrap: {
     marginTop: theme.spacing.sm,
     borderWidth: 1,
-    borderColor: theme.colors.borderLight,
-    borderRadius: 12,
+    borderColor: theme.colors.formCardBorder,
+    borderRadius: theme.radius.md,
     paddingLeft: theme.spacing.lg,
     paddingRight: theme.spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.white,
+    backgroundColor: theme.colors.formCard,
   },
   passwordInput: {
     flex: 1,
     paddingVertical: theme.spacing.md,
-    color: theme.colors.text,
+    color: theme.colors.formCardText,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.md,
   },
@@ -261,4 +262,5 @@ const styles = StyleSheet.create({
   submitBtn: {
     marginTop: theme.spacing.xl,
   },
-});
+  });
+}

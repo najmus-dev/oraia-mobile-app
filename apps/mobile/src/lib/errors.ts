@@ -27,6 +27,9 @@ export function formatError(e: unknown): string {
     if (e.code === 'GHL_AUTH_ERROR' || e.status === 503) {
       return 'CRM connection is temporarily unavailable. Wait a moment and try again.';
     }
+    if (e.status === 404 && e.code === 'GHL_API_ERROR') {
+      return 'CRM could not find that record. Check the contact, pipeline, and stage, then try again.';
+    }
     return e.message;
   }
   if (e instanceof Error) return e.message;

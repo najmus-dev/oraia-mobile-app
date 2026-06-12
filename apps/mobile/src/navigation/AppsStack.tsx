@@ -16,7 +16,7 @@ import { SelectAssigneesScreen } from '../screens/SelectAssigneesScreen';
 import type { PickedContact } from '../lib/contacts';
 import type { PickContactParams } from '../screens/PickContactScreen';
 import type { Task, TaskFilters } from '../lib/tasks';
-import { theme } from '../theme';
+import { useTheme } from '../hooks/useTheme';
 
 export type AppsStackParamList = {
   AppsHome: undefined;
@@ -32,6 +32,7 @@ export type AppsStackParamList = {
     pipelineStageId?: string;
     pickedContact?: PickedContact;
     pickedAssignee?: { id: string; name: string };
+    pickedFollowerIds?: string[];
   };
   PickContact: PickContactParams;
   TasksHome: { appliedFilters?: TaskFilters };
@@ -59,18 +60,23 @@ export type AppsStackParamList = {
 const Stack = createNativeStackNavigator<AppsStackParamList>();
 
 export function AppsStack() {
+  const theme = useTheme();
   return (
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: theme.colors.shell },
+        contentStyle: { backgroundColor: theme.colors.background },
         animation: 'slide_from_right',
       }}
     >
       <Stack.Screen name="AppsHome" component={AppsScreen} />
       <Stack.Screen name="ContactsList" component={ContactsScreen} />
       <Stack.Screen name="ContactDetail" component={ContactDetailScreen} />
-      <Stack.Screen name="ContactForm" component={ContactFormScreen} />
+      <Stack.Screen
+        name="ContactForm"
+        component={ContactFormScreen}
+        options={{ freezeOnBlur: false }}
+      />
       <Stack.Screen name="ScanBusinessCard" component={ScanBusinessCardScreen} />
       <Stack.Screen name="TasksHome" component={TasksScreen} />
       <Stack.Screen
@@ -83,7 +89,11 @@ export function AppsStack() {
       <Stack.Screen name="PipelineHome" component={PipelineScreen} />
       <Stack.Screen name="OpportunityDetail" component={OpportunityDetailScreen} />
       <Stack.Screen name="PickContact" component={PickContactScreen} />
-      <Stack.Screen name="OpportunityForm" component={OpportunityFormScreen} />
+      <Stack.Screen
+        name="OpportunityForm"
+        component={OpportunityFormScreen}
+        options={{ freezeOnBlur: false }}
+      />
     </Stack.Navigator>
   );
 }

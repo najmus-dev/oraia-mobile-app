@@ -27,13 +27,15 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from '../lib/notificationFeed';
+import { dedupeNotificationItems } from '../lib/notificationFeedUtils';
 import type { NotificationItem } from '../lib/notificationFeedTypes';
 import { formatError } from '../lib/errors';
 import { locationDisplayName } from '../lib/locationDisplay';
 import { navigateFromNotification } from '../lib/navigation';
 import { useFullScreenBottomInset, useHeaderTopPadding } from '../lib/safeArea';
 import { useAppState } from '../state/AppState';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
 import type { HomeStackParamList } from '../navigation/HomeStack';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Notifications'>;
@@ -41,6 +43,8 @@ type Props = NativeStackScreenProps<HomeStackParamList, 'Notifications'>;
 type ActiveSheet = 'location' | 'type' | 'status' | null;
 
 export function NotificationsScreen({ navigation }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const paddingTop = useHeaderTopPadding();
   const bodyBottom = useFullScreenBottomInset();
   const { token, locationId, locationName } = useAppState();
@@ -102,7 +106,10 @@ export function NotificationsScreen({ navigation }: Props) {
         );
         setUnreadCount(res.unreadCount);
         setNextCursor(res.nextCursor);
-        setItems((prev) => (isMore ? [...prev, ...res.notifications] : res.notifications));
+        setItems((prev) => {
+          const nextItems = isMore ? [...prev, ...res.notifications] : res.notifications;
+          return dedupeNotificationItems(nextItems);
+        });
       } catch (e) {
         Alert.alert('Notifications', formatError(e));
       } finally {
@@ -156,7 +163,7 @@ export function NotificationsScreen({ navigation }: Props) {
     <View style={styles.emptyWrap}>
       <View style={styles.emptyIllustration}>
         <View style={styles.emptyCircle} />
-        <Ionicons name="notifications-outline" size={48} color={theme.colors.mutedTextOnDark} />
+        <Ionicons name="notifications-outline" size={48} color={theme.colors.foregroundMuted} />
       </View>
       <Text style={styles.emptyTitle}>No Notifications Found</Text>
       <Text style={styles.emptySub}>
@@ -176,7 +183,7 @@ export function NotificationsScreen({ navigation }: Props) {
             accessibilityRole="button"
             accessibilityLabel="Go back"
           >
-            <Ionicons name="arrow-back" size={22} color={theme.colors.white} />
+            <Ionicons name="arrow-back" size={22} color={theme.colors.shellForeground} />
           </Pressable>
           <Text style={styles.headerTitle}>Notifications</Text>
           <Pressable
@@ -197,7 +204,7 @@ export function NotificationsScreen({ navigation }: Props) {
                 <Ionicons
                   name="notifications-outline"
                   size={22}
-                  color={unreadCount > 0 ? theme.colors.white : theme.colors.mutedTextOnDark}
+                  color={unreadCount > 0 ? theme.colors.shellForeground : theme.colors.shellForegroundMuted}
                 />
                 {unreadCount > 0 ? (
                   <View style={styles.checkBadge}>
@@ -277,12 +284,13 @@ export function NotificationsScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   header: {
     paddingHorizontal: theme.spacing.lg,
     paddingBottom: theme.spacing.md,
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.shell,
   },
   headerRow: {
     flexDirection: 'row',
@@ -297,7 +305,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     flex: 1,
-    color: theme.colors.white,
+    color: theme.colors.shellForeground,
     fontFamily: theme.typography.fontFamily.bold,
     fontSize: theme.typography.fontSize.xl,
   },
@@ -348,17 +356,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(47, 45, 121, 0.35)',
   },
   emptyTitle: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.lg,
     textAlign: 'center',
   },
   emptySub: {
     marginTop: theme.spacing.sm,
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
     textAlign: 'center',
     lineHeight: theme.typography.lineHeight.md,
   },
 });
+}

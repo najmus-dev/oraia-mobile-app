@@ -28,7 +28,9 @@ import { PHONE_COUNTRY_CODES } from '../lib/phoneFormat';
 import { timezoneLabel } from '../lib/contactTimezones';
 import { formatError } from '../lib/errors';
 import { useFullScreenBottomInset } from '../lib/safeArea';
-import { theme } from '../theme';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
+import type { OraiaTheme } from '../theme';
+import { finishWizardFlow } from '../lib/stackNavigation';
 import { useAppState } from '../state/AppState';
 import { AppBar } from '../components/AppBar';
 import { TextField } from '../components/TextField';
@@ -46,6 +48,8 @@ type Props = NativeStackScreenProps<AppsStackParamList, 'ContactForm'>;
 const COUNTRY_CODE_OPTIONS = PHONE_COUNTRY_CODES.map((entry) => `${entry.code} ${entry.label}`);
 
 export function ContactFormScreen({ navigation, route }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const scrollBottom = useFullScreenBottomInset();
   const contactId = route.params?.contactId;
   const isEdit = Boolean(contactId);
@@ -124,12 +128,18 @@ export function ContactFormScreen({ navigation, route }: Props) {
         const res = await api.putJson<ContactResponse>(`/api/contacts/${contactId}`, payload, {
           headers: withAuthHeaders({ token, locationId }),
         });
-        navigation.replace('ContactDetail', { contactId: res.contact.id });
+        finishWizardFlow(navigation, {
+          name: 'ContactDetail',
+          params: { contactId: res.contact.id },
+        });
       } else {
         const res = await api.postJson<ContactResponse>('/api/contacts', payload, {
           headers: withAuthHeaders({ token, locationId }),
         });
-        navigation.replace('ContactDetail', { contactId: res.contact.id });
+        finishWizardFlow(navigation, {
+          name: 'ContactDetail',
+          params: { contactId: res.contact.id },
+        });
       }
     } catch (e) {
       Alert.alert(isEdit ? 'Save failed' : 'Create failed', formatError(e));
@@ -291,7 +301,8 @@ export function ContactFormScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   flex: { flex: 1 },
   body: { padding: theme.spacing.xl, gap: theme.spacing.lg },
@@ -322,3 +333,4 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.md,
   },
 });
+}

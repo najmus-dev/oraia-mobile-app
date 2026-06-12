@@ -5,7 +5,7 @@ import { AppointmentDetailScreen } from '../screens/AppointmentDetailScreen';
 import { AppointmentFormScreen } from '../screens/AppointmentFormScreen';
 import { PickContactScreen } from '../screens/PickContactScreen';
 import { ScheduleAppointmentScreen } from '../screens/ScheduleAppointmentScreen';
-import { theme } from '../theme';
+import { useTheme } from '../hooks/useTheme';
 import type { PickContactParams } from '../screens/PickContactScreen';
 import type { PickedContact } from '../lib/contacts';
 
@@ -21,11 +21,12 @@ export type CalendarStackParamList = {
 const Stack = createNativeStackNavigator<CalendarStackParamList>();
 
 export function CalendarStack() {
+  const theme = useTheme();
   return (
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: theme.colors.shell },
+        contentStyle: { backgroundColor: theme.colors.background },
         animation: 'slide_from_right',
       }}
     >
@@ -33,7 +34,11 @@ export function CalendarStack() {
       <Stack.Screen name="PickContact" component={PickContactScreen} />
       <Stack.Screen name="ScheduleAppointment" component={ScheduleAppointmentScreen} />
       <Stack.Screen name="AppointmentDetail" component={AppointmentDetailScreen} />
-      <Stack.Screen name="AppointmentForm" component={AppointmentFormScreen} />
+      <Stack.Screen
+        name="AppointmentForm"
+        component={AppointmentFormScreen}
+        options={{ freezeOnBlur: false }}
+      />
     </Stack.Navigator>
   );
 }

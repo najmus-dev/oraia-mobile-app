@@ -1,6 +1,12 @@
 import type { UserDocument } from '../models/User';
 import { Notification, type NotificationDocument } from '../models/Notification';
 import type { CreateNotificationInput, NotificationType } from '../lib/notificationTypes';
+import { normalizeConversationDate } from '../lib/conversationDates';
+import {
+  conversationNotificationDedupeKey,
+  firstNotificationOccurredAt,
+  resolveNotificationOccurredAt,
+} from '../lib/notificationHelpers';
 import { listAllCalendarEvents } from '../lib/ghlAggregates';
 import { localDayBounds } from '../lib/dashboardDayBounds';
 import type { GhlClient } from './ghl/ghlClient';
@@ -13,11 +19,19 @@ export type NotificationDto = {
   title: string;
   body: string;
   action: NotificationDocument['action'];
+  occurredAt: string;
   createdAt: string;
   readAt?: string;
 };
 
+function notificationSortTime(doc: Pick<NotificationDocument, 'occurredAt' | 'createdAt'>): Date {
+  return doc.occurredAt ?? doc.createdAt;
+}
+
 function toDto(doc: NotificationDocument): NotificationDto {
+  const createdAt = doc.createdAt instanceof Date ? doc.createdAt : new Date(doc.createdAt);
+  const occurred = notificationSortTime(doc);
+  const safeOccurred = Number.isNaN(occurred.getTime()) ? createdAt : occurred;
   return {
     id: String(doc._id),
     locationId: doc.locationId,
@@ -26,7 +40,8 @@ function toDto(doc: NotificationDocument): NotificationDto {
     title: doc.title,
     body: doc.body,
     action: doc.action ?? { kind: 'none' },
-    createdAt: doc.createdAt.toISOString(),
+    occurredAt: safeOccurred.toISOString(),
+    createdAt: createdAt.toISOString(),
     readAt: doc.readAt?.toISOString(),
   };
 }
@@ -45,24 +60,33 @@ function visibilityFilter(user: UserDocument) {
 }
 
 export async function upsertNotification(input: CreateNotificationInput): Promise<NotificationDto | null> {
-  const doc = await Notification.findOneAndUpdate(
-    { dedupeKey: input.dedupeKey },
-    {
-      $set: {
-        locationId: input.locationId,
-        type: input.type,
-        title: input.title,
-        body: input.body,
-        targetGhlUserId: input.targetGhlUserId?.trim() || undefined,
-        action: input.action ?? { kind: 'none' },
-      },
-      $setOnInsert: {
-        dedupeKey: input.dedupeKey,
-        status: 'unread',
-      },
+  const occurredAt = resolveNotificationOccurredAt(input.occurredAt);
+  const update: Record<string, unknown> = {
+    $set: {
+      locationId: input.locationId,
+      type: input.type,
+      title: input.title,
+      body: input.body,
+      targetGhlUserId: input.targetGhlUserId?.trim() || undefined,
+      action: input.action ?? { kind: 'none' },
+      occurredAt,
     },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
-  );
+    $setOnInsert: {
+      dedupeKey: input.dedupeKey,
+      status: 'unread',
+    },
+  };
+
+  if (input.markUnread) {
+    (update.$set as Record<string, unknown>).status = 'unread';
+    update.$unset = { readAt: '' };
+  }
+
+  const doc = await Notification.findOneAndUpdate({ dedupeKey: input.dedupeKey }, update, {
+    upsert: true,
+    new: true,
+    setDefaultsOnInsert: true,
+  });
   return doc ? toDto(doc) : null;
 }
 
@@ -82,11 +106,17 @@ export async function listNotifications(input: {
   if (input.type) query.type = input.type;
   if (input.status) query.status = input.status;
   if (input.cursor) {
-    query.createdAt = { $lt: new Date(input.cursor) };
+    const cursorDate = new Date(input.cursor);
+    if (!Number.isNaN(cursorDate.getTime())) {
+      query.$or = [
+        { occurredAt: { $lt: cursorDate } },
+        { occurredAt: { $exists: false }, createdAt: { $lt: cursorDate } },
+      ];
+    }
   }
 
   const [rows, unreadCount] = await Promise.all([
-    Notification.find(query).sort({ createdAt: -1 }).limit(limit + 1),
+    Notification.find(query).sort({ occurredAt: -1, createdAt: -1 }).limit(limit + 1),
     Notification.countDocuments({
       locationId: input.locationId,
       status: 'unread',
@@ -99,7 +129,7 @@ export async function listNotifications(input: {
   const notifications = page.map((row) => toDto(row));
   const last = page[page.length - 1];
   const nextCursor =
-    hasMore && last?.createdAt ? new Date(last.createdAt).toISOString() : undefined;
+    hasMore && last ? notificationSortTime(last).toISOString() : undefined;
 
   return { notifications, nextCursor, unreadCount };
 }
@@ -147,6 +177,34 @@ export async function markAllNotificationsRead(
   return result.modifiedCount ?? 0;
 }
 
+/** Remove legacy per-message rows now covered by conversation-level notifications. */
+async function cleanupLegacyMessageNotifications(locationId: string): Promise<void> {
+  await Notification.deleteMany({
+    locationId,
+    type: 'conversations',
+    dedupeKey: { $regex: /^message:/ },
+  });
+}
+
+/** Backfill occurredAt for older rows created before the field existed. */
+async function backfillMissingOccurredAt(locationId: string): Promise<void> {
+  const rows = await Notification.find({
+    locationId,
+    occurredAt: { $exists: false },
+  }).select('_id createdAt');
+
+  if (!rows.length) return;
+
+  await Notification.bulkWrite(
+    rows.map((row) => ({
+      updateOne: {
+        filter: { _id: row._id },
+        update: { $set: { occurredAt: row.createdAt } },
+      },
+    })),
+  );
+}
+
 /** Backfill from GHL CRM when webhooks were not configured or for historical unread items. */
 export async function syncNotificationsFromGhl(input: {
   ghl: GhlClient;
@@ -158,6 +216,8 @@ export async function syncNotificationsFromGhl(input: {
   let upserted = 0;
   const assignedTo =
     user.role === 'agency_admin' ? undefined : user.ghlUserId?.trim() || undefined;
+
+  await backfillMissingOccurredAt(locationId);
 
   const convoParams: Parameters<GhlClient['searchConversations']>[1] = {
     limit: 40,
@@ -184,8 +244,9 @@ export async function syncNotificationsFromGhl(input: {
       type: 'conversations',
       title,
       body: preview.slice(0, 200),
-      dedupeKey: `conversation:unread:${c.id}`,
+      dedupeKey: conversationNotificationDedupeKey(c.id),
       targetGhlUserId: c.assignedTo?.trim() || assignedTo,
+      occurredAt: normalizeConversationDate(c.lastMessageDate),
       action: {
         kind: 'conversation',
         conversationId: c.id,
@@ -207,6 +268,7 @@ export async function syncNotificationsFromGhl(input: {
       body: body.slice(0, 200),
       dedupeKey: `task:pending:${t.id}`,
       targetGhlUserId: t.assignedTo?.trim() || undefined,
+      occurredAt: firstNotificationOccurredAt(t.dueDate, t.dateAdded),
       action: {
         kind: 'task',
         taskId: t.id,
@@ -232,6 +294,7 @@ export async function syncNotificationsFromGhl(input: {
       title,
       body: startLabel ? `Starts at ${startLabel}` : 'Scheduled for today',
       dedupeKey: `appointment:today:${e.id}`,
+      occurredAt: firstNotificationOccurredAt(e.startTime),
       action: {
         kind: 'appointment',
         appointmentId: e.id,
@@ -240,6 +303,8 @@ export async function syncNotificationsFromGhl(input: {
     });
     if (result) upserted += 1;
   }
+
+  await cleanupLegacyMessageNotifications(locationId);
 
   return upserted;
 }

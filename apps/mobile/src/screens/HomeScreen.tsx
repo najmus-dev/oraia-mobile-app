@@ -27,13 +27,15 @@ import { fetchNotificationUnreadCount } from '../lib/notificationFeed';
 import { formatEventRange } from '../lib/dates';
 import { formatError } from '../lib/errors';
 import { getTabNavigation, navigateToAppointmentDetail, navigateToTabScreen } from '../lib/navigation';
+import { useTheme, useThemedStyles } from '../hooks/useTheme';
 import { useAppState } from '../state/AppState';
-import { theme } from '../theme';
+import type { OraiaTheme } from '../theme';
 import { ListRow } from '../components/ListRow';
 import { ErrorBanner } from '../components/ErrorBanner';
 import { DashboardHeader } from '../components/DashboardHeader';
 import {
   CRM_APPS,
+  crmAppAccent,
   openCrmApp,
 } from '../lib/crmApps';
 import { DEFAULT_TASK_FILTERS } from '../lib/tasks';
@@ -50,6 +52,8 @@ type QuickAction = {
 };
 
 export function HomeScreen({ navigation }: Props) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   const {
     user,
     token,
@@ -303,11 +307,12 @@ export function HomeScreen({ navigation }: Props) {
         <View style={styles.statsGrid}>
           <View style={styles.statsRow}>
             <StatCard
+              styles={styles}
               title="Pending tasks"
               period="Open now"
               value={loading ? '—' : pendingTasks}
               icon="checkbox-outline"
-              accent="#60A5FA"
+              accent={theme.colors.info}
               onPress={() =>
                 navigateToTabScreen(navigation, 'AppsTab', 'TasksHome', {
                   appliedFilters: { ...DEFAULT_TASK_FILTERS, status: 'pending' },
@@ -315,29 +320,32 @@ export function HomeScreen({ navigation }: Props) {
               }
             />
             <StatCard
+              styles={styles}
               title="Pipeline Value"
               period="Open deals"
               value={pipelineDisplay}
               icon="cash-outline"
-              accent="#22C55E"
+              accent={theme.colors.success}
               onPress={() => navigateToTabScreen(navigation, 'AppsTab', 'PipelineHome')}
             />
           </View>
           <View style={styles.statsRow}>
             <StatCard
+              styles={styles}
               title="Unread Messages"
               period="All conversations"
               value={loading ? '—' : unreadCount}
               icon="chatbubble-ellipses-outline"
-              accent="#60A5FA"
+              accent={theme.colors.info}
               onPress={() => navigateToTabScreen(navigation, 'InboxTab', 'InboxList')}
             />
             <StatCard
+              styles={styles}
               title="Appointments"
               period="Today"
               value={loading ? '—' : todayAppointmentCount}
               icon="calendar-outline"
-              accent="#F59E0B"
+              accent={theme.colors.warning}
               onPress={() => navigateToTabScreen(navigation, 'CalendarTab', 'CalendarList')}
             />
           </View>
@@ -354,14 +362,15 @@ export function HomeScreen({ navigation }: Props) {
             {[0, 1, 2, 3].map((slotIdx) => {
               const app = pinnedApps[slotIdx];
               if (!app) return <View key={`slot-${slotIdx}`} style={styles.pinnedSlotPlaceholder} />;
+              const accent = crmAppAccent(app, theme);
               return (
                 <Pressable
                   key={app.id}
                   style={styles.pinnedItem}
                   onPress={() => openCrmApp(app.id, tabNav ?? navigation)}
                 >
-                  <View style={[styles.pinnedCircle, { borderColor: `${app.accent}44` }]}>
-                    <Ionicons name={app.icon} size={20} color={app.accent} />
+                  <View style={[styles.pinnedCircle, { borderColor: `${accent}44` }]}>
+                    <Ionicons name={app.icon} size={20} color={accent} />
                   </View>
                   <Text style={styles.pinnedText} numberOfLines={1}>
                     {app.label}
@@ -435,17 +444,17 @@ export function HomeScreen({ navigation }: Props) {
 
           <View style={styles.modalBody}>
             <View style={styles.infoBanner}>
-              <Ionicons name="information-circle-outline" size={16} color={theme.colors.mutedTextOnDark} />
+              <Ionicons name="information-circle-outline" size={16} color={theme.colors.foregroundMuted} />
               <Text style={styles.infoText}>You can select up to 4 apps</Text>
             </View>
 
             <View style={styles.searchWrap}>
-              <Ionicons name="search" size={16} color={theme.colors.mutedTextOnDark} />
+              <Ionicons name="search" size={16} color={theme.colors.foregroundMuted} />
               <TextInput
                 value={pinnedSearch}
                 onChangeText={setPinnedSearch}
                 placeholder="Search Apps"
-                placeholderTextColor={theme.colors.mutedTextOnDark}
+                placeholderTextColor={theme.colors.inputPlaceholder}
                 style={styles.searchInput}
               />
             </View>
@@ -466,17 +475,17 @@ export function HomeScreen({ navigation }: Props) {
                     <Pressable style={styles.modalItem} onPress={() => togglePinned(app.id)}>
                       <View style={styles.modalItemLeft}>
                         <View style={styles.modalItemIcon}>
-                          <Ionicons name={app.icon} size={16} color={theme.colors.mutedTextOnDark} />
+                          <Ionicons name={app.icon} size={16} color={theme.colors.foregroundMuted} />
                         </View>
                         <Text style={styles.modalItemLabel}>{app.label}</Text>
                       </View>
                       <View style={styles.modalItemRight}>
                         <View style={styles.reorderBtns}>
                           <Pressable hitSlop={8} onPress={() => movePinned(app.id, -1)} style={styles.reorderBtn}>
-                            <Ionicons name="chevron-up" size={16} color={theme.colors.mutedTextOnDark} />
+                            <Ionicons name="chevron-up" size={16} color={theme.colors.foregroundMuted} />
                           </Pressable>
                           <Pressable hitSlop={8} onPress={() => movePinned(app.id, 1)} style={styles.reorderBtn}>
-                            <Ionicons name="chevron-down" size={16} color={theme.colors.mutedTextOnDark} />
+                            <Ionicons name="chevron-down" size={16} color={theme.colors.foregroundMuted} />
                           </Pressable>
                         </View>
                         <View style={styles.checkPill}>
@@ -506,7 +515,7 @@ export function HomeScreen({ navigation }: Props) {
                     <Pressable style={styles.modalItem} onPress={() => togglePinned(app.id)}>
                       <View style={styles.modalItemLeft}>
                         <View style={styles.modalItemIcon}>
-                          <Ionicons name={app.icon} size={16} color={theme.colors.mutedTextOnDark} />
+                          <Ionicons name={app.icon} size={16} color={theme.colors.foregroundMuted} />
                         </View>
                         <Text style={styles.modalItemLabel}>{app.label}</Text>
                       </View>
@@ -529,6 +538,7 @@ function StatCard({
   icon,
   accent,
   onPress,
+  styles,
 }: {
   title: string;
   period: string;
@@ -536,6 +546,7 @@ function StatCard({
   icon: keyof typeof Ionicons.glyphMap;
   accent: string;
   onPress?: () => void;
+  styles: ReturnType<typeof createStyles>;
 }) {
   return (
     <Pressable style={styles.statCard} onPress={onPress} disabled={!onPress}>
@@ -555,8 +566,9 @@ function StatCard({
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.shell },
+function createStyles(theme: OraiaTheme) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.colors.background },
   body: { paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md, gap: theme.spacing.lg },
   statsGrid: { gap: theme.spacing.sm },
   statsRow: { flexDirection: 'row', gap: theme.spacing.sm },
@@ -583,19 +595,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   statTitle: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.sm,
   },
   statPeriod: {
     marginTop: 2,
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.xs,
   },
   statValue: {
     marginTop: theme.spacing.md,
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.bold,
     fontSize: theme.typography.fontSize.xl,
     lineHeight: theme.typography.lineHeight.xl,
@@ -615,7 +627,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   panelTitle: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.lg,
   },
@@ -631,8 +643,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#202B3D',
-    backgroundColor: '#0A1322',
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceMuted,
   },
   appsRow: {
     flexDirection: 'row',
@@ -651,7 +663,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pinnedText: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
     textAlign: 'center',
@@ -678,14 +690,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   quickLabel: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
     textAlign: 'center',
   },
   eventWrap: { marginTop: theme.spacing.xs },
   noteText: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.sm,
     lineHeight: theme.typography.lineHeight.md,
@@ -716,7 +728,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
   },
-  infoText: { color: theme.colors.mutedTextOnDark, fontFamily: theme.typography.fontFamily.medium },
+  infoText: { color: theme.colors.foregroundMuted, fontFamily: theme.typography.fontFamily.medium },
   searchWrap: {
     marginTop: theme.spacing.md,
     flexDirection: 'row',
@@ -731,17 +743,17 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.regular,
   },
   modalSectionRow: { marginTop: theme.spacing.lg },
   modalSectionTitle: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.sm,
   },
   modalList: { marginTop: theme.spacing.md, gap: theme.spacing.sm },
-  modalEmpty: { color: theme.colors.mutedTextOnDark, fontFamily: theme.typography.fontFamily.regular },
+  modalEmpty: { color: theme.colors.foregroundMuted, fontFamily: theme.typography.fontFamily.regular },
   modalItemRow: { flexDirection: 'row', gap: theme.spacing.md, alignItems: 'center' },
   dragBox: {
     width: 46,
@@ -777,7 +789,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   modalItemLabel: {
-    color: theme.colors.textOnDark,
+    color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
   },
   modalItemRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -807,8 +819,9 @@ const styles = StyleSheet.create({
   },
   dividerLine: { flex: 1, height: 1, backgroundColor: theme.colors.border },
   dividerText: {
-    color: theme.colors.mutedTextOnDark,
+    color: theme.colors.foregroundMuted,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
   },
-});
+  });
+}
