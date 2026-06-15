@@ -2,7 +2,7 @@ import cron from 'node-cron';
 import { logger } from '../lib/logger';
 import { tokenVault } from '../services/tokenVault';
 
-/** Refresh company token when within 1 hour of expiry. Runs every 15 minutes + once on startup. */
+/** Refresh company token when within 3 hours of expiry. Runs every 15 minutes + once on startup. */
 export function startTokenRefreshJob(): void {
   const runRefresh = async (source: 'startup' | 'cron') => {
     try {

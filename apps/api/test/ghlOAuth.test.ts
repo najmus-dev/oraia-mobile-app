@@ -5,6 +5,8 @@ import {
   GHL_REFRESH_BEFORE_MS,
   buildCompanyAuthCodeBody,
   buildCompanyRefreshTokenBody,
+  decodeJwtClientKey,
+  oauthClientKeysMatch,
   resolveGhlTokenExpiry,
   tokenNeedsRefresh,
 } from '../src/lib/ghlOAuth';
@@ -57,11 +59,26 @@ describe('ghlOAuth', () => {
     assert.ok(expiry.getTime() > Date.now());
   });
 
-  it('tokenNeedsRefresh within one hour window', () => {
+  it('tokenNeedsRefresh within three hour window', () => {
     const soon = new Date(Date.now() + 30 * 60 * 1000);
-    const later = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    const later = new Date(Date.now() + 4 * 60 * 60 * 1000);
     assert.equal(tokenNeedsRefresh(soon), true);
     assert.equal(tokenNeedsRefresh(later), false);
-    assert.equal(GHL_REFRESH_BEFORE_MS, 60 * 60 * 1000);
+    assert.equal(GHL_REFRESH_BEFORE_MS, 3 * 60 * 60 * 1000);
+  });
+
+  it('decodeJwtClientKey reads clientKey from access token JWT', () => {
+    const payload = {
+      clientKey: '6a2013179bed28594bc933dc-mpy0gahy',
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    };
+    const token = [
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9',
+      Buffer.from(JSON.stringify(payload)).toString('base64url'),
+      'sig',
+    ].join('.');
+    assert.equal(decodeJwtClientKey(token), '6a2013179bed28594bc933dc-mpy0gahy');
+    assert.equal(oauthClientKeysMatch(token, '6a2013179bed28594bc933dc-mpy0gahy'), true);
+    assert.equal(oauthClientKeysMatch(token, '6a0d975ed226eba332450b29-mpe0566z'), false);
   });
 });

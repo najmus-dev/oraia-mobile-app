@@ -1,5 +1,5 @@
 /** Refresh company token when within this window of stored expiry (matches cron + on-demand). */
-export const GHL_REFRESH_BEFORE_MS = 60 * 60 * 1000;
+export const GHL_REFRESH_BEFORE_MS = 3 * 60 * 60 * 1000;
 
 /** Subtract from JWT / expires_in so we refresh slightly before GHL rejects the token. */
 export const GHL_REFRESH_BUFFER_MS = 5 * 60 * 1000;
@@ -42,14 +42,39 @@ export function decodeJwtExpiry(token: string): Date | null {
   return new Date(payload.exp * 1000 - GHL_REFRESH_BUFFER_MS);
 }
 
-export function decodeJwtPayload(token: string): { exp?: number; userId?: string; sub?: string } | null {
+export function decodeJwtPayload(token: string): {
+  exp?: number;
+  userId?: string;
+  sub?: string;
+  clientKey?: string;
+  sourceId?: string;
+} | null {
   try {
     return JSON.parse(
       Buffer.from(token.split('.')[1], 'base64url').toString('utf8'),
-    ) as { exp?: number; userId?: string; sub?: string };
+    ) as {
+      exp?: number;
+      userId?: string;
+      sub?: string;
+      clientKey?: string;
+      sourceId?: string;
+    };
   } catch {
     return null;
   }
+}
+
+/** Client key embedded in GHL OAuth access/refresh JWTs — must match GHL_CLIENT_ID for refresh. */
+export function decodeJwtClientKey(token: string): string | undefined {
+  const payload = decodeJwtPayload(token);
+  const clientKey = payload?.clientKey?.trim() || payload?.sourceId?.trim();
+  return clientKey || undefined;
+}
+
+export function oauthClientKeysMatch(storedToken: string, configuredClientId: string): boolean {
+  const tokenClientKey = decodeJwtClientKey(storedToken);
+  if (!tokenClientKey) return true;
+  return tokenClientKey === configuredClientId.trim();
 }
 
 /** userId on location OAuth tokens — used for calendar event list fallback. */

@@ -2,7 +2,16 @@ import axios from 'axios';
 import { config } from '../config';
 import { decrypt, encrypt } from '../lib/crypto';
 import { AppError } from '../lib/errors';
-import { GHL_REFRESH_BEFORE_MS, tokenNeedsRefresh } from '../lib/ghlOAuth';
+import { decodeJwtClientKey, oauthClientKeysMatch, tokenNeedsRefresh } from '../lib/ghlOAuth';
+import {
+  GHL_REFRESH_LOCK_MS,
+  GHL_REFRESH_LOCK_POLL_MS,
+  GHL_REFRESH_LOCK_WAIT_MS,
+  GhlRefreshError,
+  buildRefreshFailureMessage,
+  parseGhlOAuthError,
+  sleep,
+} from '../lib/ghlTokenRefresh';
 import { logger } from '../lib/logger';
 import { CompanyToken } from '../models/CompanyToken';
 import { LocationToken } from '../models/LocationToken';
@@ -158,10 +167,84 @@ export const tokenVault = {
       await companyRefreshPromise;
       return;
     }
-    companyRefreshPromise = this.doRefreshCompanyToken(record).finally(() => {
+    companyRefreshPromise = this.withCompanyRefreshLock(record.companyId, () =>
+      this.doRefreshCompanyToken(record),
+    ).finally(() => {
       companyRefreshPromise = null;
     });
     await companyRefreshPromise;
+  },
+
+  async withCompanyRefreshLock(companyId: string, refresh: () => Promise<void>): Promise<void> {
+    const deadline = Date.now() + GHL_REFRESH_LOCK_WAIT_MS;
+    while (Date.now() < deadline) {
+      const current = await CompanyToken.findOne({ companyId });
+      if (current && !tokenNeedsRefresh(current.expiresAt)) {
+        return;
+      }
+
+      const now = new Date();
+      const lockUntil = new Date(now.getTime() + GHL_REFRESH_LOCK_MS);
+      const locked = await CompanyToken.findOneAndUpdate(
+        {
+          companyId,
+          $or: [{ refreshLockUntil: { $exists: false } }, { refreshLockUntil: { $lte: now } }],
+        },
+        { $set: { refreshLockUntil: lockUntil } },
+        { new: true },
+      );
+      if (locked) {
+        try {
+          await refresh();
+          return;
+        } finally {
+          await CompanyToken.updateOne({ companyId }, { $unset: { refreshLockUntil: 1 } });
+        }
+      }
+
+      await sleep(GHL_REFRESH_LOCK_POLL_MS);
+    }
+
+    throw new AppError(
+      503,
+      'Timed out waiting for GHL token refresh lock',
+      'GHL_REFRESH_LOCK_TIMEOUT',
+    );
+  },
+
+  async markCompanyRefreshSuccess(companyId: string): Promise<void> {
+    await CompanyToken.updateOne(
+      { companyId },
+      {
+        $set: { lastRefreshAt: new Date() },
+        $unset: { lastRefreshError: 1 },
+      },
+    );
+  },
+
+  async markCompanyRefreshFailure(
+    companyId: string,
+    error: { ghlStatus?: number; ghlMessage?: string; message: string },
+  ): Promise<void> {
+    await CompanyToken.updateOne(
+      { companyId },
+      {
+        $set: {
+          lastRefreshAt: new Date(),
+          lastRefreshError: error.ghlMessage ?? error.message,
+        },
+      },
+    );
+  },
+
+  async recoverFromPeerRefresh(companyId: string): Promise<boolean> {
+    const peer = await CompanyToken.findOne({ companyId });
+    if (!peer || tokenNeedsRefresh(peer.expiresAt)) {
+      return false;
+    }
+    await this.markCompanyRefreshSuccess(companyId);
+    logger.info('Company token refresh recovered — another instance refreshed first', { companyId });
+    return true;
   },
 
   async doRefreshCompanyToken(record: {
@@ -172,24 +255,28 @@ export const tokenVault = {
     try {
       const tokens = await GhlClient.refreshCompanyTokens(refreshToken);
       await this.storeCompanyOAuthResponse(tokens);
+      await this.markCompanyRefreshSuccess(record.companyId);
       logger.info('Company token refreshed', { companyId: record.companyId });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      const ghlBody = axios.isAxiosError(err)
-        ? (err.response?.data as { message?: string } | undefined)?.message
-        : undefined;
+      if (await this.recoverFromPeerRefresh(record.companyId)) {
+        return;
+      }
+
+      const parsed = parseGhlOAuthError(err);
       logger.error('Company token refresh failed', {
         companyId: record.companyId,
-        message,
-        ghlStatus: axios.isAxiosError(err) ? err.response?.status : undefined,
-        ghlBody,
+        message: parsed.message,
+        ghlStatus: parsed.ghlStatus,
+        ghlBody: parsed.ghlMessage,
         hint: 'Refresh token in MongoDB is invalid or was rotated. Re-install the marketplace app (OAuth callback) — do not seed:force with an old .env refresh token.',
       });
+      await this.markCompanyRefreshFailure(record.companyId, parsed);
+
       if (axios.isAxiosError(err)) {
-        throw new AppError(
-          503,
-          'CRM connection is temporarily unavailable. Please try again in a moment.',
-          'GHL_AUTH_ERROR',
+        throw new GhlRefreshError(
+          buildRefreshFailureMessage(parsed.ghlStatus, parsed.ghlMessage),
+          parsed.ghlStatus,
+          parsed.ghlMessage,
         );
       }
       throw err;
@@ -205,6 +292,7 @@ export const tokenVault = {
       expiresAt: GhlClient.tokenExpiresAt(tokens.expires_in, tokens.access_token),
       refreshTokenId: tokens.refreshTokenId,
     });
+    await this.markCompanyRefreshSuccess(companyId);
   },
 
   async exchangeAndStoreAuthCode(code: string, redirectUri: string): Promise<GhlOAuthTokenResponse> {
@@ -238,24 +326,43 @@ export const tokenVault = {
   async getCompanyTokenHealth(): Promise<{
     configured: boolean;
     oauthRedirectConfigured: boolean;
+    oauthRedirectUri?: string;
+    configuredClientId?: string;
+    tokenClientKey?: string;
+    clientKeyMatch?: boolean;
     expiresAt?: string;
     expiresInMinutes?: number;
     needsRefresh?: boolean;
+    refreshTokenId?: string;
+    lastRefreshAt?: string;
+    lastRefreshError?: string;
   }> {
     const record = await CompanyToken.findOne({ companyId: config.ghl.companyId });
     if (!record) {
       return {
         configured: false,
         oauthRedirectConfigured: Boolean(config.oauth.redirectUri),
+        oauthRedirectUri: config.oauth.redirectUri,
+        configuredClientId: config.ghl.clientId,
       };
     }
+    const accessToken = decrypt(record.accessTokenEncrypted);
+    const tokenClientKey = decodeJwtClientKey(accessToken);
+    const clientKeyMatch = oauthClientKeysMatch(accessToken, config.ghl.clientId);
     const expiresInMs = record.expiresAt.getTime() - Date.now();
     return {
       configured: true,
       oauthRedirectConfigured: Boolean(config.oauth.redirectUri),
+      oauthRedirectUri: config.oauth.redirectUri,
+      configuredClientId: config.ghl.clientId,
+      tokenClientKey,
+      clientKeyMatch,
       expiresAt: record.expiresAt.toISOString(),
       expiresInMinutes: Math.floor(expiresInMs / 60_000),
       needsRefresh: tokenNeedsRefresh(record.expiresAt),
+      refreshTokenId: record.refreshTokenId,
+      lastRefreshAt: record.lastRefreshAt?.toISOString(),
+      lastRefreshError: record.lastRefreshError,
     };
   },
 };

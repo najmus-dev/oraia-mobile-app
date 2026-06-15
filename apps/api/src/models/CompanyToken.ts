@@ -6,6 +6,10 @@ export interface ICompanyToken {
   refreshTokenEncrypted: string;
   expiresAt: Date;
   refreshTokenId?: string;
+  /** Cross-instance mutex so only one refresh uses a single-use GHL refresh token. */
+  refreshLockUntil?: Date;
+  lastRefreshAt?: Date;
+  lastRefreshError?: string;
   updatedAt: Date;
 }
 
@@ -18,6 +22,9 @@ const companyTokenSchema = new Schema<CompanyTokenDocument>(
     refreshTokenEncrypted: { type: String, required: true },
     expiresAt: { type: Date, required: true },
     refreshTokenId: { type: String },
+    refreshLockUntil: { type: Date },
+    lastRefreshAt: { type: Date },
+    lastRefreshError: { type: String },
   },
   { timestamps: { createdAt: false, updatedAt: true } },
 );
