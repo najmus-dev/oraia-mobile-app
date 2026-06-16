@@ -10,6 +10,8 @@
     "web": "expo start --web",
     "build:preview": "eas build --profile preview --platform android",
     "build:production": "eas build --profile production --platform android",
+    "update:preview": "eas update --channel preview",
+    "update:production": "eas update --channel production",
     "test": "tsx --test test/theme.test.ts test/auth.test.ts test/apiBaseUrl.test.ts test/contacts.test.ts test/phoneFormat.test.ts test/opportunities.test.ts test/opportunityFormDraft.test.ts test/opportunityPipeline.test.ts test/appointments.test.ts test/calendarView.test.ts test/weekScheduleGrid.test.ts test/scheduleAppointment.test.ts test/conversations.test.ts test/threadMessages.test.ts test/smsCompliance.test.ts test/dashboardSummary.test.ts test/userDisplay.test.ts test/messageFormat.test.ts test/contactCache.test.ts test/crmApps.test.ts test/globalSearch.test.ts test/tasks.test.ts test/taskFormDraft.test.ts test/notificationFeed.test.ts test/tabNavigation.test.ts test/stackNavigation.test.ts"
   },
   "dependencies": {
@@ -30,6 +32,7 @@
     "expo-secure-store": "~15.0.8",
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
+    "expo-updates": "^0.28.18",
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-gesture-handler": "~2.28.0",

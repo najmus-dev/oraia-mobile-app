@@ -12,6 +12,7 @@ import { AppStateProvider, useAppState } from './src/state/AppState';
 import { ThemeProvider, useThemeState } from './src/state/ThemeState';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { ScreenEntrance } from './src/components/ScreenEntrance';
+import { useEASUpdates } from './src/hooks/useEASUpdates';
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   /* Splash may already be hidden in dev */
@@ -20,6 +21,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 function AppRoot() {
   const { hydrated } = useAppState();
   const { hydrated: themeHydrated } = useThemeState();
+  const updatesReady = useEASUpdates();
   const splashHiddenRef = useRef(false);
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
@@ -34,7 +36,7 @@ function AppRoot() {
     await SplashScreen.hideAsync();
   }, []);
 
-  const ready = fontsLoaded && hydrated && themeHydrated;
+  const ready = fontsLoaded && hydrated && themeHydrated && updatesReady;
 
   useEffect(() => {
     if (ready) {

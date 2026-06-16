@@ -1,12 +1,21 @@
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 const apiUrl = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/+$/, '') || undefined;
+const easProjectId = process.env.EAS_PROJECT_ID ?? '33e719d6-bce8-416e-9836-97d7bc6311a3';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'ORAIA CRM',
   slug: 'oraia-mobile',
   version: '1.0.0',
+  runtimeVersion: {
+    policy: 'appVersion',
+  },
+  updates: {
+    url: `https://u.expo.dev/${easProjectId}`,
+    checkAutomatically: 'ON_LOAD',
+    fallbackToCacheTimeout: 0,
+  },
   orientation: 'portrait',
   icon: './assets/oraia-logo.png',
   userInterfaceStyle: 'automatic',
@@ -65,7 +74,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   extra: {
     apiUrl,
     eas: {
-      projectId: process.env.EAS_PROJECT_ID ?? '33e719d6-bce8-416e-9836-97d7bc6311a3',
+      projectId: easProjectId,
     },
   },
 });

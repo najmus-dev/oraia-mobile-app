@@ -48,12 +48,28 @@ eas init
 "EXPO_PUBLIC_API_URL": "https://api.oraiacrm.com"
 ```
 
-4. Build:
+4. Build (required once per native change, or for the first install):
 
 ```bash
 npm run build:preview      # internal APK for testers
 npm run build:production   # AAB for Google Play
 ```
+
+5. **EAS Update (OTA)** — push JS/UI fixes without rebuilding the APK:
+
+```bash
+# Same API URL as eas.json preview profile (set in shell or .env)
+$env:EXPO_PUBLIC_API_URL="https://oraia-mobile-app.onrender.com"   # PowerShell
+npm run update:preview -- --message "Fix location picker padding"
+```
+
+Testers on a **preview** build get the update on the next app launch (may require opening the app twice).
+
+**When you need a new APK/AAB instead of `eas update`:**
+
+- New native dependency, permission, or Expo SDK upgrade
+- Change to `EXPO_PUBLIC_API_URL` (bump `version` in `app.config.ts` and rebuild)
+- After bumping `version`, publish updates only to builds with that runtime version
 
 Copy `.env.example` to `.env` only if you want to test a fixed API URL in Expo Go locally.
 
