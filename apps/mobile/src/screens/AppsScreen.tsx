@@ -116,7 +116,12 @@ function AppTile({ app, onPress }: { app: CrmAppDef; onPress: () => void }) {
       <View style={[styles.appIconCircle, { borderColor: `${accent}55` }]}>
         <Ionicons name={app.icon} size={22} color={accent} />
       </View>
-      <Text style={styles.appLabel} numberOfLines={2}>
+      <Text
+        style={styles.appLabel}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
+      >
         {app.label}
       </Text>
     </Pressable>
@@ -162,11 +167,11 @@ function createStyles(theme: OraiaTheme) {
   appsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: theme.spacing.lg,
+    gap: theme.spacing.md,
   },
   appTile: {
-    width: '22%',
-    minWidth: 72,
+    width: '31%',
+    minWidth: 96,
     alignItems: 'center',
     gap: theme.spacing.sm,
   },
@@ -180,6 +185,7 @@ function createStyles(theme: OraiaTheme) {
     justifyContent: 'center',
   },
   appLabel: {
+    width: '100%',
     color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,

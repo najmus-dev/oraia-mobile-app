@@ -145,8 +145,8 @@ export function LoginScreen(_props: Props) {
                 >
                   <Ionicons
                     name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                    size={18}
-                    color={theme.colors.mutedText}
+                    size={22}
+                    color={theme.colors.formCardMuted}
                   />
                 </Pressable>
               </View>
@@ -239,16 +239,19 @@ function createStyles(theme: OraiaTheme) {
   passwordInput: {
     flex: 1,
     paddingVertical: theme.spacing.md,
+    paddingRight: theme.spacing.sm,
     color: theme.colors.formCardText,
     fontFamily: theme.typography.fontFamily.regular,
     fontSize: theme.typography.fontSize.md,
   },
   eyeBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 1,
+    ...(Platform.OS === 'android' ? { elevation: 2 } : null),
   },
   inputError: {
     borderColor: theme.colors.danger,

@@ -23,7 +23,7 @@ export function TasksEmptyState({ title, subtitle, actionLabel, onAction }: Prop
       {subtitle ? <Text style={styles.sub}>{subtitle}</Text> : null}
       {actionLabel && onAction ? (
         <Pressable style={styles.btn} onPress={onAction} accessibilityRole="button">
-          <Ionicons name="add" size={18} color={theme.colors.navy} />
+          <Ionicons name="add" size={18} color={theme.colors.white} />
           <Text style={styles.btnText}>{actionLabel}</Text>
         </Pressable>
       ) : null}
@@ -73,10 +73,10 @@ function createStyles(theme: OraiaTheme) {
     borderRadius: 12,
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: 12,
-    backgroundColor: theme.colors.link,
+    backgroundColor: theme.colors.primary,
   },
   btnText: {
-    color: theme.colors.navy,
+    color: theme.colors.white,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.md,
   },

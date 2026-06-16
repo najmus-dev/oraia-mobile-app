@@ -11,6 +11,7 @@ type Props = {
   size?: number;
 };
 
+/** Header avatar — no extra chip; sits on the shell header color behind it. */
 export function LocationAvatar({ name, logoUrl, size = 44 }: Props) {
   const styles = useThemedStyles(createStyles);
   const [logoFailed, setLogoFailed] = useState(false);
@@ -23,16 +24,31 @@ export function LocationAvatar({ name, logoUrl, size = 44 }: Props) {
   }, [logoUrl, name]);
 
   if (useAgencyLogo) {
-    return <Image source={agencyLogo} style={[styles.image, { width: size, height: size, borderRadius: size / 2 }]} />;
+    const markSize = Math.round(size * 1.38);
+    return (
+      <View
+        style={[styles.agencyMark, { width: size, height: size, borderRadius: size / 2 }]}
+        accessibilityRole="image"
+        accessibilityLabel="ORAIA CRM"
+      >
+        <Image
+          source={agencyLogo}
+          style={{ width: markSize, height: markSize }}
+          resizeMode="cover"
+        />
+      </View>
+    );
   }
 
   if (showRemote) {
     return (
-      <Image
-        source={{ uri: logoUrl!.trim() }}
-        style={[styles.image, { width: size, height: size, borderRadius: size / 2 }]}
-        onError={() => setLogoFailed(true)}
-      />
+      <View style={[styles.remoteFrame, { width: size, height: size, borderRadius: size / 2 }]}>
+        <Image
+          source={{ uri: logoUrl!.trim() }}
+          style={[styles.remoteImage, { width: size, height: size, borderRadius: size / 2 }]}
+          onError={() => setLogoFailed(true)}
+        />
+      </View>
     );
   }
 
@@ -45,13 +61,29 @@ export function LocationAvatar({ name, logoUrl, size = 44 }: Props) {
 
 function createStyles(theme: OraiaTheme) {
   return StyleSheet.create({
-    image: {
-      backgroundColor: theme.colors.surfaceMuted,
+    agencyMark: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'transparent',
+      overflow: 'hidden',
+    },
+    remoteFrame: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'transparent',
+      borderWidth: 1,
+      borderColor: 'rgba(255, 255, 255, 0.18)',
+      overflow: 'hidden',
+    },
+    remoteImage: {
+      backgroundColor: 'transparent',
     },
     fallback: {
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: theme.colors.primary,
+      borderWidth: 1,
+      borderColor: 'rgba(255, 255, 255, 0.14)',
     },
     initials: {
       color: theme.colors.white,

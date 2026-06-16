@@ -167,7 +167,10 @@ export function LocationSelectSheet({
 
     return (
       <View style={[styles.row, isCurrent && styles.rowCurrent]}>
-        <Pressable style={styles.rowMain} onPress={() => select(item)}>
+        <Pressable
+          style={[styles.rowMain, isCurrent && styles.rowMainCurrent]}
+          onPress={() => select(item)}
+        >
           <LocationAvatar name={locationItemName(item)} logoUrl={item.logoUrl} size={44} />
           <View style={styles.rowBody}>
             <View style={styles.nameRow}>
@@ -364,7 +367,7 @@ function createStyles(theme: OraiaTheme, presentation: 'modal' | 'fullscreen') {
     paddingVertical: theme.spacing.xs,
   },
   signOutText: {
-    color: theme.colors.link,
+    color: onShellCanvas ? theme.colors.shellForeground : theme.colors.link,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.sm,
   },
@@ -488,18 +491,21 @@ function createStyles(theme: OraiaTheme, presentation: 'modal' | 'fullscreen') {
     borderBottomColor: theme.colors.border,
   },
   rowCurrent: {
-    backgroundColor: `${theme.colors.primary}12`,
-    borderRadius: theme.radius.md,
-    marginBottom: theme.spacing.xs,
     borderBottomWidth: 0,
+    marginBottom: theme.spacing.xs,
   },
   rowMain: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
     gap: theme.spacing.md,
     minWidth: 0,
+  },
+  rowMainCurrent: {
+    backgroundColor: `${theme.colors.primary}12`,
+    borderRadius: theme.radius.md,
   },
   rowBody: { flex: 1, minWidth: 0 },
   nameRow: {

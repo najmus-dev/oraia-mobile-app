@@ -372,7 +372,12 @@ export function HomeScreen({ navigation }: Props) {
                   <View style={[styles.pinnedCircle, { borderColor: `${accent}44` }]}>
                     <Ionicons name={app.icon} size={20} color={accent} />
                   </View>
-                  <Text style={styles.pinnedText} numberOfLines={1}>
+                  <Text
+                    style={styles.pinnedText}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                  >
                     {app.label}
                   </Text>
                 </Pressable>
@@ -391,7 +396,12 @@ export function HomeScreen({ navigation }: Props) {
                 <View style={styles.quickCircle}>
                   <Ionicons name={action.icon} size={20} color={theme.colors.link} />
                 </View>
-                <Text style={styles.quickLabel} numberOfLines={2}>
+                <Text
+                  style={styles.quickLabel}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
                   {action.label}
                 </Text>
               </Pressable>
@@ -663,6 +673,7 @@ function createStyles(theme: OraiaTheme) {
     justifyContent: 'center',
   },
   pinnedText: {
+    width: '100%',
     color: theme.colors.foreground,
     fontFamily: theme.typography.fontFamily.medium,
     fontSize: theme.typography.fontSize.xs,
@@ -674,8 +685,8 @@ function createStyles(theme: OraiaTheme) {
     gap: theme.spacing.md,
   },
   quickItem: {
-    width: '22%',
-    minWidth: 72,
+    width: '31%',
+    minWidth: 96,
     alignItems: 'center',
     gap: theme.spacing.sm,
   },

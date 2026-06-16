@@ -29,7 +29,7 @@ export function FloatingActionButton({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
     >
-      <Ionicons name="add" size={28} color={theme.colors.navy} />
+      <Ionicons name="add" size={28} color={theme.colors.white} />
     </Pressable>
   );
 }
@@ -41,7 +41,7 @@ function createStyles(theme: OraiaTheme) {
       width: FAB_SIZE,
       height: FAB_SIZE,
       borderRadius: theme.radius.lg,
-      backgroundColor: theme.colors.link,
+      backgroundColor: theme.colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
       ...theme.shadows.fab,

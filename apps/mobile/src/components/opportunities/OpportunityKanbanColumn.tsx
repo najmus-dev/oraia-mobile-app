@@ -41,7 +41,7 @@ export function OpportunityKanbanColumn({
       </Text>
 
       <Pressable style={styles.createBtn} onPress={onCreate}>
-        <Ionicons name="add" size={18} color={theme.colors.foreground} />
+        <Ionicons name="add" size={18} color={theme.colors.primary} />
         <Text style={styles.createText}>Create Opportunity</Text>
       </Pressable>
 
@@ -102,7 +102,7 @@ function createStyles(theme: OraiaTheme) {
     backgroundColor: theme.colors.surface,
   },
   createText: {
-    color: theme.colors.foreground,
+    color: theme.colors.primary,
     fontFamily: theme.typography.fontFamily.semiBold,
     fontSize: theme.typography.fontSize.sm,
   },
