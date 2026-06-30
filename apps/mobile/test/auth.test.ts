@@ -10,11 +10,19 @@ describe('mapMeUserToAuthUser', () => {
         id: 'u1',
         email: 'a@b.com',
         role: 'staff',
+        status: 'pending',
         companyId: 'co1',
         allowedLocationIds: ['loc1'],
         ghlUserId: 'ghl-99',
       }),
-      { id: 'u1', email: 'a@b.com', role: 'staff', companyId: 'co1', ghlUserId: 'ghl-99' },
+      {
+        id: 'u1',
+        email: 'a@b.com',
+        role: 'staff',
+        status: 'pending',
+        companyId: 'co1',
+        ghlUserId: 'ghl-99',
+      },
     );
   });
 });

@@ -37,8 +37,8 @@ import { DashboardHeader } from '../components/DashboardHeader';
 import {
   CRM_APPS,
   crmAppAccent,
-  openCrmApp,
 } from '../lib/crmApps';
+import { openCrmApp } from '../lib/crmAppNavigation';
 import { DEFAULT_TASK_FILTERS } from '../lib/tasks';
 import { LocationSelectSheet } from '../components/LocationSelectSheet';
 import type { HomeStackParamList } from '../navigation/HomeStack';

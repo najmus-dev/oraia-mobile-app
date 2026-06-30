@@ -6,10 +6,17 @@ export type AuthMeResponse = {
     id: string;
     email: string;
     role: 'agency_admin' | 'staff';
+    status?: 'pending' | 'active' | 'rejected';
     companyId?: string;
     allowedLocationIds?: string[];
     ghlUserId?: string;
   };
+};
+
+export type AuthSessionResponse = {
+  token: string;
+  user: AuthMeResponse['user'];
+  message?: string;
 };
 
 export function mapMeUserToAuthUser(user: AuthMeResponse['user']): AuthUser {
@@ -17,6 +24,7 @@ export function mapMeUserToAuthUser(user: AuthMeResponse['user']): AuthUser {
     id: user.id,
     email: user.email,
     role: user.role,
+    status: user.status ?? 'active',
     companyId: user.companyId,
     ghlUserId: user.ghlUserId,
   };

@@ -1,6 +1,4 @@
 import type { Ionicons } from '@expo/vector-icons';
-import type { NavigationProp, ParamListBase } from '@react-navigation/native';
-import { navigateToTabScreen } from '../navigation/tabNavigation';
 import type { OraiaTheme } from '../theme/createTheme';
 
 export type CrmAppId = 'contacts' | 'conversations' | 'calendar' | 'opportunities' | 'tasks';
@@ -94,32 +92,6 @@ export const DEFAULT_PINNED_APP_IDS: CrmAppId[] = ['contacts', 'opportunities', 
 
 /** App ids that can be pinned on Home / Search suggested apps. */
 export const PINNABLE_CRM_APP_IDS: readonly CrmAppId[] = Object.keys(CRM_APPS) as CrmAppId[];
-
-export function openCrmApp(
-  appId: CrmAppId,
-  navigation: NavigationProp<ParamListBase> | undefined,
-): void {
-  if (!navigation) return;
-  switch (appId) {
-    case 'contacts':
-      navigateToTabScreen(navigation, 'AppsTab', 'ContactsList');
-      break;
-    case 'conversations':
-      navigateToTabScreen(navigation, 'InboxTab', 'InboxList');
-      break;
-    case 'calendar':
-      navigateToTabScreen(navigation, 'CalendarTab', 'CalendarList');
-      break;
-    case 'tasks':
-      navigateToTabScreen(navigation, 'AppsTab', 'TasksHome');
-      break;
-    case 'opportunities':
-      navigateToTabScreen(navigation, 'AppsTab', 'PipelineHome');
-      break;
-    default:
-      break;
-  }
-}
 
 export function crmAppList(): CrmAppDef[] {
   return Object.values(CRM_APPS);

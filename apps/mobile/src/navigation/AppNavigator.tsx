@@ -3,10 +3,13 @@ import { NavigationContainer, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { RootStackParamList } from './types';
 import { LoginScreen } from '../screens/LoginScreen';
+import { SignUpScreen } from '../screens/SignUpScreen';
+import { PendingApprovalScreen } from '../screens/PendingApprovalScreen';
 import { LocationPickerScreen } from '../screens/LocationPickerScreen';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { navigationRef } from '../lib/navigationRef';
 import { useAppState } from '../state/AppState';
+import { isAccountPending } from '../store/auth';
 import { MainTabs } from './MainTabs';
 import { getActiveRouteName, NavigationStatusBar } from './NavigationStatusBar';
 import { useTheme } from '../hooks/useTheme';
@@ -37,11 +40,19 @@ function createNavTheme(theme: OraiaTheme): Theme {
 export function AppNavigator() {
   const theme = useTheme();
   const navTheme = useMemo(() => createNavTheme(theme), [theme]);
-  const { token, locationId } = useAppState();
+  const { token, user, locationId } = useAppState();
   usePushNotifications();
 
-  const navKey = !token ? 'guest' : !locationId ? 'pick-location' : 'main';
-  const bootstrapRoute = !token ? 'Login' : !locationId ? 'LocationPicker' : undefined;
+  const pending = Boolean(token && isAccountPending(user));
+  const navKey = !token ? 'guest' : pending ? 'pending' : !locationId ? 'pick-location' : 'main';
+
+  const bootstrapRoute = useMemo(() => {
+    if (!token) return 'Login';
+    if (pending) return 'PendingApproval';
+    if (!locationId) return 'LocationPicker';
+    return undefined;
+  }, [token, pending, locationId]);
+
   const [activeRoute, setActiveRoute] = useState<string | undefined>(bootstrapRoute);
 
   const syncActiveRoute = useCallback(() => {
@@ -69,7 +80,12 @@ export function AppNavigator() {
         }}
       >
         {!token ? (
-          <Stack.Screen name="Login" component={LoginScreen} />
+          <>
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="SignUp" component={SignUpScreen} />
+          </>
+        ) : pending ? (
+          <Stack.Screen name="PendingApproval" component={PendingApprovalScreen} />
         ) : !locationId ? (
           <Stack.Screen name="LocationPicker" component={LocationPickerScreen} />
         ) : (

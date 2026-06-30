@@ -20,11 +20,27 @@ describe('assertLocationAccess', () => {
     );
   });
 
+  it('denies pending staff before location check', async () => {
+    const { assertLocationAccess } = await import('../src/services/authService');
+    const { AppError } = await import('../src/lib/errors');
+    const user = {
+      role: 'staff' as const,
+      status: 'pending' as const,
+      allowedLocationIds: ['loc-a'],
+    };
+    assert.throws(
+      () => assertLocationAccess(user as never, 'loc-a'),
+      (err: unknown) =>
+        err instanceof AppError && err.statusCode === 403 && err.code === 'ACCOUNT_PENDING',
+    );
+  });
+
   it('denies staff without allowed location', async () => {
     const { assertLocationAccess } = await import('../src/services/authService');
     const { AppError } = await import('../src/lib/errors');
     const user = {
       role: 'staff' as const,
+      status: 'active' as const,
       allowedLocationIds: ['loc-a'],
     };
     assert.throws(

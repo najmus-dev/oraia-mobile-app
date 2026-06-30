@@ -8,9 +8,9 @@ import {
   CRM_APPS,
   CRM_APP_SECTIONS,
   crmAppAccent,
-  openCrmApp,
   type CrmAppDef,
 } from '../lib/crmApps';
+import { openCrmApp } from '../lib/crmAppNavigation';
 import { TAB_LIST_BOTTOM_PADDING } from '../lib/safeArea';
 import { getTabNavigation, navigateToTabScreen } from '../lib/navigation';
 import { useTheme, useThemedStyles } from '../hooks/useTheme';

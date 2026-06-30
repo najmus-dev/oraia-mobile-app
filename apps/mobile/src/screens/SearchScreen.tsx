@@ -16,9 +16,9 @@ import {
   crmAppAccent,
   crmAppList,
   filterAppsByQuery,
-  openCrmApp,
   type CrmAppDef,
 } from '../lib/crmApps';
+import { openCrmApp } from '../lib/crmAppNavigation';
 import { contactDisplayName } from '../lib/contacts';
 import type { ContactsListResponse } from '../lib/contacts';
 import {

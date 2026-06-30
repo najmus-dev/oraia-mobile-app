@@ -14,6 +14,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../lib/api';
+import type { AuthSessionResponse } from '../lib/auth';
+import { mapMeUserToAuthUser } from '../lib/auth';
+import {
+  normalizeAuthEmail,
+  validateAuthEmail,
+  validateLoginPassword,
+} from '../lib/authValidation';
 import { formatError } from '../lib/errors';
 import { brand } from '../theme/brand';
 import { useTheme, useThemedStyles } from '../hooks/useTheme';
@@ -26,12 +33,7 @@ import { Button } from '../components/Button';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
-type LoginResponse = {
-  token: string;
-  user: { id: string; email: string; role: 'agency_admin' | 'staff'; companyId?: string };
-};
-
-export function LoginScreen(_props: Props) {
+export function LoginScreen({ navigation }: Props) {
   const theme = useTheme();
   const styles = useThemedStyles(createStyles);
   const { setSession } = useAppState();
@@ -42,19 +44,15 @@ export function LoginScreen(_props: Props) {
   const [emailTouched, setEmailTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
 
-  const normalizedEmail = email.trim().toLowerCase();
-  const emailError = useMemo(() => {
-    if (!emailTouched) return '';
-    if (!normalizedEmail) return 'Email is required.';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) return 'Enter a valid email address.';
-    return '';
-  }, [emailTouched, normalizedEmail]);
-  const passwordError = useMemo(() => {
-    if (!passwordTouched) return '';
-    if (!password) return 'Password is required.';
-    if (password.length < 6) return 'Password must be at least 6 characters.';
-    return '';
-  }, [passwordTouched, password]);
+  const normalizedEmail = normalizeAuthEmail(email);
+  const emailError = useMemo(
+    () => validateAuthEmail(email, emailTouched),
+    [email, emailTouched],
+  );
+  const passwordError = useMemo(
+    () => validateLoginPassword(password, passwordTouched),
+    [password, passwordTouched],
+  );
   const canSubmit = !loading && !emailError && !passwordError && !!normalizedEmail && !!password;
 
   async function onLogin() {
@@ -67,8 +65,11 @@ export function LoginScreen(_props: Props) {
     if (emailError || passwordError) return;
     setLoading(true);
     try {
-      const res = await api.postJson<LoginResponse>('/api/auth/login', { email: normalizedEmail, password });
-      setSession(res.token, res.user);
+      const res = await api.postJson<AuthSessionResponse>('/api/auth/login', {
+        email: normalizedEmail,
+        password,
+      });
+      setSession(res.token, mapMeUserToAuthUser(res.user));
     } catch (e) {
       Alert.alert('Login failed', formatError(e));
     } finally {
@@ -158,6 +159,17 @@ export function LoginScreen(_props: Props) {
                 disabled={!canSubmit}
                 style={styles.submitBtn}
               />
+
+              <Pressable
+                onPress={() => navigation.navigate('SignUp')}
+                style={styles.switchLink}
+                accessibilityRole="button"
+              >
+                <Text style={styles.switchText}>
+                  Don&apos;t have an account?{' '}
+                  <Text style={styles.switchTextBold}>Create one</Text>
+                </Text>
+              </Pressable>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -264,6 +276,20 @@ function createStyles(theme: OraiaTheme) {
   },
   submitBtn: {
     marginTop: theme.spacing.xl,
+  },
+  switchLink: {
+    marginTop: theme.spacing.lg,
+    alignItems: 'center',
+    paddingVertical: theme.spacing.sm,
+  },
+  switchText: {
+    color: theme.colors.formCardMuted,
+    fontFamily: theme.typography.fontFamily.regular,
+    fontSize: theme.typography.fontSize.sm,
+  },
+  switchTextBold: {
+    color: theme.colors.secondary,
+    fontFamily: theme.typography.fontFamily.semiBold,
   },
   });
 }
