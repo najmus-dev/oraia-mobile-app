@@ -35,7 +35,9 @@ export function DashboardHeader({
   const paddingTop = useHeaderTopPadding();
   const subAccountName = locationDisplayName(locationName);
   const addressLine = locationAddress?.trim() || '';
-  const showBadge = (notificationCount ?? 0) > 0;
+  const count = notificationCount ?? 0;
+  const showBadge = count > 0;
+  const badgeLabel = count > 99 ? '99+' : String(count);
 
   return (
     <View style={[styles.header, { paddingTop }]}>
@@ -69,7 +71,11 @@ export function DashboardHeader({
               accessibilityLabel="Notifications"
             >
               <Ionicons name="notifications-outline" size={20} color={theme.colors.shellForeground} />
-              {showBadge ? <View style={styles.badgeDot} /> : null}
+              {showBadge ? (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{badgeLabel}</Text>
+                </View>
+              ) : null}
             </Pressable>
           ) : null}
           {onSettings ? (
@@ -157,16 +163,25 @@ function createStyles(theme: OraiaTheme) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    badgeDot: {
+    badge: {
       position: 'absolute',
-      top: 4,
-      right: 4,
-      width: 8,
-      height: 8,
-      borderRadius: 4,
+      top: 0,
+      right: 0,
+      minWidth: 18,
+      height: 18,
+      paddingHorizontal: 4,
+      borderRadius: 9,
       backgroundColor: theme.colors.danger,
       borderWidth: 1.5,
       borderColor: theme.colors.shellElevated,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    badgeText: {
+      color: theme.colors.white,
+      fontFamily: theme.typography.fontFamily.bold,
+      fontSize: 10,
+      lineHeight: 12,
     },
   });
 }

@@ -7,6 +7,19 @@ import { User } from '../models/User';
 
 const expo = new Expo();
 
+export type PushChannel = 'messages' | 'tasks' | 'appointments';
+
+export type NotificationPushPayload = {
+  locationId: string;
+  channel: PushChannel;
+  title: string;
+  body: string;
+  assignedTo?: string;
+  /** Unique id for dedup (message id, task id, appointment id). */
+  dedupeId?: string;
+  data: Record<string, string>;
+};
+
 export type ConversationPushPayload = {
   locationId: string;
   conversationId: string;
@@ -16,6 +29,31 @@ export type ConversationPushPayload = {
   title: string;
   body: string;
 };
+
+const CHANNEL_BY_KIND: Record<string, PushChannel> = {
+  conversation: 'messages',
+  task: 'tasks',
+  appointment: 'appointments',
+};
+
+export function buildExpoPushMessages(
+  tokens: { token: string }[],
+  payload: NotificationPushPayload,
+): ExpoPushMessage[] {
+  return tokens.map((entry) => ({
+    to: entry.token,
+    sound: 'default' as const,
+    title: payload.title,
+    body: payload.body,
+    priority: 'high' as const,
+    channelId: payload.channel,
+    data: {
+      type: payload.data.type ?? 'conversation',
+      locationId: payload.locationId,
+      ...payload.data,
+    },
+  }));
+}
 
 export async function registerPushToken(input: {
   userId: string;
@@ -85,20 +123,20 @@ function collectStaleTokensFromTickets(
   return stale;
 }
 
-export async function sendConversationPush(payload: ConversationPushPayload): Promise<number> {
+export async function sendNotificationPush(payload: NotificationPushPayload): Promise<number> {
   if (!config.push.enabled) {
-    logger.info('Push disabled — skipping conversation notification', {
+    logger.info('Push disabled — skipping notification', {
       locationId: payload.locationId,
-      conversationId: payload.conversationId,
+      type: payload.data.type,
     });
     return 0;
   }
 
-  const messageId = payload.messageId?.trim();
-  if (messageId) {
-    const existing = await PushDedup.findOne({ messageId }).lean();
+  const dedupeId = payload.dedupeId?.trim();
+  if (dedupeId) {
+    const existing = await PushDedup.findOne({ messageId: dedupeId }).lean();
     if (existing) {
-      logger.info('Push dedup — message already notified', { messageId });
+      logger.info('Push dedup — already notified', { dedupeId });
       return 0;
     }
   }
@@ -111,21 +149,16 @@ export async function sendConversationPush(payload: ConversationPushPayload): Pr
 
   const tokens = await PushToken.find(tokenQuery).lean();
   const valid = tokens.filter((t) => Expo.isExpoPushToken(t.token));
-  if (valid.length === 0) return 0;
-
-  const messages: ExpoPushMessage[] = valid.map((entry) => ({
-    to: entry.token,
-    sound: 'default',
-    title: payload.title,
-    body: payload.body,
-    data: {
-      type: 'conversation',
+  if (valid.length === 0) {
+    logger.info('No push tokens for notification', {
       locationId: payload.locationId,
-      conversationId: payload.conversationId,
-      contactId: payload.contactId ?? '',
-    },
-  }));
+      type: payload.data.type,
+      assignedTo: payload.assignedTo ?? null,
+    });
+    return 0;
+  }
 
+  const messages = buildExpoPushMessages(valid, payload);
   const chunks = expo.chunkPushNotifications(messages);
   let sent = 0;
   const staleTokens: string[] = [];
@@ -138,11 +171,11 @@ export async function sendConversationPush(payload: ConversationPushPayload): Pr
 
   await removeStaleTokens(staleTokens);
 
-  if (messageId && sent > 0) {
+  if (dedupeId && sent > 0) {
     await PushDedup.create({
-      messageId,
+      messageId: dedupeId,
       locationId: payload.locationId,
-      conversationId: payload.conversationId,
+      conversationId: payload.data.conversationId ?? payload.dedupeId,
     }).catch(() => {
       // Race on webhook retry — treat as dedup success.
     });
@@ -150,9 +183,72 @@ export async function sendConversationPush(payload: ConversationPushPayload): Pr
 
   logger.info('Push notifications sent', {
     locationId: payload.locationId,
-    conversationId: payload.conversationId,
+    type: payload.data.type,
+    channel: payload.channel,
     assignedTo: payload.assignedTo ?? null,
     count: sent,
   });
   return sent;
+}
+
+export async function sendConversationPush(payload: ConversationPushPayload): Promise<number> {
+  return sendNotificationPush({
+    locationId: payload.locationId,
+    channel: CHANNEL_BY_KIND.conversation,
+    title: payload.title,
+    body: payload.body,
+    assignedTo: payload.assignedTo,
+    dedupeId: payload.messageId?.trim(),
+    data: {
+      type: 'conversation',
+      conversationId: payload.conversationId,
+      contactId: payload.contactId ?? '',
+    },
+  });
+}
+
+export async function sendTaskPush(input: {
+  locationId: string;
+  taskId: string;
+  contactId?: string;
+  assignedTo?: string;
+  title: string;
+  body: string;
+}): Promise<number> {
+  return sendNotificationPush({
+    locationId: input.locationId,
+    channel: CHANNEL_BY_KIND.task,
+    title: input.title,
+    body: input.body,
+    assignedTo: input.assignedTo,
+    dedupeId: `task:${input.taskId}`,
+    data: {
+      type: 'task',
+      taskId: input.taskId,
+      contactId: input.contactId ?? '',
+    },
+  });
+}
+
+export async function sendAppointmentPush(input: {
+  locationId: string;
+  appointmentId: string;
+  contactId?: string;
+  assignedTo?: string;
+  title: string;
+  body: string;
+}): Promise<number> {
+  return sendNotificationPush({
+    locationId: input.locationId,
+    channel: CHANNEL_BY_KIND.appointment,
+    title: input.title,
+    body: input.body,
+    assignedTo: input.assignedTo,
+    dedupeId: `appointment:${input.appointmentId}`,
+    data: {
+      type: 'appointment',
+      appointmentId: input.appointmentId,
+      contactId: input.contactId ?? '',
+    },
+  });
 }

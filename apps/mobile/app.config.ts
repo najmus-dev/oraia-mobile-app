@@ -61,6 +61,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         icon: './assets/oraia-logo.png',
         color: '#0E1323',
+        defaultChannel: 'messages',
       },
     ],
     [

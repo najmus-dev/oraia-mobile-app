@@ -48,8 +48,12 @@ Local dev: omit all three to allow unsigned `curl` testing.
 In **Marketplace → My Apps → Advanced settings → Webhooks**, enable:
 
 - **InboundMessage** — push + in-app notification when a contact messages in
-- **AppointmentCreate** — in-app notification for new appointments (optional)
-- **TaskCreate** — in-app notification for new tasks (optional)
+- **AppointmentCreate** — push + in-app notification for new appointments
+- **TaskCreate** — push + in-app notification for new tasks
+
+Android pushes use notification channels (`messages`, `tasks`, `appointments`) with `channelId` in the payload — required for delivery when the app is closed.
+
+Upload **FCM V1 credentials** to your Expo project (`eas credentials` or expo.dev → Credentials) before testing production Android builds.
 
 The mobile app registers an Expo push token per user + location via `POST /api/push-tokens/register`.
 

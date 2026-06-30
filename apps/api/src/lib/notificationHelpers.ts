@@ -3,6 +3,33 @@ export function conversationNotificationDedupeKey(conversationId: string): strin
   return `conversation:unread:${conversationId.trim()}`;
 }
 
+export function taskNotificationDedupeKey(taskId: string): string {
+  return `task:${taskId.trim()}`;
+}
+
+export function appointmentNotificationDedupeKey(appointmentId: string): string {
+  return `appointment:${appointmentId.trim()}`;
+}
+
+/** Who can see a notification row in the feed (Mongo filter fragment). */
+export function notificationVisibilityFilter(input: {
+  role: string;
+  ghlUserId?: string | null;
+}): Record<string, unknown> {
+  const ghlUserId = input.ghlUserId?.trim();
+  if (input.role === 'agency_admin' || !ghlUserId) {
+    // Unlinked GHL users see all location notifications until email is matched.
+    return {};
+  }
+  return {
+    $or: [
+      { targetGhlUserId: { $exists: false } },
+      { targetGhlUserId: null },
+      { targetGhlUserId: ghlUserId },
+    ],
+  };
+}
+
 /** Coerce GHL task/event timestamps (may be unknown due to index signatures). */
 export function coerceNotificationOccurredAt(value: unknown): string | undefined {
   if (typeof value === 'string' && value.trim()) return value.trim();

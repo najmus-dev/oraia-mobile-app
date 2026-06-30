@@ -12,6 +12,7 @@ import {
   markNotificationRead,
   syncNotificationsFromGhl,
 } from '../services/notificationService';
+import { resolveAndPersistGhlUserId } from '../services/ghlUserResolver';
 import { getLocationGhlClient } from '../services/tokenVault';
 import { param } from '../lib/params';
 
@@ -19,6 +20,31 @@ export const notificationsRouter = Router();
 
 const syncThrottleMs = 60_000;
 const lastSyncByKey = new Map<string, number>();
+
+async function maybeSyncNotifications(
+  req: LocationScopedRequest,
+  opts?: { force?: boolean },
+): Promise<void> {
+  const locationId = req.locationId!;
+  const user = req.user!;
+  await resolveAndPersistGhlUserId(user, locationId);
+
+  const key = `${user._id.toString()}:${locationId}`;
+  const last = lastSyncByKey.get(key) ?? 0;
+  if (!opts?.force && Date.now() - last < syncThrottleMs) return;
+
+  try {
+    const ghl = getLocationGhlClient(locationId);
+    const tzOffset = parseTzOffsetQuery(req.query.tzOffset);
+    await syncNotificationsFromGhl({ ghl, user, locationId, tzOffset });
+    lastSyncByKey.set(key, Date.now());
+  } catch (err) {
+    logger.warn('Notification sync failed — returning cached notifications', {
+      locationId,
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
 
 locationGet(notificationsRouter, '/', async (req, res) => {
   const locationId = req.locationId!;
@@ -28,23 +54,10 @@ locationGet(notificationsRouter, '/', async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 30, 100);
   const cursor = typeof req.query.cursor === 'string' ? req.query.cursor.trim() : undefined;
   const shouldSync = req.query.sync === '1' || req.query.sync === 'true';
+  const forceSync = req.query.forceSync === '1' || req.query.forceSync === 'true';
 
   if (shouldSync) {
-    const key = `${user._id.toString()}:${locationId}`;
-    const last = lastSyncByKey.get(key) ?? 0;
-    if (Date.now() - last >= syncThrottleMs) {
-      try {
-        const ghl = getLocationGhlClient(locationId);
-        const tzOffset = parseTzOffsetQuery(req.query.tzOffset);
-        await syncNotificationsFromGhl({ ghl, user, locationId, tzOffset });
-        lastSyncByKey.set(key, Date.now());
-      } catch (err) {
-        logger.warn('Notification sync failed — returning cached notifications', {
-          locationId,
-          message: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
+    await maybeSyncNotifications(req, { force: forceSync });
   }
 
   const result = await listNotifications({
@@ -66,7 +79,15 @@ locationGet(notificationsRouter, '/', async (req, res) => {
 
 locationGet(notificationsRouter, '/unread-count', async (req, res) => {
   const locationId = req.locationId!;
-  const unreadCount = await countUnreadNotifications(req.user!, locationId);
+  const user = req.user!;
+  const shouldSync = req.query.sync === '1' || req.query.sync === 'true';
+  const forceSync = req.query.forceSync === '1' || req.query.forceSync === 'true';
+
+  if (shouldSync) {
+    await maybeSyncNotifications(req, { force: forceSync });
+  }
+
+  const unreadCount = await countUnreadNotifications(user, locationId);
   res.json({ locationId, unreadCount });
 });
 

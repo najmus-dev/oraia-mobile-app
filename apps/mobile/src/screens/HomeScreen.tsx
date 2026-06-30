@@ -24,6 +24,7 @@ import {
   type DashboardEvent,
 } from '../lib/dashboardSummary';
 import { fetchNotificationUnreadCount } from '../lib/notificationFeed';
+import { subscribeNotificationRefresh } from '../lib/notificationEvents';
 import { formatEventRange } from '../lib/dates';
 import { formatError } from '../lib/errors';
 import { getTabNavigation, navigateToAppointmentDetail, navigateToTabScreen } from '../lib/navigation';
@@ -100,12 +101,19 @@ export function HomeScreen({ navigation }: Props) {
   const loadNotificationBadge = useCallback(async () => {
     if (!token || !locationId) return;
     try {
-      const count = await fetchNotificationUnreadCount({ token, locationId });
+      const count = await fetchNotificationUnreadCount({ token, locationId }, { sync: true });
       setNotificationCount(count);
     } catch {
       /* badge is best-effort */
     }
   }, [token, locationId]);
+
+  useEffect(() => {
+    return subscribeNotificationRefresh(() => {
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      loadNotificationBadge();
+    });
+  }, [loadNotificationBadge]);
 
   const load = useCallback(
     async (opts?: { pull?: boolean; force?: boolean; silent?: boolean }) => {
@@ -286,7 +294,12 @@ export function HomeScreen({ navigation }: Props) {
         locationAddress={locationAddress}
         locationLogoUrl={locationLogoUrl}
         onOpenLocation={() => setLocationSheetOpen(true)}
-        onRefresh={() => load({ pull: true })}
+        onRefresh={() => {
+          // eslint-disable-next-line @typescript-eslint/no-floating-promises
+          load({ pull: true });
+          // eslint-disable-next-line @typescript-eslint/no-floating-promises
+          loadNotificationBadge();
+        }}
         onNotifications={() => navigation.navigate('Notifications')}
         onSettings={() => navigation.navigate('Settings')}
         welcomeName={firstName}
@@ -297,7 +310,15 @@ export function HomeScreen({ navigation }: Props) {
         contentContainerStyle={[styles.body, { paddingBottom: scrollBottomPad }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => load({ pull: true })} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              // eslint-disable-next-line @typescript-eslint/no-floating-promises
+              load({ pull: true });
+              // eslint-disable-next-line @typescript-eslint/no-floating-promises
+              loadNotificationBadge();
+            }}
+          />
         }
       >
         {loadError ? (

@@ -27,6 +27,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from '../lib/notificationFeed';
+import { subscribeNotificationRefresh } from '../lib/notificationEvents';
 import { dedupeNotificationItems } from '../lib/notificationFeedUtils';
 import type { NotificationItem } from '../lib/notificationFeedTypes';
 import { formatError } from '../lib/errors';
@@ -124,6 +125,13 @@ export function NotificationsScreen({ navigation }: Props) {
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
     load();
+  }, [load]);
+
+  useEffect(() => {
+    return subscribeNotificationRefresh(() => {
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      load({ refresh: true });
+    });
   }, [load]);
 
   async function onMarkAllRead() {

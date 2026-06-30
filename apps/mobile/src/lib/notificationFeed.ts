@@ -23,8 +23,14 @@ export async function fetchNotifications(
   });
 }
 
-export async function fetchNotificationUnreadCount(auth: ApiAuth): Promise<number> {
-  const res = await api.getJson<{ unreadCount: number }>('/api/notifications/unread-count', {
+export async function fetchNotificationUnreadCount(
+  auth: ApiAuth,
+  opts?: { sync?: boolean },
+): Promise<number> {
+  const parts: string[] = [];
+  if (opts?.sync) parts.push('sync=1');
+  const qs = parts.length ? `?${parts.join('&')}` : '';
+  const res = await api.getJson<{ unreadCount: number }>(`/api/notifications/unread-count${qs}`, {
     headers: withAuthHeaders(auth),
   });
   return res.unreadCount ?? 0;

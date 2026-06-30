@@ -13,8 +13,12 @@ import {
 } from '../lib/ghlWebhookEvents';
 import { assertGhlWebhookAuthorized } from '../lib/webhookAuth';
 import { upsertNotification } from '../services/notificationService';
-import { conversationNotificationDedupeKey } from '../lib/notificationHelpers';
-import { sendConversationPush } from '../services/pushService';
+import {
+  appointmentNotificationDedupeKey,
+  conversationNotificationDedupeKey,
+  taskNotificationDedupeKey,
+} from '../lib/notificationHelpers';
+import { sendAppointmentPush, sendConversationPush, sendTaskPush } from '../services/pushService';
 import { tokenVault } from '../services/tokenVault';
 
 export const webhooksRouter = Router();
@@ -117,15 +121,24 @@ webhooksRouter.post('/ghl', async (req, res, next) => {
           type: 'appointments',
           title,
           body: startLabel,
-          dedupeKey: `appointment:create:${appt.appointmentId}`,
+          dedupeKey: appointmentNotificationDedupeKey(appt.appointmentId),
           targetGhlUserId: appt.assignedUserId,
+          markUnread: true,
           action: {
             kind: 'appointment',
             appointmentId: appt.appointmentId,
             contactId: appt.contactId,
           },
         });
-        res.json({ ok: true, action: 'appointment_create_notification' });
+        const sent = await sendAppointmentPush({
+          locationId: appt.locationId,
+          appointmentId: appt.appointmentId,
+          contactId: appt.contactId,
+          assignedTo: appt.assignedUserId,
+          title,
+          body: startLabel,
+        });
+        res.json({ ok: true, action: 'appointment_create_notification', sent });
         return;
       }
       res.json({ ok: true, action: 'appointment_create_ignored', reason: 'missing ids' });
@@ -143,8 +156,9 @@ webhooksRouter.post('/ghl', async (req, res, next) => {
           type: 'tasks',
           title,
           body: bodyText.slice(0, 200),
-          dedupeKey: `task:create:${task.taskId}`,
+          dedupeKey: taskNotificationDedupeKey(task.taskId),
           targetGhlUserId: task.assignedTo,
+          markUnread: true,
           action: {
             kind: 'task',
             taskId: task.taskId,
@@ -152,7 +166,15 @@ webhooksRouter.post('/ghl', async (req, res, next) => {
             contactId: task.contactId,
           },
         });
-        res.json({ ok: true, action: 'task_create_notification' });
+        const sent = await sendTaskPush({
+          locationId: task.locationId,
+          taskId: task.taskId,
+          contactId: task.contactId,
+          assignedTo: task.assignedTo,
+          title,
+          body: bodyText.slice(0, 200),
+        });
+        res.json({ ok: true, action: 'task_create_notification', sent });
         return;
       }
       res.json({ ok: true, action: 'task_create_ignored', reason: 'missing ids' });

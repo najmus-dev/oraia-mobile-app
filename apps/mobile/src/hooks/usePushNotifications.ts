@@ -1,19 +1,26 @@
 import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 import { useAppState } from '../state/AppState';
+import { emitNotificationRefresh } from '../lib/notificationEvents';
 import {
-  extractConversationPushData,
+  extractPushNavigationTarget,
   registerForPushNotificationsAsync,
   syncPushTokenWithApi,
   unregisterPushTokenFromApi,
 } from '../lib/pushNotifications';
-import { navigateToConversationFromPush } from '../lib/navigationRef';
+import { navigateFromPushTarget } from '../lib/navigationRef';
 
 type RegisteredPush = {
   pushToken: string;
   authToken: string;
   locationId: string;
 };
+
+function openFromNotification(data: Record<string, unknown> | undefined) {
+  const target = extractPushNavigationTarget(data);
+  if (!target) return;
+  navigateFromPushTarget(target);
+}
 
 export function usePushNotifications(): void {
   const { token, locationId } = useAppState();
@@ -38,7 +45,7 @@ export function usePushNotifications(): void {
         await syncPushTokenWithApi(pushToken, token, locationId);
         registeredRef.current = { pushToken, authToken: token, locationId };
       } catch {
-        // permissions denied or simulator
+        // permissions denied or simulator — surfaced via missing badge updates only
       }
     })();
 
@@ -48,20 +55,22 @@ export function usePushNotifications(): void {
   }, [token, locationId]);
 
   useEffect(() => {
-    function openFromNotification(data: Record<string, unknown> | undefined) {
-      const parsed = extractConversationPushData(data);
-      if (!parsed) return;
-      navigateToConversationFromPush(parsed);
-    }
-
     const last = Notifications.getLastNotificationResponse();
     if (last) {
       openFromNotification(last.notification.request.content.data as Record<string, unknown>);
     }
 
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+    const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
       openFromNotification(response.notification.request.content.data as Record<string, unknown>);
     });
-    return () => sub.remove();
+
+    const receivedSub = Notifications.addNotificationReceivedListener(() => {
+      emitNotificationRefresh();
+    });
+
+    return () => {
+      responseSub.remove();
+      receivedSub.remove();
+    };
   }, []);
 }

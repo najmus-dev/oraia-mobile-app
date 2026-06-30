@@ -38,6 +38,17 @@ describe('ghlWebhookEvents', () => {
     assert.equal(inboundMessagePreview(parsed!), 'Hello there');
   });
 
+  it('falls back to userId when assignedTo is absent', () => {
+    const parsed = parseInboundMessage({
+      type: 'InboundMessage',
+      locationId: 'loc_1',
+      conversationId: 'convo_1',
+      userId: 'user_99',
+      body: 'Hi',
+    });
+    assert.equal(parsed?.assignedTo, 'user_99');
+  });
+
   it('strips html from email preview', () => {
     const preview = inboundMessagePreview({
       locationId: 'loc_1',

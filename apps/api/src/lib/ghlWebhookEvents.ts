@@ -38,7 +38,12 @@ export function parseInboundMessage(body: unknown): InboundMessageWebhook | null
         : typeof record.id === 'string'
           ? record.id.trim()
           : undefined,
-    assignedTo: typeof record.assignedTo === 'string' ? record.assignedTo.trim() : undefined,
+    assignedTo:
+      typeof record.assignedTo === 'string'
+        ? record.assignedTo.trim()
+        : typeof record.userId === 'string'
+          ? record.userId.trim()
+          : undefined,
     body: typeof record.body === 'string' ? record.body : undefined,
     messageType: typeof record.messageType === 'string' ? record.messageType : undefined,
     direction: typeof record.direction === 'string' ? record.direction : undefined,

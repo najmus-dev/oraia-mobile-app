@@ -3,9 +3,12 @@ import { Notification, type NotificationDocument } from '../models/Notification'
 import type { CreateNotificationInput, NotificationType } from '../lib/notificationTypes';
 import { normalizeConversationDate } from '../lib/conversationDates';
 import {
+  appointmentNotificationDedupeKey,
   conversationNotificationDedupeKey,
   firstNotificationOccurredAt,
+  notificationVisibilityFilter,
   resolveNotificationOccurredAt,
+  taskNotificationDedupeKey,
 } from '../lib/notificationHelpers';
 import { listAllCalendarEvents } from '../lib/ghlAggregates';
 import { localDayBounds } from '../lib/dashboardDayBounds';
@@ -47,16 +50,50 @@ function toDto(doc: NotificationDocument): NotificationDto {
 }
 
 function visibilityFilter(user: UserDocument) {
-  const ghlUserId = user.ghlUserId?.trim();
-  if (user.role === 'agency_admin') {
-    return {};
-  }
-  if (!ghlUserId) {
-    return { targetGhlUserId: { $exists: false } };
-  }
-  return {
-    $or: [{ targetGhlUserId: { $exists: false } }, { targetGhlUserId: null }, { targetGhlUserId: ghlUserId }],
+  return notificationVisibilityFilter({
+    role: user.role,
+    ghlUserId: user.ghlUserId,
+  });
+}
+
+function buildListQuery(input: {
+  user: UserDocument;
+  locationId: string;
+  type?: NotificationType;
+  status?: 'read' | 'unread';
+  cursor?: string;
+}): Record<string, unknown> {
+  const query: Record<string, unknown> = {
+    locationId: input.locationId,
   };
+  if (input.type) query.type = input.type;
+  if (input.status) query.status = input.status;
+
+  const visibility = visibilityFilter(input.user);
+  const andClauses: Record<string, unknown>[] = [];
+  if (Object.keys(visibility).length > 0) {
+    andClauses.push(visibility);
+  }
+
+  if (input.cursor) {
+    const cursorDate = new Date(input.cursor);
+    if (!Number.isNaN(cursorDate.getTime())) {
+      andClauses.push({
+        $or: [
+          { occurredAt: { $lt: cursorDate } },
+          { occurredAt: { $exists: false }, createdAt: { $lt: cursorDate } },
+        ],
+      });
+    }
+  }
+
+  if (andClauses.length === 1) {
+    Object.assign(query, andClauses[0]);
+  } else if (andClauses.length > 1) {
+    query.$and = andClauses;
+  }
+
+  return query;
 }
 
 export async function upsertNotification(input: CreateNotificationInput): Promise<NotificationDto | null> {
@@ -99,21 +136,7 @@ export async function listNotifications(input: {
   cursor?: string;
 }): Promise<{ notifications: NotificationDto[]; nextCursor?: string; unreadCount: number }> {
   const limit = Math.min(input.limit ?? 30, 100);
-  const query: Record<string, unknown> = {
-    locationId: input.locationId,
-    ...visibilityFilter(input.user),
-  };
-  if (input.type) query.type = input.type;
-  if (input.status) query.status = input.status;
-  if (input.cursor) {
-    const cursorDate = new Date(input.cursor);
-    if (!Number.isNaN(cursorDate.getTime())) {
-      query.$or = [
-        { occurredAt: { $lt: cursorDate } },
-        { occurredAt: { $exists: false }, createdAt: { $lt: cursorDate } },
-      ];
-    }
-  }
+  const query = buildListQuery(input);
 
   const [rows, unreadCount] = await Promise.all([
     Notification.find(query).sort({ occurredAt: -1, createdAt: -1 }).limit(limit + 1),
@@ -266,7 +289,7 @@ export async function syncNotificationsFromGhl(input: {
       type: 'tasks',
       title,
       body: body.slice(0, 200),
-      dedupeKey: `task:pending:${t.id}`,
+      dedupeKey: taskNotificationDedupeKey(t.id),
       targetGhlUserId: t.assignedTo?.trim() || undefined,
       occurredAt: firstNotificationOccurredAt(t.dueDate, t.dateAdded),
       action: {
@@ -293,7 +316,7 @@ export async function syncNotificationsFromGhl(input: {
       type: 'appointments',
       title,
       body: startLabel ? `Starts at ${startLabel}` : 'Scheduled for today',
-      dedupeKey: `appointment:today:${e.id}`,
+      dedupeKey: appointmentNotificationDedupeKey(e.id),
       occurredAt: firstNotificationOccurredAt(e.startTime),
       action: {
         kind: 'appointment',
