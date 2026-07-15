@@ -7,7 +7,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'ORAIA CRM',
   slug: 'oraia-mobile',
-  version: '1.0.0',
+  scheme: 'oraiacrm',
+  version: '1.0.1',
   runtimeVersion: {
     policy: 'appVersion',
   },
@@ -40,6 +41,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     package: 'com.oraiacrm.app',
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
+    softwareKeyboardLayoutMode: 'resize',
   },
   web: {
     favicon: './assets/oraia-logo.png',

@@ -25,7 +25,6 @@ export function TaskActionSheet({
   onViewContact,
   onDelete,
 }: Props) {
-  const theme = useTheme();
   const styles = useThemedStyles(createStyles);
   if (!task) return null;
 
@@ -70,6 +69,8 @@ function ActionRow({
   destructive?: boolean;
   disabled?: boolean;
 }) {
+  const theme = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <Pressable
       style={[styles.actionRow, disabled && styles.actionRowDisabled]}

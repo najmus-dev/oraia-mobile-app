@@ -18,6 +18,7 @@ import {
   signupAppUser,
   toPublicUser,
 } from '../services/authService';
+import { notifyAdminsOfSignup } from '../services/emailService';
 import { resolveAndPersistGhlUserId } from '../services/ghlUserResolver';
 import { param } from '../lib/params';
 
@@ -84,6 +85,8 @@ authRouter.post('/signup', signupLimiter, async (req, res, next) => {
       throw new AppError(400, 'email and password are required', 'VALIDATION_ERROR');
     }
     const user = await signupAppUser({ email, password });
+    // Fire-and-forget — signup must not fail or slow down if email delivery has issues
+    void notifyAdminsOfSignup({ email: user.email, userId: String(user._id) });
     const token = signToken(user);
     res.status(201).json({
       token,

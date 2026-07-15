@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { NavigationContainer, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { RootStackParamList } from './types';
@@ -9,7 +9,8 @@ import { LocationPickerScreen } from '../screens/LocationPickerScreen';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { navigationRef } from '../lib/navigationRef';
 import { useAppState } from '../state/AppState';
-import { isAccountPending } from '../store/auth';
+import { resolveAuthRoute } from './useAuthNavigationSync';
+import { useAuthNavigationSync } from './useAuthNavigationSync';
 import { MainTabs } from './MainTabs';
 import { getActiveRouteName, NavigationStatusBar } from './NavigationStatusBar';
 import { useTheme } from '../hooks/useTheme';
@@ -42,55 +43,41 @@ export function AppNavigator() {
   const navTheme = useMemo(() => createNavTheme(theme), [theme]);
   const { token, user, locationId } = useAppState();
   usePushNotifications();
+  useAuthNavigationSync(navigationRef, { token, user, locationId });
 
-  const pending = Boolean(token && isAccountPending(user));
-  const navKey = !token ? 'guest' : pending ? 'pending' : !locationId ? 'pick-location' : 'main';
+  const initialRoute = useMemo(
+    () => resolveAuthRoute({ token, user, locationId }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- bootstrap only after splash hydration
+    [],
+  );
 
-  const bootstrapRoute = useMemo(() => {
-    if (!token) return 'Login';
-    if (pending) return 'PendingApproval';
-    if (!locationId) return 'LocationPicker';
-    return undefined;
-  }, [token, pending, locationId]);
-
-  const [activeRoute, setActiveRoute] = useState<string | undefined>(bootstrapRoute);
+  const [activeRoute, setActiveRoute] = useState<string | undefined>(initialRoute);
 
   const syncActiveRoute = useCallback(() => {
     if (!navigationRef.isReady()) return;
     setActiveRoute(getActiveRouteName(navigationRef.getRootState()));
   }, []);
 
-  useEffect(() => {
-    setActiveRoute(bootstrapRoute);
-  }, [navKey, bootstrapRoute]);
-
   return (
     <NavigationContainer
       ref={navigationRef}
-      key={navKey}
       theme={navTheme}
       onReady={syncActiveRoute}
       onStateChange={syncActiveRoute}
     >
       <Stack.Navigator
+        initialRouteName={initialRoute}
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: theme.colors.background },
+          contentStyle: { backgroundColor: theme.colors.shell },
           animation: 'fade',
         }}
       >
-        {!token ? (
-          <>
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="SignUp" component={SignUpScreen} />
-          </>
-        ) : pending ? (
-          <Stack.Screen name="PendingApproval" component={PendingApprovalScreen} />
-        ) : !locationId ? (
-          <Stack.Screen name="LocationPicker" component={LocationPickerScreen} />
-        ) : (
-          <Stack.Screen name="Main" component={MainTabs} />
-        )}
+        <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="SignUp" component={SignUpScreen} />
+        <Stack.Screen name="PendingApproval" component={PendingApprovalScreen} />
+        <Stack.Screen name="LocationPicker" component={LocationPickerScreen} />
+        <Stack.Screen name="Main" component={MainTabs} />
       </Stack.Navigator>
       <NavigationStatusBar routeName={activeRoute} />
     </NavigationContainer>

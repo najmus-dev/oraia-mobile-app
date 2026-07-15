@@ -252,7 +252,7 @@ export function SearchScreen({ navigation }: Props) {
           style={[styles.settingsBtn, { top: headerTop }]}
           hitSlop={8}
           onPress={() =>
-            parentNav?.navigate('HomeTab' as never, { screen: 'Settings' } as never)
+            tabNav?.navigate('HomeTab' as never, { screen: 'Settings' } as never)
           }
           accessibilityRole="button"
           accessibilityLabel="Settings"
@@ -359,7 +359,7 @@ export function SearchScreen({ navigation }: Props) {
                 <Pressable
                   key={app.id}
                   style={styles.suggestedItem}
-                  onPress={() => openCrmApp(app.id, parentNav ?? undefined)}
+                  onPress={() => openCrmApp(app.id, tabNav)}
                   accessibilityRole="button"
                 >
                   <View style={[styles.suggestedCircle, { borderColor: `${accent}55` }]}>

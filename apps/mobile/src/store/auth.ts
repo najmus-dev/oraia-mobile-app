@@ -9,11 +9,11 @@ export type AuthUser = {
   ghlUserId?: string;
 };
 
-export function isAccountPending(user: AuthUser | null | undefined): boolean {
+export function isAccountPending(user: Pick<AuthUser, 'status'> | null | undefined): boolean {
   return user?.status === 'pending';
 }
 
-export function isAccountActive(user: AuthUser | null | undefined): boolean {
+export function isAccountActive(user: Pick<AuthUser, 'status'> | null | undefined): boolean {
   return !user?.status || user.status === 'active';
 }
 

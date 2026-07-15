@@ -63,4 +63,31 @@ export const config = {
     /** When false, inbound webhooks are accepted but no push is sent */
     enabled: process.env.PUSH_NOTIFICATIONS_ENABLED !== 'false',
   },
+  email: {
+    /** e.g. "gmail" — when set, nodemailer uses the well-known service preset */
+    smtpService: process.env.SMTP_SERVICE?.trim(),
+    /** SMTP settings — when neither service nor host is set, emails are skipped (logged only). */
+    smtpHost: process.env.SMTP_HOST?.trim(),
+    smtpPort: Number(optionalEnv('SMTP_PORT', '587')),
+    /** true = TLS from the start (port 465); false = STARTTLS upgrade (port 587) */
+    smtpSecure:
+      process.env.SMTP_SECURE?.trim() === 'true' || optionalEnv('SMTP_PORT', '587') === '465',
+    smtpUser: process.env.SMTP_MAIL?.trim() || process.env.SMTP_USER?.trim(),
+    smtpPass: process.env.SMTP_PASSWORD?.trim() || process.env.SMTP_PASS?.trim(),
+    from:
+      process.env.EMAIL_FROM?.trim() ||
+      process.env.SMTP_MAIL?.trim() ||
+      process.env.SMTP_USER?.trim(),
+    /** Comma-separated recipients for new-signup notifications. Falls back to sender, then bootstrap admin. */
+    adminNotifyEmails: (
+      process.env.ADMIN_NOTIFY_EMAILS?.trim() ||
+      process.env.SMTP_MAIL?.trim() ||
+      process.env.SMTP_USER?.trim() ||
+      process.env.BOOTSTRAP_ADMIN_EMAIL?.trim() ||
+      ''
+    )
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  },
 };
