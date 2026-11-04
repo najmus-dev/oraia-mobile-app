@@ -43,21 +43,62 @@ Local dev: omit all three to allow unsigned `curl` testing.
 
 **Important:** Company tokens in `.env` are only loaded via `npm run seed` when MongoDB is empty — server boot no longer overwrites OAuth-refreshed tokens on redeploy.
 
-### Push notifications (Build 3)
+### Push notifications (SMS + calls)
+
+GHL’s marketplace app sends SMS **and** calls on the same webhook: **InboundMessage**. Official payload examples:
+
+- SMS: `"type":"InboundMessage"`, `"messageType":"SMS"`
+- Answered call: `"messageType":"CALL"`, `"callStatus":"completed"`
+- Voicemail: `"messageType":"CALL"` (or `TYPE_VOICEMAIL`), `"callStatus":"voicemail"`
+
+Live ringing (the phone UI while it is ringing) is **LC Phone / the official HighLevel app only**. Oraia notifies after the inbound SMS, missed call, or voicemail the same way other marketplace apps do.
 
 In **Marketplace → My Apps → Advanced settings → Webhooks**, enable:
 
-- **InboundMessage** — push + in-app notification when a contact messages in
-- **AppointmentCreate** — push + in-app notification for new appointments
-- **TaskCreate** — push + in-app notification for new tasks
+- **InboundMessage** — required for SMS, missed calls, and voicemail
+- **ConversationUnreadUpdate** — in-app unread backup if a message webhook is missed
+- **AppointmentCreate** — new appointments
+- **TaskCreate** — new tasks
 
-Android pushes use notification channels (`messages`, `tasks`, `appointments`) with `channelId` in the payload — required for delivery when the app is closed.
+Default webhook URL:
 
-Upload **FCM V1 credentials** to your Expo project (`eas credentials` or expo.dev → Credentials) before testing production Android builds.
+```text
+https://oraia-mobile-app.onrender.com/webhooks/ghl
+```
 
-The mobile app registers an Expo push token per user + location via `POST /api/push-tokens/register`.
+Android channels: `messages`, `calls`, `tasks`, `appointments`. Upload **FCM V1 credentials** on expo.dev → Credentials before a preview/production APK will show banners (Expo Go does not need this).
 
-Set `PUSH_NOTIFICATIONS_ENABLED=false` on the API to accept webhooks without sending pushes (useful in dev).
+Who gets the push:
+
+- Conversation assigned to a GHL user → that ORAIA account **and** agency admins
+- Unassigned, or the GHL user has no ORAIA login → everyone with access to that sub-account
+
+The app registers an Expo push token per user (`POST /api/push-tokens/register`). Tokens follow the user across location switches.
+
+Set `PUSH_NOTIFICATIONS_ENABLED=false` on the API to accept webhooks without sending pushes.
+
+### Local check (no ngrok)
+
+API running on port 3000, unsigned webhooks allowed in development. Use a **physical phone** (emulators do not get Expo pushes).
+
+1. Sign in on the phone, allow notifications, open **Settings → Send test notification**.
+2. Simulate an inbound SMS:
+
+```bash
+curl -X POST http://localhost:3000/webhooks/ghl \
+  -H "Content-Type: application/json" \
+  -d "{\"type\":\"InboundMessage\",\"locationId\":\"YOUR_LOCATION_ID\",\"conversationId\":\"convo_test\",\"contactId\":\"contact_test\",\"messageId\":\"msg_sms_1\",\"messageType\":\"SMS\",\"direction\":\"inbound\",\"from\":\"+15551234567\",\"body\":\"Local SMS test\"}"
+```
+
+3. Simulate a missed call / voicemail:
+
+```bash
+curl -X POST http://localhost:3000/webhooks/ghl \
+  -H "Content-Type: application/json" \
+  -d "{\"type\":\"InboundMessage\",\"locationId\":\"YOUR_LOCATION_ID\",\"conversationId\":\"convo_test\",\"messageId\":\"msg_call_1\",\"messageType\":\"CALL\",\"direction\":\"inbound\",\"from\":\"+15551234567\",\"status\":\"voicemail\",\"callStatus\":\"voicemail\",\"messageTypeString\":\"TYPE_VOICEMAIL\"}"
+```
+
+The phone should show **SMS from …** or **Voicemail from …**. After that works, deploy the API and rebuild the Expo preview APK.
 
 ---
 

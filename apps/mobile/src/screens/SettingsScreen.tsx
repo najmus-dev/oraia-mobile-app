@@ -1,9 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Constants from 'expo-constants';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../lib/api';
+import { formatError } from '../lib/errors';
+import {
+  registerForPushNotificationsAsync,
+  remotePushUnavailableMessage,
+  sendTestPushToApi,
+  syncPushTokenWithApi,
+} from '../lib/pushNotifications';
 import { useFullScreenBottomInset, useHeaderTopPadding } from '../lib/safeArea';
 import { userDisplayName, userInitials } from '../lib/userDisplay';
 import { useTheme, useThemedStyles } from '../hooks/useTheme';
@@ -35,11 +42,13 @@ export function SettingsScreen({ navigation }: Props) {
   const { preference: appearance, setPreference: setAppearance } = useThemeState();
   const paddingTop = useHeaderTopPadding();
   const bodyBottom = useFullScreenBottomInset();
-  const { user, locationId, locationName, apiBaseUrl, setApiBaseUrl, clearSession } = useAppState();
+  const { user, token, locationId, locationName, apiBaseUrl, setApiBaseUrl, clearSession } =
+    useAppState();
   const [language, setLanguage] = useState<(typeof LANGUAGE_OPTIONS)[number]['key']>('en');
   const [languageSheetOpen, setLanguageSheetOpen] = useState(false);
   const [locationSheetOpen, setLocationSheetOpen] = useState(false);
   const [draftBaseUrl, setDraftBaseUrl] = useState(apiBaseUrl);
+  const [testingPush, setTestingPush] = useState(false);
 
   const displayName = userDisplayName(user?.email);
   const initials = userInitials(user?.email);
@@ -57,6 +66,36 @@ export function SettingsScreen({ navigation }: Props) {
     }
     setApiBaseUrl(draftBaseUrl);
     Alert.alert('Saved', 'API host updated.');
+  }
+
+  async function sendTestNotification() {
+    if (!token || !locationId) {
+      Alert.alert('Notifications', 'Sign in and pick a location first.');
+      return;
+    }
+    setTestingPush(true);
+    try {
+      const unavailable = remotePushUnavailableMessage();
+      if (unavailable) {
+        Alert.alert('Notifications', unavailable);
+        return;
+      }
+      const pushToken = await registerForPushNotificationsAsync();
+      if (!pushToken) {
+        Alert.alert(
+          'Notifications',
+          'This phone did not register for alerts. Use a physical device, allow notifications, then try again.',
+        );
+        return;
+      }
+      await syncPushTokenWithApi(pushToken, token, locationId);
+      await sendTestPushToApi(token, locationId);
+      Alert.alert('Notifications', 'Test alert sent. You should see it on this phone in a few seconds.');
+    } catch (err) {
+      Alert.alert('Notifications', formatError(err));
+    } finally {
+      setTestingPush(false);
+    }
   }
 
   function signOut() {
@@ -119,12 +158,26 @@ export function SettingsScreen({ navigation }: Props) {
           </SettingsGroup>
         </SettingsSection>
 
-        <SettingsSection title="Calls">
+        <SettingsSection title="Notifications">
           <SettingsGroup>
             <SettingsRow
+              icon="notifications-outline"
+              label={testingPush ? 'Sending test…' : 'Send test notification'}
+              onPress={() => {
+                if (!testingPush) {
+                  void sendTestNotification();
+                }
+              }}
+            />
+            <SettingsRow
               icon="call-outline"
-              label="Inbound Calls"
-              onPress={() => Alert.alert('Inbound Calls', 'Inbound call settings are coming soon.')}
+              label="SMS & call alerts"
+              onPress={() =>
+                Alert.alert(
+                  'SMS & call alerts',
+                  'Inbound SMS, missed calls, and voicemail notify this phone like HighLevel. Live ringing still uses the HighLevel LC Phone app.',
+                )
+              }
               last
             />
           </SettingsGroup>

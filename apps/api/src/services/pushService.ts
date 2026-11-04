@@ -1,13 +1,15 @@
 import { Expo, type ExpoPushMessage, type ExpoPushTicket } from 'expo-server-sdk';
 import { logger } from '../lib/logger';
 import { config } from '../config';
+import { AppError } from '../lib/errors';
+import { selectPushRecipientIds } from '../lib/pushRecipients';
 import { PushDedup } from '../models/PushDedup';
 import { PushToken } from '../models/PushToken';
 import { User } from '../models/User';
 
 const expo = new Expo();
 
-export type PushChannel = 'messages' | 'tasks' | 'appointments';
+export type PushChannel = 'messages' | 'calls' | 'tasks' | 'appointments';
 
 export type NotificationPushPayload = {
   locationId: string;
@@ -28,10 +30,12 @@ export type ConversationPushPayload = {
   assignedTo?: string;
   title: string;
   body: string;
+  channel?: PushChannel;
 };
 
 const CHANNEL_BY_KIND: Record<string, PushChannel> = {
   conversation: 'messages',
+  call: 'calls',
   task: 'tasks',
   appointment: 'appointments',
 };
@@ -63,7 +67,7 @@ export async function registerPushToken(input: {
   deviceName?: string;
 }): Promise<void> {
   if (!Expo.isExpoPushToken(input.token)) {
-    throw new Error('Invalid Expo push token');
+    throw new AppError(400, 'Invalid Expo push token', 'VALIDATION_ERROR');
   }
   await PushToken.findOneAndUpdate(
     { token: input.token },
@@ -74,7 +78,7 @@ export async function registerPushToken(input: {
       platform: input.platform,
       deviceName: input.deviceName,
     },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
+    { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
   );
 }
 
@@ -85,21 +89,15 @@ export async function unregisterPushToken(userId: string, token: string): Promis
 async function resolveTargetUserIds(
   locationId: string,
   assignedTo?: string,
-): Promise<string[] | null> {
-  const ghlUserId = assignedTo?.trim();
-  if (!ghlUserId) return null;
+): Promise<string[]> {
+  const users = await User.find({
+    status: { $ne: 'rejected' },
+    $or: [{ role: 'agency_admin' }, { allowedLocationIds: locationId }],
+  })
+    .select('_id role status allowedLocationIds ghlUserId')
+    .lean();
 
-  const users = await User.find({ ghlUserId }).select('_id allowedLocationIds role').lean();
-  const ids = users
-    .filter(
-      (u) =>
-        u.role === 'agency_admin' ||
-        !u.allowedLocationIds?.length ||
-        u.allowedLocationIds.includes(locationId),
-    )
-    .map((u) => String(u._id));
-
-  return ids.length > 0 ? ids : null;
+  return selectPushRecipientIds(users, locationId, assignedTo);
 }
 
 async function removeStaleTokens(tokens: string[]): Promise<void> {
@@ -123,6 +121,28 @@ function collectStaleTokensFromTickets(
   return stale;
 }
 
+async function deliverPush(
+  tokens: { token: string }[],
+  payload: NotificationPushPayload,
+): Promise<number> {
+  const valid = tokens.filter((entry) => Expo.isExpoPushToken(entry.token));
+  if (valid.length === 0) return 0;
+
+  const messages = buildExpoPushMessages(valid, payload);
+  const chunks = expo.chunkPushNotifications(messages);
+  let sent = 0;
+  const staleTokens: string[] = [];
+
+  for (const chunk of chunks) {
+    const tickets = await expo.sendPushNotificationsAsync(chunk);
+    sent += tickets.filter((ticket) => ticket.status === 'ok').length;
+    staleTokens.push(...collectStaleTokensFromTickets(chunk, tickets));
+  }
+
+  await removeStaleTokens(staleTokens);
+  return sent;
+}
+
 export async function sendNotificationPush(payload: NotificationPushPayload): Promise<number> {
   if (!config.push.enabled) {
     logger.info('Push disabled — skipping notification', {
@@ -142,15 +162,8 @@ export async function sendNotificationPush(payload: NotificationPushPayload): Pr
   }
 
   const targetUserIds = await resolveTargetUserIds(payload.locationId, payload.assignedTo);
-  const tokenQuery =
-    targetUserIds && targetUserIds.length > 0
-      ? { locationId: payload.locationId, userId: { $in: targetUserIds } }
-      : { locationId: payload.locationId };
-
-  const tokens = await PushToken.find(tokenQuery).lean();
-  const valid = tokens.filter((t) => Expo.isExpoPushToken(t.token));
-  if (valid.length === 0) {
-    logger.info('No push tokens for notification', {
+  if (targetUserIds.length === 0) {
+    logger.info('No ORAIA users to notify', {
       locationId: payload.locationId,
       type: payload.data.type,
       assignedTo: payload.assignedTo ?? null,
@@ -158,20 +171,19 @@ export async function sendNotificationPush(payload: NotificationPushPayload): Pr
     return 0;
   }
 
-  const messages = buildExpoPushMessages(valid, payload);
-  const chunks = expo.chunkPushNotifications(messages);
-  let sent = 0;
-  const staleTokens: string[] = [];
-
-  for (const chunk of chunks) {
-    const tickets = await expo.sendPushNotificationsAsync(chunk);
-    sent += tickets.filter((t) => t.status === 'ok').length;
-    staleTokens.push(...collectStaleTokensFromTickets(chunk, tickets));
+  const tokens = await PushToken.find({ userId: { $in: targetUserIds } }).lean();
+  const sent = await deliverPush(tokens, payload);
+  if (sent === 0) {
+    logger.info('No push tokens for notification', {
+      locationId: payload.locationId,
+      type: payload.data.type,
+      assignedTo: payload.assignedTo ?? null,
+      users: targetUserIds.length,
+    });
+    return 0;
   }
 
-  await removeStaleTokens(staleTokens);
-
-  if (dedupeId && sent > 0) {
+  if (dedupeId) {
     await PushDedup.create({
       messageId: dedupeId,
       locationId: payload.locationId,
@@ -194,17 +206,49 @@ export async function sendNotificationPush(payload: NotificationPushPayload): Pr
 export async function sendConversationPush(payload: ConversationPushPayload): Promise<number> {
   return sendNotificationPush({
     locationId: payload.locationId,
-    channel: CHANNEL_BY_KIND.conversation,
+    channel: payload.channel ?? CHANNEL_BY_KIND.conversation,
     title: payload.title,
     body: payload.body,
     assignedTo: payload.assignedTo,
-    dedupeId: payload.messageId?.trim(),
+    dedupeId:
+      payload.messageId?.trim() ||
+      `conversation:${payload.conversationId}:${payload.title}:${payload.body}`.slice(0, 180),
     data: {
       type: 'conversation',
       conversationId: payload.conversationId,
       contactId: payload.contactId ?? '',
     },
   });
+}
+
+export async function sendTestPushToUser(input: {
+  userId: string;
+  locationId: string;
+}): Promise<number> {
+  if (!config.push.enabled) {
+    throw new AppError(503, 'Push notifications are disabled on the API', 'PUSH_DISABLED');
+  }
+
+  const tokens = await PushToken.find({ userId: input.userId }).lean();
+  const payload: NotificationPushPayload = {
+    locationId: input.locationId,
+    channel: 'messages',
+    title: 'Oraia test notification',
+    body: 'SMS and call alerts are working on this device.',
+    data: {
+      type: 'test',
+      locationId: input.locationId,
+    },
+  };
+  const sent = await deliverPush(tokens, payload);
+  if (sent === 0) {
+    throw new AppError(
+      400,
+      'No push token on this account. Open Oraia on a physical phone and allow notifications.',
+      'PUSH_TOKEN_MISSING',
+    );
+  }
+  return sent;
 }
 
 export async function sendTaskPush(input: {

@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { useAppState } from '../state/AppState';
 import { emitNotificationRefresh } from '../lib/notificationEvents';
+import { extractPushNavigationTarget } from '../lib/pushNavigation';
 import {
-  extractPushNavigationTarget,
   registerForPushNotificationsAsync,
   syncPushTokenWithApi,
   unregisterPushTokenFromApi,
@@ -44,13 +45,28 @@ export function usePushNotifications(): void {
         if (!alive || !pushToken) return;
         await syncPushTokenWithApi(pushToken, token, locationId);
         registeredRef.current = { pushToken, authToken: token, locationId };
-      } catch {
-        // permissions denied or simulator — surfaced via missing badge updates only
+      } catch (err) {
+        console.warn('Push registration failed', err);
       }
     })();
 
+    const onAppActive = AppState.addEventListener('change', (state) => {
+      if (state !== 'active' || !alive || registeredRef.current) return;
+      void (async () => {
+        try {
+          const pushToken = await registerForPushNotificationsAsync();
+          if (!alive || !pushToken) return;
+          await syncPushTokenWithApi(pushToken, token, locationId);
+          registeredRef.current = { pushToken, authToken: token, locationId };
+        } catch (err) {
+          console.warn('Push registration retry failed', err);
+        }
+      })();
+    });
+
     return () => {
       alive = false;
+      onAppActive.remove();
     };
   }, [token, locationId]);
 

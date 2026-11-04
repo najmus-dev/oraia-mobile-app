@@ -34,4 +34,17 @@ describe('pushService', () => {
     assert.equal(messages[0]?.channelId, 'tasks');
     assert.equal(messages[0]?.data?.type, 'task');
   });
+
+  it('routes call pushes to the calls channel', () => {
+    const messages = buildExpoPushMessages([{ token: 'ExponentPushToken[test]' }], {
+      locationId: 'loc_1',
+      channel: 'calls',
+      title: 'Missed call from Sam',
+      body: 'Missed call',
+      data: { type: 'conversation', conversationId: 'con_1', contactId: '' },
+    });
+    assert.equal(messages[0]?.channelId, 'calls');
+    assert.equal(messages[0]?.priority, 'high');
+  });
 });
+

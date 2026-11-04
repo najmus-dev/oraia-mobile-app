@@ -4,13 +4,12 @@ import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { api, withAuthHeaders } from './api';
 
-export type PushNavigationTarget =
-  | { type: 'conversation'; conversationId: string; contactId?: string }
-  | { type: 'task'; taskId: string; contactId?: string }
-  | { type: 'appointment'; appointmentId: string; contactId?: string };
+export type { PushNavigationTarget } from './pushNavigation';
+export { extractConversationPushData, extractPushNavigationTarget } from './pushNavigation';
 
 const ANDROID_CHANNELS: { id: string; name: string }[] = [
   { id: 'messages', name: 'Messages' },
+  { id: 'calls', name: 'Calls' },
   { id: 'tasks', name: 'Tasks' },
   { id: 'appointments', name: 'Appointments' },
 ];
@@ -25,8 +24,26 @@ Notifications.setNotificationHandler({
   }),
 });
 
+export function isExpoGo(): boolean {
+  return Constants.appOwnership === 'expo';
+}
+
+export function remotePushUnavailableMessage(): string | null {
+  if (isExpoGo()) {
+    return 'Expo Go cannot receive SMS or call alerts. Install the Oraia preview APK (EAS build) to test notifications.';
+  }
+  if (!Device.isDevice) {
+    return 'Use a physical phone. Emulators do not receive push alerts.';
+  }
+  return null;
+}
+
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
-  if (!Device.isDevice) return null;
+  const blocked = remotePushUnavailableMessage();
+  if (blocked) {
+    console.warn(blocked);
+    return null;
+  }
 
   if (Platform.OS === 'android') {
     for (const channel of ANDROID_CHANNELS) {
@@ -34,6 +51,9 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
         name: channel.name,
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
+        sound: 'default',
+        enableVibrate: true,
+        showBadge: true,
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         bypassDnd: false,
       });
@@ -48,14 +68,25 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     });
     finalStatus = status;
   }
-  if (finalStatus !== 'granted') return null;
+  if (finalStatus !== 'granted') {
+    console.warn('Push permission not granted', { finalStatus });
+    return null;
+  }
 
   const projectId =
     Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
-  if (!projectId) return null;
+  if (!projectId) {
+    console.warn('Push skipped: missing EAS projectId');
+    return null;
+  }
 
-  const token = await Notifications.getExpoPushTokenAsync({ projectId });
-  return token.data;
+  try {
+    const token = await Notifications.getExpoPushTokenAsync({ projectId });
+    return token.data;
+  } catch (err) {
+    console.warn('Push token unavailable', err);
+    return null;
+  }
 }
 
 export async function syncPushTokenWithApi(
@@ -76,6 +107,15 @@ export async function syncPushTokenWithApi(
   );
 }
 
+export async function sendTestPushToApi(authToken: string, locationId: string): Promise<number> {
+  const res = await api.postJson<{ sent?: number }>(
+    '/api/push-tokens/test',
+    {},
+    { headers: withAuthHeaders({ token: authToken, locationId }) },
+  );
+  return res.sent ?? 0;
+}
+
 export async function unregisterPushTokenFromApi(
   pushToken: string,
   authToken: string,
@@ -92,55 +132,3 @@ export async function unregisterPushTokenFromApi(
   }
 }
 
-function readString(data: Record<string, unknown>, key: string): string | undefined {
-  const value = data[key];
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
-}
-
-export function extractPushNavigationTarget(
-  data: Record<string, unknown> | undefined,
-): PushNavigationTarget | null {
-  if (!data) return null;
-  const type = readString(data, 'type');
-
-  if (type === 'conversation') {
-    const conversationId = readString(data, 'conversationId');
-    if (!conversationId) return null;
-    return {
-      type: 'conversation',
-      conversationId,
-      contactId: readString(data, 'contactId'),
-    };
-  }
-
-  if (type === 'task') {
-    const taskId = readString(data, 'taskId');
-    if (!taskId) return null;
-    return {
-      type: 'task',
-      taskId,
-      contactId: readString(data, 'contactId'),
-    };
-  }
-
-  if (type === 'appointment') {
-    const appointmentId = readString(data, 'appointmentId');
-    if (!appointmentId) return null;
-    return {
-      type: 'appointment',
-      appointmentId,
-      contactId: readString(data, 'contactId'),
-    };
-  }
-
-  return null;
-}
-
-/** @deprecated Use extractPushNavigationTarget */
-export function extractConversationPushData(
-  data: Record<string, unknown> | undefined,
-): { conversationId: string; contactId?: string } | null {
-  const target = extractPushNavigationTarget(data);
-  if (!target || target.type !== 'conversation') return null;
-  return { conversationId: target.conversationId, contactId: target.contactId };
-}

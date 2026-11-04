@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { AppError } from '../lib/errors';
 import { locationPost } from '../middleware/locationRoute';
-import { registerPushToken, unregisterPushToken } from '../services/pushService';
+import { registerPushToken, sendTestPushToUser, unregisterPushToken } from '../services/pushService';
 import type { LocationScopedRequest } from '../middleware/location';
 
 export const pushTokensRouter = Router();
@@ -41,4 +41,12 @@ locationPost(pushTokensRouter, '/unregister', async (req: LocationScopedRequest,
   }
   await unregisterPushToken(req.user!._id.toString(), token);
   res.status(204).send();
+});
+
+locationPost(pushTokensRouter, '/test', async (req: LocationScopedRequest, res) => {
+  const sent = await sendTestPushToUser({
+    userId: req.user!._id.toString(),
+    locationId: req.locationId!,
+  });
+  res.json({ ok: true, sent });
 });

@@ -2,14 +2,18 @@ import { Router } from 'express';
 import { config } from '../config';
 import { logger } from '../lib/logger';
 import {
-  inboundMessagePreview,
+  inboundNotificationCopy,
   isAppointmentCreateEvent,
+  isConversationUnreadEvent,
+  isInboundDirection,
   isInboundMessageEvent,
   isTaskCreateEvent,
   normalizeWebhookEventType,
   parseAppointmentCreate,
+  parseConversationUnread,
   parseInboundMessage,
   parseTaskCreate,
+  unwrapWebhookPayload,
 } from '../lib/ghlWebhookEvents';
 import { assertGhlWebhookAuthorized } from '../lib/webhookAuth';
 import { upsertNotification } from '../services/notificationService';
@@ -49,18 +53,26 @@ function rawBodyBuffer(req: { body: unknown }): Buffer {
  * GHL marketplace webhooks.
  * Point your app webhook URL to: POST /webhooks/ghl
  *
- * Enable InboundMessage in GHL app advanced settings for push notifications.
+ * Enable InboundMessage in GHL app advanced settings for SMS and call push notifications.
  */
 webhooksRouter.post('/ghl', async (req, res, next) => {
   try {
     const rawBody = rawBodyBuffer(req);
     assertGhlWebhookAuthorized(req, rawBody);
-    const body = parseWebhookBody(req);
+    const body = unwrapWebhookPayload(parseWebhookBody(req));
     const type = normalizeWebhookEventType(body);
-    const locationId = body.locationId ?? body.id;
-    const companyId = body.companyId ?? config.ghl.companyId;
+    const locationId =
+      (typeof body.locationId === 'string' ? body.locationId : undefined) ??
+      (typeof body.id === 'string' ? body.id : undefined);
+    const companyId =
+      (typeof body.companyId === 'string' ? body.companyId : undefined) ?? config.ghl.companyId;
 
-    logger.info('GHL webhook received', { type, locationId, companyId });
+    logger.info('GHL webhook received', {
+      type,
+      locationId,
+      companyId,
+      messageType: typeof body.messageType === 'string' ? body.messageType : undefined,
+    });
 
     if (type.toUpperCase() === 'INSTALL' && locationId) {
       await tokenVault.provisionLocationOnInstall(locationId);
@@ -76,15 +88,13 @@ webhooksRouter.post('/ghl', async (req, res, next) => {
 
     if (isInboundMessageEvent(type)) {
       const inbound = parseInboundMessage(body);
-      if (inbound?.locationId && inbound.conversationId) {
-        const preview = inboundMessagePreview(inbound);
-        const fromLabel = inbound.from?.trim();
-        const title = fromLabel ? `Message from ${fromLabel}` : 'New message';
+      if (inbound?.locationId && inbound.conversationId && isInboundDirection(inbound.direction)) {
+        const copy = inboundNotificationCopy(inbound);
         await upsertNotification({
           locationId: inbound.locationId,
           type: 'conversations',
-          title,
-          body: preview,
+          title: copy.title,
+          body: copy.body,
           dedupeKey: conversationNotificationDedupeKey(inbound.conversationId),
           targetGhlUserId: inbound.assignedTo,
           occurredAt: inbound.dateAdded,
@@ -99,15 +109,46 @@ webhooksRouter.post('/ghl', async (req, res, next) => {
           locationId: inbound.locationId,
           conversationId: inbound.conversationId,
           contactId: inbound.contactId,
-          messageId: inbound.messageId,
+          messageId:
+            inbound.messageId ||
+            `${inbound.conversationId}:${inbound.dateAdded ?? inbound.body ?? copy.body}`,
           assignedTo: inbound.assignedTo,
-          title,
-          body: preview,
+          title: copy.title,
+          body: copy.body,
+          channel: copy.channel,
         });
         res.json({ ok: true, action: 'inbound_message_push', sent });
         return;
       }
-      res.json({ ok: true, action: 'inbound_message_ignored', reason: 'missing ids' });
+      res.json({
+        ok: true,
+        action: 'inbound_message_ignored',
+        reason: inbound && !isInboundDirection(inbound.direction) ? 'outbound' : 'missing ids',
+      });
+      return;
+    }
+
+    if (isConversationUnreadEvent(type)) {
+      const unread = parseConversationUnread(body);
+      if (unread?.locationId && unread.conversationId && unread.unreadCount > 0) {
+        await upsertNotification({
+          locationId: unread.locationId,
+          type: 'conversations',
+          title: 'New message',
+          body: 'Unread conversation',
+          dedupeKey: conversationNotificationDedupeKey(unread.conversationId),
+          targetGhlUserId: unread.assignedTo,
+          markUnread: true,
+          action: {
+            kind: 'conversation',
+            conversationId: unread.conversationId,
+            contactId: unread.contactId,
+          },
+        });
+        res.json({ ok: true, action: 'conversation_unread_recorded' });
+        return;
+      }
+      res.json({ ok: true, action: 'conversation_unread_ignored' });
       return;
     }
 
