@@ -42,10 +42,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
     softwareKeyboardLayoutMode: 'resize',
+    googleServicesFile: './google-services.json',
     permissions: [
       'android.permission.POST_NOTIFICATIONS',
-      'android.permission.VIBRATE',
       'android.permission.RECEIVE_BOOT_COMPLETED',
+      'android.permission.VIBRATE',
     ],
   },
   web: {

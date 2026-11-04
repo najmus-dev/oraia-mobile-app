@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
@@ -38,11 +38,18 @@ export function remotePushUnavailableMessage(): string | null {
   return null;
 }
 
-export async function registerForPushNotificationsAsync(): Promise<string | null> {
+export async function openAppNotificationSettings(): Promise<void> {
+  try {
+    await Linking.openSettings();
+  } catch {
+    // device may not support settings deep link
+  }
+}
+
+export async function registerForPushNotificationsAsync(): Promise<string> {
   const blocked = remotePushUnavailableMessage();
   if (blocked) {
-    console.warn(blocked);
-    return null;
+    throw new Error(blocked);
   }
 
   if (Platform.OS === 'android') {
@@ -69,23 +76,31 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     finalStatus = status;
   }
   if (finalStatus !== 'granted') {
-    console.warn('Push permission not granted', { finalStatus });
-    return null;
+    throw new Error(
+      'Notifications are turned off for Oraia. Open Android Settings → Apps → ORAIA CRM → Notifications, turn them on, then try again.',
+    );
   }
 
   const projectId =
     Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
   if (!projectId) {
-    console.warn('Push skipped: missing EAS projectId');
-    return null;
+    throw new Error('Missing Expo project ID. Rebuild the preview APK.');
   }
 
   try {
     const token = await Notifications.getExpoPushTokenAsync({ projectId });
+    if (!token?.data) {
+      throw new Error('This phone did not return a push token.');
+    }
     return token.data;
   } catch (err) {
-    console.warn('Push token unavailable', err);
-    return null;
+    const message = err instanceof Error ? err.message : String(err);
+    if (/fcm|firebase|google.?services|credentials|sender/i.test(message)) {
+      throw new Error(
+        'Android push is not configured (Firebase FCM). Add google-services.json and rebuild the APK.',
+      );
+    }
+    throw new Error(`Could not register this phone for alerts. ${message}`);
   }
 }
 

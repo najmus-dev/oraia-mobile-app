@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { api } from '../lib/api';
 import { formatError } from '../lib/errors';
 import {
+  openAppNotificationSettings,
   registerForPushNotificationsAsync,
   remotePushUnavailableMessage,
   sendTestPushToApi,
@@ -81,18 +82,21 @@ export function SettingsScreen({ navigation }: Props) {
         return;
       }
       const pushToken = await registerForPushNotificationsAsync();
-      if (!pushToken) {
-        Alert.alert(
-          'Notifications',
-          'This phone did not register for alerts. Use a physical device, allow notifications, then try again.',
-        );
-        return;
-      }
       await syncPushTokenWithApi(pushToken, token, locationId);
       await sendTestPushToApi(token, locationId);
       Alert.alert('Notifications', 'Test alert sent. You should see it on this phone in a few seconds.');
     } catch (err) {
-      Alert.alert('Notifications', formatError(err));
+      const message = formatError(err);
+      Alert.alert(
+        'Notifications',
+        message,
+        message.includes('turned off')
+          ? [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Open settings', onPress: () => void openAppNotificationSettings() },
+            ]
+          : [{ text: 'OK' }],
+      );
     } finally {
       setTestingPush(false);
     }

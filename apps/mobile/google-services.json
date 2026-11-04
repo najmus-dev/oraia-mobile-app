@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "949601446249",
+    "project_id": "oraia-a9c52",
+    "storage_bucket": "oraia-a9c52.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:949601446249:android:7ec5df50ef06f9db9f35f8",
+        "android_client_info": {
+          "package_name": "com.oraiacrm.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDN3-Ad__HLW7H9eJ-MBZYwxDFtSkIlMNg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

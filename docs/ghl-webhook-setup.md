@@ -66,7 +66,13 @@ Default webhook URL:
 https://oraia-mobile-app.onrender.com/webhooks/ghl
 ```
 
-Android channels: `messages`, `calls`, `tasks`, `appointments`. Upload **FCM V1 credentials** on expo.dev → Credentials before a preview/production APK will show banners (Expo Go does not need this).
+Android channels: `messages`, `calls`, `tasks`, `appointments`. A preview APK **cannot** get a push token until Firebase FCM is added:
+
+1. Firebase Console → add Android app with package `com.oraiacrm.app`
+2. Download `google-services.json` into `apps/mobile/`
+3. Firebase → Project settings → Service accounts → Generate new private key
+4. Expo → Project → Credentials → Android `com.oraiacrm.app` → FCM V1 service account key → upload that JSON
+5. Rebuild the preview APK (`google-services.json` is required by `app.config.ts`)
 
 Who gets the push:
 
