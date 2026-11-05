@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { AppError } from '../lib/errors';
+import { requestUnreadPushPoll } from '../jobs/unreadPushPoll';
 import { locationPost } from '../middleware/locationRoute';
 import { registerPushToken, sendTestPushToUser, unregisterPushToken } from '../services/pushService';
 import type { LocationScopedRequest } from '../middleware/location';
@@ -29,6 +30,7 @@ locationPost(pushTokensRouter, '/register', async (req: LocationScopedRequest, r
     platform,
     deviceName,
   });
+  requestUnreadPushPoll('push-token-register');
 
   res.status(201).json({ ok: true, locationId: req.locationId });
 });

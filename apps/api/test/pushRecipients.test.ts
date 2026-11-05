@@ -37,27 +37,22 @@ describe('pushRecipients', () => {
     assert.equal(userCanAccessLocation(staffA, 'loc_2'), false);
   });
 
-  it('notifies assignee plus agency admins for assigned SMS/calls', () => {
+  it('notifies every location user like the HighLevel location feed', () => {
     const ids = selectPushRecipientIds([admin, staffA, staffB, otherLocation], 'loc_1', 'ghl_a');
-    assert.deepEqual(ids.sort(), ['admin_1', 'staff_a']);
-  });
-
-  it('notifies every location user when the conversation is unassigned', () => {
-    const ids = selectPushRecipientIds([admin, staffA, staffB, otherLocation], 'loc_1');
     assert.deepEqual(ids.sort(), ['admin_1', 'staff_a', 'staff_b']);
   });
 
-  it('falls back to location users when assigned GHL user has no ORAIA account', () => {
-    const ids = selectPushRecipientIds([admin, staffA, staffB], 'loc_1', 'ghl_missing');
+  it('still notifies every location user when unassigned', () => {
+    const ids = selectPushRecipientIds([admin, staffA, staffB, otherLocation], 'loc_1');
     assert.deepEqual(ids.sort(), ['admin_1', 'staff_a', 'staff_b']);
   });
 
   it('skips pending users', () => {
     const ids = selectPushRecipientIds(
-      [{ ...staffA, status: 'pending' }, admin],
+      [{ ...staffA, status: 'pending' }, admin, staffB],
       'loc_1',
       'ghl_a',
     );
-    assert.deepEqual(ids, ['admin_1']);
+    assert.deepEqual(ids.sort(), ['admin_1', 'staff_b']);
   });
 });

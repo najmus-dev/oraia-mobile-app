@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { config } from '../config';
 import { logger } from '../lib/logger';
 import {
-  inboundNotificationCopy,
+  classifyInboundChannel,
+  inboundMessagePreview,
   isAppointmentCreateEvent,
   isConversationUnreadEvent,
   isInboundDirection,
@@ -15,15 +16,17 @@ import {
   parseTaskCreate,
   unwrapWebhookPayload,
 } from '../lib/ghlWebhookEvents';
+import { ghlStyleNotificationCopy } from '../lib/inboundNotificationCopy';
 import { assertGhlWebhookAuthorized } from '../lib/webhookAuth';
 import { upsertNotification } from '../services/notificationService';
 import {
   appointmentNotificationDedupeKey,
-  conversationNotificationDedupeKey,
+  conversationEventDedupeKey,
   taskNotificationDedupeKey,
 } from '../lib/notificationHelpers';
 import { sendAppointmentPush, sendConversationPush, sendTaskPush } from '../services/pushService';
 import { tokenVault } from '../services/tokenVault';
+import { requestUnreadPushPoll } from '../jobs/unreadPushPoll';
 
 export const webhooksRouter = Router();
 
@@ -89,14 +92,27 @@ webhooksRouter.post('/ghl', async (req, res, next) => {
     if (isInboundMessageEvent(type)) {
       const inbound = parseInboundMessage(body);
       if (inbound?.locationId && inbound.conversationId && isInboundDirection(inbound.direction)) {
-        const copy = inboundNotificationCopy(inbound);
+        const channel = classifyInboundChannel(inbound);
+        const copy = ghlStyleNotificationCopy({
+          contactName: inbound.contactName || inbound.from,
+          lastMessageType:
+            inbound.messageTypeString ||
+            inbound.messageType ||
+            (channel === 'call' ? 'TYPE_CALL' : channel === 'voicemail' ? 'TYPE_VOICEMAIL' : channel === 'email' ? 'TYPE_EMAIL' : 'TYPE_SMS'),
+          lastMessageBody: inboundMessagePreview(inbound),
+          phone: inbound.from,
+        });
+        const stamp =
+          inbound.messageId?.trim() ||
+          inbound.dateAdded?.trim() ||
+          copy.body.slice(0, 40) ||
+          'inbound';
         await upsertNotification({
           locationId: inbound.locationId,
           type: 'conversations',
           title: copy.title,
           body: copy.body,
-          dedupeKey: conversationNotificationDedupeKey(inbound.conversationId),
-          targetGhlUserId: inbound.assignedTo,
+          dedupeKey: conversationEventDedupeKey(inbound.conversationId, stamp),
           occurredAt: inbound.dateAdded,
           markUnread: true,
           action: {
@@ -109,9 +125,7 @@ webhooksRouter.post('/ghl', async (req, res, next) => {
           locationId: inbound.locationId,
           conversationId: inbound.conversationId,
           contactId: inbound.contactId,
-          messageId:
-            inbound.messageId ||
-            `${inbound.conversationId}:${inbound.dateAdded ?? inbound.body ?? copy.body}`,
+          messageId: stamp,
           assignedTo: inbound.assignedTo,
           title: copy.title,
           body: copy.body,
@@ -131,34 +145,9 @@ webhooksRouter.post('/ghl', async (req, res, next) => {
     if (isConversationUnreadEvent(type)) {
       const unread = parseConversationUnread(body);
       if (unread?.locationId && unread.conversationId && unread.unreadCount > 0) {
-        const title = 'New message';
-        const bodyText = 'Unread conversation';
-        await upsertNotification({
-          locationId: unread.locationId,
-          type: 'conversations',
-          title,
-          body: bodyText,
-          dedupeKey: conversationNotificationDedupeKey(unread.conversationId),
-          targetGhlUserId: unread.assignedTo,
-          markUnread: true,
-          action: {
-            kind: 'conversation',
-            conversationId: unread.conversationId,
-            contactId: unread.contactId,
-          },
-        });
-        // Backup when InboundMessage is delayed/missing — dedupe shares conversation id window via messageId.
-        const sent = await sendConversationPush({
-          locationId: unread.locationId,
-          conversationId: unread.conversationId,
-          contactId: unread.contactId,
-          messageId: `unread:${unread.conversationId}:${unread.unreadCount}`,
-          assignedTo: unread.assignedTo,
-          title,
-          body: bodyText,
-          channel: 'messages',
-        });
-        res.json({ ok: true, action: 'conversation_unread_push', sent });
+        // Prefer the richer InboundMessage path; this wakes the poller as a backup.
+        requestUnreadPushPoll('conversation-unread-webhook');
+        res.json({ ok: true, action: 'conversation_unread_poll_requested' });
         return;
       }
       res.json({ ok: true, action: 'conversation_unread_ignored' });

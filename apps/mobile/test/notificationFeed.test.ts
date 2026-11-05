@@ -52,9 +52,10 @@ describe('notificationFeed', () => {
     assert.equal(notificationActivityTime(item), '2026-06-01T12:00:00.000Z');
   });
 
-  it('dedupes conversation notifications by conversation id', () => {
+  it('keeps separate conversation events like HighLevel (dedupe by id only)', () => {
     const deduped = dedupeNotificationItems([
       sampleConversation('n1', '2026-06-01T10:00:00.000Z'),
+      sampleConversation('n2', '2026-06-01T12:00:00.000Z'),
       sampleConversation('n2', '2026-06-01T12:00:00.000Z'),
       {
         ...sampleConversation('n3', '2026-06-01T08:00:00.000Z'),
@@ -62,8 +63,9 @@ describe('notificationFeed', () => {
         action: { kind: 'task', taskId: 't1' },
       },
     ]);
-    assert.equal(deduped.length, 2);
+    assert.equal(deduped.length, 3);
     assert.equal(deduped[0]?.id, 'n2');
-    assert.equal(deduped[1]?.id, 'n3');
+    assert.equal(deduped[1]?.id, 'n1');
+    assert.equal(deduped[2]?.id, 'n3');
   });
 });

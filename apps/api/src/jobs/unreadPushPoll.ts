@@ -1,43 +1,29 @@
 import cron from 'node-cron';
 import { normalizeConversationDate } from '../lib/conversationDates';
+import { ghlStyleNotificationCopy } from '../lib/inboundNotificationCopy';
 import { logger } from '../lib/logger';
 import { config } from '../config';
+import { conversationEventDedupeKey } from '../lib/notificationHelpers';
 import { PushDedup } from '../models/PushDedup';
 import { PushToken } from '../models/PushToken';
 import { getLocationGhlClient } from '../services/tokenVault';
 import { sendConversationPush } from '../services/pushService';
 import { upsertNotification } from '../services/notificationService';
-import { conversationNotificationDedupeKey } from '../lib/notificationHelpers';
+import type { GhlConversation } from '../services/ghl/types';
 
-const RECENT_MS = 20 * 60 * 1000;
+const RECENT_MS = 30 * 60 * 1000;
 const POLL_DEDUP_WINDOW_MS = 12 * 60 * 1000;
+const MIN_POLL_GAP_MS = 40_000;
+
+let lastPollAt = 0;
+let pollInFlight: Promise<void> | null = null;
 
 function isRecent(isoOrEpoch?: string): boolean {
-  if (!isoOrEpoch) return false;
+  // Missing dates still notify — GHL sometimes omits lastMessageDate on call rows.
+  if (!isoOrEpoch) return true;
   const at = new Date(isoOrEpoch).getTime();
-  if (!Number.isFinite(at)) return false;
+  if (!Number.isFinite(at)) return true;
   return Date.now() - at <= RECENT_MS;
-}
-
-function titleForConversation(input: {
-  contactName?: string;
-  lastMessageType?: string;
-}): { title: string; channel: 'messages' | 'calls' } {
-  const from = input.contactName?.trim() || 'a contact';
-  const type = (input.lastMessageType ?? '').toUpperCase();
-  if (type.includes('VOICEMAIL')) {
-    return { title: `Voicemail from ${from}`, channel: 'calls' };
-  }
-  if (type.includes('CALL')) {
-    return { title: `Missed call from ${from}`, channel: 'calls' };
-  }
-  if (type.includes('EMAIL')) {
-    return { title: `Email from ${from}`, channel: 'messages' };
-  }
-  if (type.includes('SMS')) {
-    return { title: `SMS from ${from}`, channel: 'messages' };
-  }
-  return { title: `Message from ${from}`, channel: 'messages' };
 }
 
 async function alreadyNotifiedRecently(conversationId: string): Promise<boolean> {
@@ -51,69 +37,92 @@ async function alreadyNotifiedRecently(conversationId: string): Promise<boolean>
   return Boolean(existing);
 }
 
-async function pollLocation(locationId: string): Promise<number> {
-  const ghl = getLocationGhlClient(locationId);
-  const data = await ghl.searchConversations(locationId, {
-    limit: 25,
-    status: 'unread',
+async function notifyConversation(locationId: string, convo: GhlConversation): Promise<number> {
+  if (!convo.id) return 0;
+  const occurredAt = normalizeConversationDate(convo.lastMessageDate);
+  if (!isRecent(occurredAt)) return 0;
+  if (await alreadyNotifiedRecently(convo.id)) return 0;
+
+  const copy = ghlStyleNotificationCopy({
+    contactName: convo.contactName || convo.fullName,
+    lastMessageType: convo.lastMessageType,
+    lastMessageBody: convo.lastMessageBody,
+    phone: convo.phone,
   });
+  const stamp = occurredAt || copy.body.slice(0, 40) || convo.lastMessageType || 'event';
 
-  let sent = 0;
-  for (const convo of data.conversations ?? []) {
-    if (!convo.id) continue;
-    const occurredAt = normalizeConversationDate(convo.lastMessageDate);
-    if (!isRecent(occurredAt)) continue;
-    if (await alreadyNotifiedRecently(convo.id)) continue;
-
-    const copy = titleForConversation({
-      contactName: convo.contactName || convo.fullName,
-      lastMessageType: convo.lastMessageType,
-    });
-    const body =
-      convo.lastMessageBody?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) ||
-      (copy.channel === 'calls' ? 'Missed call' : 'Unread conversation');
-
-    await upsertNotification({
-      locationId,
-      type: 'conversations',
-      title: copy.title,
-      body,
-      dedupeKey: conversationNotificationDedupeKey(convo.id),
-      targetGhlUserId: convo.assignedTo,
-      occurredAt,
-      markUnread: true,
-      action: {
-        kind: 'conversation',
-        conversationId: convo.id,
-        contactId: convo.contactId,
-      },
-    });
-
-    const count = await sendConversationPush({
-      locationId,
+  await upsertNotification({
+    locationId,
+    type: 'conversations',
+    title: copy.title,
+    body: copy.body,
+    dedupeKey: conversationEventDedupeKey(convo.id, stamp),
+    targetGhlUserId: convo.assignedTo,
+    occurredAt,
+    markUnread: true,
+    action: {
+      kind: 'conversation',
       conversationId: convo.id,
       contactId: convo.contactId,
-      messageId: `poll:${convo.id}:${occurredAt ?? body}`,
-      assignedTo: convo.assignedTo,
-      title: copy.title,
-      body,
-      channel: copy.channel,
-    });
-    sent += count;
+    },
+  });
+
+  return sendConversationPush({
+    locationId,
+    conversationId: convo.id,
+    contactId: convo.contactId,
+    messageId: `poll:${convo.id}:${stamp}`,
+    assignedTo: convo.assignedTo,
+    title: copy.title,
+    body: copy.body,
+    channel: copy.channel,
+  });
+}
+
+async function pollLocation(locationId: string): Promise<number> {
+  const ghl = getLocationGhlClient(locationId);
+
+  // Inbound messages + inbound calls (after a missed call the last row is often outbound SMS).
+  const [inbound, inboundCalls] = await Promise.all([
+    ghl.searchConversations(locationId, {
+      limit: 25,
+      status: 'unread',
+      lastMessageDirection: 'inbound',
+      sort: 'desc',
+      sortBy: 'last_message_date',
+    }),
+    ghl.searchConversations(locationId, {
+      limit: 15,
+      status: 'unread',
+      lastMessageType: 'TYPE_CALL',
+      lastMessageDirection: 'inbound',
+      sort: 'desc',
+      sortBy: 'last_message_date',
+    }),
+  ]);
+
+  const byId = new Map<string, GhlConversation>();
+  for (const convo of [...(inboundCalls.conversations ?? []), ...(inbound.conversations ?? [])]) {
+    if (convo.id) byId.set(convo.id, convo);
+  }
+
+  let sent = 0;
+  for (const convo of byId.values()) {
+    sent += await notifyConversation(locationId, convo);
   }
   return sent;
 }
 
-async function runUnreadPushPoll(source: 'startup' | 'cron'): Promise<void> {
+export async function runUnreadPushPoll(source: string): Promise<number> {
   if (!config.push.enabled) {
     logger.info('Unread push poll skipped — push disabled', { source });
-    return;
+    return 0;
   }
 
   const locationIds = await PushToken.distinct('locationId');
   if (locationIds.length === 0) {
     logger.info('Unread push poll — no registered devices', { source });
-    return;
+    return 0;
   }
 
   let totalSent = 0;
@@ -135,6 +144,28 @@ async function runUnreadPushPoll(source: 'startup' | 'cron'): Promise<void> {
     locations: locationIds.length,
     sent: totalSent,
   });
+  return totalSent;
+}
+
+/**
+ * Throttled entry point so /health, sync, and token register can wake the poller
+ * on Render (which sleeps when idle — cron alone is not enough).
+ */
+export function requestUnreadPushPoll(source: string): void {
+  const now = Date.now();
+  if (now - lastPollAt < MIN_POLL_GAP_MS) return;
+  if (pollInFlight) return;
+  lastPollAt = now;
+  pollInFlight = runUnreadPushPoll(source)
+    .catch((err) => {
+      logger.warn('Unread push poll request failed', {
+        source,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    })
+    .finally(() => {
+      pollInFlight = null;
+    });
 }
 
 /**
@@ -142,12 +173,10 @@ async function runUnreadPushPoll(source: 'startup' | 'cron'): Promise<void> {
  * Polls GHL unread conversations for locations that have Oraia push tokens.
  */
 export function startUnreadPushPollJob(): void {
-  // eslint-disable-next-line @typescript-eslint/no-floating-promises
-  runUnreadPushPoll('startup');
+  requestUnreadPushPoll('startup');
 
   cron.schedule('* * * * *', () => {
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    runUnreadPushPoll('cron');
+    requestUnreadPushPoll('cron');
   });
   logger.info('Unread push poll cron scheduled (every minute)');
 }

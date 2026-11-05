@@ -297,6 +297,10 @@ export class GhlClient {
       contactId?: string;
       assignedTo?: string;
       startAfterDate?: string;
+      lastMessageDirection?: 'inbound' | 'outbound';
+      lastMessageType?: string;
+      sort?: 'asc' | 'desc';
+      sortBy?: string;
     },
   ): Promise<GhlConversationsSearchResponse> {
     const headers = await this.authHeaders(locationId);
@@ -309,6 +313,10 @@ export class GhlClient {
         contactId: params?.contactId,
         assignedTo: params?.assignedTo,
         startAfterDate: params?.startAfterDate,
+        lastMessageDirection: params?.lastMessageDirection,
+        lastMessageType: params?.lastMessageType,
+        sort: params?.sort ?? 'desc',
+        sortBy: params?.sortBy ?? 'last_message_date',
       }),
     });
     return data;

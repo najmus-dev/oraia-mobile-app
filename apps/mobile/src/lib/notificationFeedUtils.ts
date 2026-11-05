@@ -61,40 +61,17 @@ export function formatNotificationTime(iso: string): string {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-/** Collapse duplicate conversation rows (legacy per-message notifications). */
+/**
+ * Dedupe by notification id only.
+ * HighLevel shows separate rows for call + SMS on the same contact — do not
+ * collapse by conversationId.
+ */
 export function dedupeNotificationItems(items: NotificationItem[]): NotificationItem[] {
-  const conversations = new Map<string, NotificationItem>();
-  const rest: NotificationItem[] = [];
-
+  const byId = new Map<string, NotificationItem>();
   for (const item of items) {
-    const conversationId =
-      item.type === 'conversations' &&
-      item.action.kind === 'conversation' &&
-      item.action.conversationId?.trim()
-        ? item.action.conversationId.trim()
-        : null;
-
-    if (!conversationId) {
-      rest.push(item);
-      continue;
-    }
-
-    const existing = conversations.get(conversationId);
-    if (!existing) {
-      conversations.set(conversationId, item);
-      continue;
-    }
-
-    const existingTime = notificationActivityTime(existing);
-    const itemTime = notificationActivityTime(item);
-    if (itemTime > existingTime) {
-      conversations.set(conversationId, item);
-    } else if (existing.status === 'read' && item.status === 'unread') {
-      conversations.set(conversationId, { ...existing, status: 'unread' });
-    }
+    byId.set(item.id, item);
   }
-
-  return [...conversations.values(), ...rest].sort(
+  return [...byId.values()].sort(
     (a, b) => notificationActivityTime(b).localeCompare(notificationActivityTime(a)),
   );
 }

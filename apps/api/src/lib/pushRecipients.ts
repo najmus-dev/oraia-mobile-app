@@ -12,27 +12,19 @@ export function userCanAccessLocation(user: PushRecipientUser, locationId: strin
 }
 
 /**
- * Who should get an inbound SMS/call push, matching GHL inbox behavior:
- * - assigned GHL user (if they have an ORAIA account)
- * - all agency admins for that location
- * - if unassigned / unmatched, every staff member with access
+ * Who should get an inbound SMS/call push.
+ *
+ * HighLevel's official app shows location-scoped notifications (not assignee-only).
+ * Oraia matches that: every active user with access to the location gets the push.
+ * `assignedTo` is retained for API compatibility / future prioritization.
  */
 export function selectPushRecipientIds(
   users: PushRecipientUser[],
   locationId: string,
-  assignedTo?: string,
+  _assignedTo?: string,
 ): string[] {
   const accessible = users.filter(
     (user) => user.status !== 'pending' && user.status !== 'rejected' && userCanAccessLocation(user, locationId),
   );
-  const assignedId = assignedTo?.trim();
-  const assigned = assignedId
-    ? accessible.filter((user) => user.ghlUserId?.trim() === assignedId)
-    : [];
-  const admins = accessible.filter((user) => user.role === 'agency_admin');
-  const includeAllStaff = !assignedId || assigned.length === 0;
-  const staff = includeAllStaff
-    ? accessible.filter((user) => user.role !== 'agency_admin')
-    : [];
-  return [...new Set([...assigned, ...admins, ...staff].map((user) => String(user._id)))];
+  return [...new Set(accessible.map((user) => String(user._id)))];
 }

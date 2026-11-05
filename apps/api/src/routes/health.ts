@@ -1,20 +1,26 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
+import { requestUnreadPushPoll } from '../jobs/unreadPushPoll';
 import { GhlRefreshError } from '../lib/ghlTokenRefresh';
 import { isWebhookPublicKeyParsable } from '../lib/ghlWebhookSignature';
+import { PushToken } from '../models/PushToken';
 import { tokenVault } from '../services/tokenVault';
 
 export const healthRouter = Router();
 
-healthRouter.get('/health', (_req, res) => {
+healthRouter.get('/health', async (_req, res) => {
+  // Keep Render awake + run the unread push backup when an uptime ping hits.
+  requestUnreadPushPoll('health');
   const dbState = mongoose.connection.readyState;
   const dbOk = dbState === 1;
   const webhookKey = process.env.WEBHOOK_SIGNATURE_PUBLIC_KEY?.trim() ?? '';
   const webhookRsaKey = process.env.WEBHOOK_PUBLIC_KEY?.trim() ?? '';
+  const pushDevices = dbOk ? await PushToken.countDocuments().catch(() => 0) : 0;
   res.status(dbOk ? 200 : 503).json({
     status: dbOk ? 'ok' : 'degraded',
     db: dbOk ? 'connected' : 'disconnected',
     commit: process.env.RENDER_GIT_COMMIT?.slice(0, 7) || process.env.GIT_COMMIT?.slice(0, 7) || null,
+    pushDevices,
     webhook: {
       ed25519Configured: Boolean(webhookKey),
       ed25519Parsable: isWebhookPublicKeyParsable(webhookKey),

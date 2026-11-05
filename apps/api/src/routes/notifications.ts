@@ -5,6 +5,7 @@ import { parseNotificationStatus, parseNotificationType } from '../lib/notificat
 import { parseTzOffsetQuery } from '../lib/dashboardDayBounds';
 import { locationGet, locationPut } from '../middleware/locationRoute';
 import type { LocationScopedRequest } from '../middleware/location';
+import { requestUnreadPushPoll } from '../jobs/unreadPushPoll';
 import {
   countUnreadNotifications,
   listNotifications,
@@ -38,6 +39,7 @@ async function maybeSyncNotifications(
     const tzOffset = parseTzOffsetQuery(req.query.tzOffset);
     await syncNotificationsFromGhl({ ghl, user, locationId, tzOffset });
     lastSyncByKey.set(key, Date.now());
+    requestUnreadPushPoll('notification-sync');
   } catch (err) {
     logger.warn('Notification sync failed — returning cached notifications', {
       locationId,

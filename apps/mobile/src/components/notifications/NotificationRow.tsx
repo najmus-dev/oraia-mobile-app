@@ -2,19 +2,32 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NotificationItem } from '../../lib/notificationFeedTypes';
-import { formatNotificationTime, notificationActivityTime, notificationTypeIcon } from '../../lib/notificationFeedUtils';
+import {
+  formatNotificationTime,
+  notificationActivityTime,
+  notificationTypeIcon,
+} from '../../lib/notificationFeedUtils';
 import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import type { OraiaTheme } from '../../theme';
 
 type Props = {
   item: NotificationItem;
+  locationLabel?: string;
   onPress: () => void;
+  onReply?: () => void;
 };
 
-export function NotificationRow({ item, onPress }: Props) {
+function isCallNotification(item: NotificationItem): boolean {
+  const body = item.body.toLowerCase();
+  return body.includes('called you') || body.includes('voicemail');
+}
+
+export function NotificationRow({ item, locationLabel, onPress, onReply }: Props) {
   const theme = useTheme();
   const styles = useThemedStyles(createStyles);
   const unread = item.status === 'unread';
+  const isCall = isCallNotification(item);
+  const canReply = item.action.kind === 'conversation' && !isCall;
 
   return (
     <Pressable
@@ -22,14 +35,19 @@ export function NotificationRow({ item, onPress }: Props) {
       style={({ pressed }) => [styles.row, unread && styles.rowUnread, pressed && styles.rowPressed]}
       accessibilityRole="button"
     >
-      <View style={[styles.iconWrap, unread && styles.iconWrapUnread]}>
+      <View style={[styles.iconWrap, unread && styles.iconWrapUnread, isCall && styles.iconWrapCall]}>
         <Ionicons
-          name={notificationTypeIcon(item.type)}
+          name={isCall ? 'call-outline' : notificationTypeIcon(item.type)}
           size={20}
-          color={unread ? theme.colors.link : theme.colors.foregroundMuted}
+          color={unread || isCall ? theme.colors.link : theme.colors.foregroundMuted}
         />
       </View>
       <View style={styles.body}>
+        {locationLabel ? (
+          <Text style={styles.location} numberOfLines={1}>
+            {locationLabel}
+          </Text>
+        ) : null}
         <View style={styles.titleRow}>
           <Text style={[styles.title, unread && styles.titleUnread]} numberOfLines={1}>
             {item.title}
@@ -39,6 +57,18 @@ export function NotificationRow({ item, onPress }: Props) {
         <Text style={styles.preview} numberOfLines={2}>
           {item.body}
         </Text>
+        {canReply && onReply ? (
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation?.();
+              onReply();
+            }}
+            style={styles.replyBtn}
+            hitSlop={6}
+          >
+            <Text style={styles.replyText}>Reply</Text>
+          </Pressable>
+        ) : null}
       </View>
       {unread ? <View style={styles.unreadDot} /> : null}
     </Pressable>
@@ -74,9 +104,18 @@ function createStyles(theme: OraiaTheme) {
     iconWrapUnread: {
       backgroundColor: `${theme.colors.primary}1F`,
     },
+    iconWrapCall: {
+      backgroundColor: `${theme.colors.link}22`,
+    },
     body: {
       flex: 1,
       minWidth: 0,
+    },
+    location: {
+      color: theme.colors.link,
+      fontFamily: theme.typography.fontFamily.medium,
+      fontSize: theme.typography.fontSize.xs,
+      marginBottom: 2,
     },
     titleRow: {
       flexDirection: 'row',
@@ -103,6 +142,21 @@ function createStyles(theme: OraiaTheme) {
       fontFamily: theme.typography.fontFamily.regular,
       fontSize: theme.typography.fontSize.sm,
       lineHeight: theme.typography.lineHeight.sm,
+    },
+    replyBtn: {
+      alignSelf: 'flex-start',
+      marginTop: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: 6,
+      borderRadius: 999,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
+    },
+    replyText: {
+      color: theme.colors.link,
+      fontFamily: theme.typography.fontFamily.semiBold,
+      fontSize: theme.typography.fontSize.sm,
     },
     unreadDot: {
       width: 8,

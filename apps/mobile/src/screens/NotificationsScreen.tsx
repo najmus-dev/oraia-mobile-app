@@ -236,7 +236,12 @@ export function NotificationsScreen({ navigation }: Props) {
           data={items}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <NotificationRow item={item} onPress={() => onPressItem(item)} />
+            <NotificationRow
+              item={item}
+              locationLabel={locationLabel}
+              onPress={() => onPressItem(item)}
+              onReply={() => onPressItem(item)}
+            />
           )}
           contentContainerStyle={[
             styles.listContent,

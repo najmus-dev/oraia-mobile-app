@@ -123,12 +123,14 @@ export interface GhlConversation {
   contactId?: string;
   locationId?: string;
   lastMessageBody?: string;
-  lastMessageDate?: string;
+  lastMessageDate?: string | number;
   lastMessageType?: string;
+  lastMessageDirection?: string;
   unreadCount?: number;
   starred?: boolean;
   fullName?: string;
   contactName?: string;
+  phone?: string;
   assignedTo?: string;
 }
 

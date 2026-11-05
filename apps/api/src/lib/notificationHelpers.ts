@@ -1,6 +1,18 @@
-/** One notification row per unread conversation — matches GHL mobile behavior. */
+/** Legacy one-row-per-conversation key (still used as a fallback). */
 export function conversationNotificationDedupeKey(conversationId: string): string {
   return `conversation:unread:${conversationId.trim()}`;
+}
+
+/**
+ * One row per inbound event — matches HighLevel's Notifications feed
+ * (call + SMS to the same contact appear as separate rows).
+ */
+export function conversationEventDedupeKey(
+  conversationId: string,
+  stamp: string,
+): string {
+  const safeStamp = stamp.trim().replace(/\s+/g, '_').slice(0, 120) || 'event';
+  return `conversation:event:${conversationId.trim()}:${safeStamp}`;
 }
 
 export function taskNotificationDedupeKey(taskId: string): string {
