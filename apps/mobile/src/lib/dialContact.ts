@@ -1,29 +1,33 @@
-import { Alert, Linking, Platform } from 'react-native';
+import { Alert, Linking } from 'react-native';
+import { toDialablePhone } from './phoneFormat';
+
+export { toDialablePhone } from './phoneFormat';
 
 /**
  * Opens the device dialer for a CRM contact number.
- * Oraia does not embed HighLevel LC Phone — live softphone / caller-ID from the
- * GHL number still requires the official HighLevel app.
+ *
+ * Oraia does NOT embed HighLevel LC Phone. Call uses the phone's SIM dialer
+ * (personal/carrier number). Calling as the GHL location number / live softphone
+ * still requires the official HighLevel LC Phone app.
  */
 export async function dialContactPhone(phone: string): Promise<void> {
-  const trimmed = phone.trim();
-  if (!trimmed) {
-    Alert.alert('Call', 'No phone number on file.');
+  const dialable = toDialablePhone(phone);
+  if (!dialable) {
+    Alert.alert(
+      'Call',
+      'No phone number on file for this contact.\n\nTo call from your GHL location number, use the HighLevel LC Phone app.',
+    );
     return;
   }
 
-  const url = `tel:${trimmed}`;
+  // Do not use canOpenURL(tel:) — Android 11+ package visibility often returns false
+  // even when the dialer works.
   try {
-    const supported = await Linking.canOpenURL(url);
-    if (!supported && Platform.OS === 'ios') {
-      Alert.alert('Call', 'Calling is not available on this device.');
-      return;
-    }
-    await Linking.openURL(url);
+    await Linking.openURL(`tel:${dialable}`);
   } catch {
     Alert.alert(
       'Call',
-      'Could not open the phone dialer. Check that this device can place calls, or use the HighLevel LC Phone app for the location number.',
+      'Could not open the phone dialer.\n\nOraia places calls through your phone SIM, not HighLevel LC Phone. Use the HighLevel app to call from the GHL location number.',
     );
   }
 }

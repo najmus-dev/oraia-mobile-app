@@ -35,9 +35,8 @@ export function ConversationThreadHeader({
   const hasPhone = Boolean(contactPhone?.trim());
 
   function dial() {
-    if (!contactPhone?.trim()) return;
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    dialContactPhone(contactPhone);
+    dialContactPhone(contactPhone ?? '');
   }
 
   function mail() {
@@ -82,11 +81,13 @@ export function ConversationThreadHeader({
               <Ionicons name="mail-outline" size={22} color={theme.colors.shellForeground} />
             </Pressable>
           ) : null}
-          {hasPhone ? (
-            <Pressable onPress={dial} style={styles.iconBtn} hitSlop={8} accessibilityLabel="Call contact">
-              <Ionicons name="call-outline" size={22} color={theme.colors.shellForeground} />
-            </Pressable>
-          ) : null}
+          <Pressable onPress={dial} style={styles.iconBtn} hitSlop={8} accessibilityLabel="Call contact">
+            <Ionicons
+              name="call-outline"
+              size={22}
+              color={hasPhone ? theme.colors.shellForeground : theme.colors.shellForegroundMuted}
+            />
+          </Pressable>
           <Pressable onPress={onOpenContact} style={styles.iconBtn} hitSlop={8}>
             <Ionicons name="ellipsis-vertical" size={20} color={theme.colors.shellForeground} />
           </Pressable>

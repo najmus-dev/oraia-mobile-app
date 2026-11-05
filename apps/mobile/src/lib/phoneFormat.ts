@@ -16,6 +16,16 @@ export function phoneDigits(value: string): string {
   return value.replace(/\D/g, '');
 }
 
+/** Strip display formatting so Android/iOS dialers accept the number. */
+export function toDialablePhone(phone: string): string {
+  const trimmed = phone.trim();
+  if (!trimmed) return '';
+  const hasPlus = trimmed.startsWith('+');
+  const digits = phoneDigits(trimmed);
+  if (!digits) return '';
+  return hasPlus || digits.length > 10 ? `+${digits}` : digits;
+}
+
 export function formatPhoneDisplay(value: string, countryCode = DEFAULT_PHONE_COUNTRY_CODE): string {
   const digits = phoneDigits(value);
   if (!digits) return '';
