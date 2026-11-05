@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { requestUnreadPushPoll } from '../jobs/unreadPushPoll';
 import { GhlRefreshError } from '../lib/ghlTokenRefresh';
 import { isWebhookPublicKeyParsable } from '../lib/ghlWebhookSignature';
+import { getWebhookTelemetry } from '../lib/webhookTelemetry';
 import { PushToken } from '../models/PushToken';
 import { tokenVault } from '../services/tokenVault';
 
@@ -27,6 +28,7 @@ healthRouter.get('/health', async (_req, res) => {
       rsaConfigured: Boolean(webhookRsaKey),
       rsaParsable: isWebhookPublicKeyParsable(webhookRsaKey),
       sharedSecretConfigured: Boolean(process.env.GHL_WEBHOOK_SECRET?.trim()),
+      telemetry: getWebhookTelemetry(),
     },
     timestamp: new Date().toISOString(),
   });

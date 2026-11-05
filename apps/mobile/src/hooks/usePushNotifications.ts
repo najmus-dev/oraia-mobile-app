@@ -39,27 +39,38 @@ export function usePushNotifications(): void {
     }
 
     let alive = true;
-    (async () => {
+
+    const register = async (reason: string) => {
       try {
         const pushToken = await registerForPushNotificationsAsync();
         if (!alive || !pushToken) return;
         await syncPushTokenWithApi(pushToken, token, locationId);
         registeredRef.current = { pushToken, authToken: token, locationId };
       } catch (err) {
-        console.warn('Push registration failed', err);
+        console.warn(`Push registration failed (${reason})`, err);
       }
-    })();
+    };
+
+    void register('mount');
 
     const onAppActive = AppState.addEventListener('change', (state) => {
-      if (state !== 'active' || !alive || registeredRef.current) return;
+      if (state !== 'active' || !alive) return;
+      // Re-sync even if we think we registered — token can rotate / API may have restarted.
+      void register('app-active');
+    });
+
+    const tokenSub = Notifications.addPushTokenListener((tokenResult) => {
+      if (!alive || !tokenResult?.data) return;
       void (async () => {
         try {
-          const pushToken = await registerForPushNotificationsAsync();
-          if (!alive || !pushToken) return;
-          await syncPushTokenWithApi(pushToken, token, locationId);
-          registeredRef.current = { pushToken, authToken: token, locationId };
+          await syncPushTokenWithApi(tokenResult.data, token, locationId);
+          registeredRef.current = {
+            pushToken: tokenResult.data,
+            authToken: token,
+            locationId,
+          };
         } catch (err) {
-          console.warn('Push registration retry failed', err);
+          console.warn('Push token rotation sync failed', err);
         }
       })();
     });
@@ -67,6 +78,7 @@ export function usePushNotifications(): void {
     return () => {
       alive = false;
       onAppActive.remove();
+      tokenSub.remove();
     };
   }, [token, locationId]);
 

@@ -5,13 +5,22 @@ import { useAppState } from '../state/AppState';
 import { fetchNotifications } from '../lib/notificationFeed';
 import { emitNotificationRefresh } from '../lib/notificationEvents';
 
-const POLL_MS = 45_000;
-const seenIds = new Set<string>();
-let primed = false;
+const POLL_MS = 15_000;
+const seenByLocation = new Map<string, Set<string>>();
+const primedByLocation = new Map<string, boolean>();
+
+function seenSetFor(locationId: string): Set<string> {
+  let set = seenByLocation.get(locationId);
+  if (!set) {
+    set = new Set();
+    seenByLocation.set(locationId, set);
+  }
+  return set;
+}
 
 /**
- * Free Render sleeps when idle, so remote Expo pushes are unreliable without a keep-alive.
- * While the app is open, poll the notifications API and raise a local banner for new rows.
+ * While the app is open, sync the notifications API and raise a local banner for new rows.
+ * This covers missed remote Expo pushes (Render cold start, FCM delay, etc.).
  */
 export function useInboxAlertPoll(): void {
   const { token, locationId } = useAppState();
@@ -21,15 +30,17 @@ export function useInboxAlertPoll(): void {
     if (!token || !locationId) return;
 
     let alive = true;
+    const seenIds = seenSetFor(locationId);
 
     const poll = async (opts?: { announceNew?: boolean }) => {
       try {
         const res = await fetchNotifications(
           { token, locationId },
-          { sync: true, limit: 30 },
+          { sync: true, forceSync: true, limit: 40 },
         );
         if (!alive) return;
 
+        const primed = primedByLocation.get(locationId) === true;
         const incoming = res.notifications ?? [];
         const announce = opts?.announceNew !== false && primed;
         let announced = 0;
@@ -39,7 +50,7 @@ export function useInboxAlertPoll(): void {
           if (!announce) continue;
           if (item.status === 'read') continue;
           const ageMs = Date.now() - new Date(item.occurredAt || item.createdAt).getTime();
-          if (Number.isFinite(ageMs) && ageMs > 30 * 60 * 1000) continue;
+          if (Number.isFinite(ageMs) && ageMs > 2 * 60 * 60 * 1000) continue;
 
           await Notifications.scheduleNotificationAsync({
             content: {
@@ -57,7 +68,7 @@ export function useInboxAlertPoll(): void {
           });
           announced += 1;
         }
-        primed = true;
+        primedByLocation.set(locationId, true);
         if (announced > 0) emitNotificationRefresh();
       } catch (err) {
         console.warn('Inbox alert poll failed', err);
@@ -66,7 +77,7 @@ export function useInboxAlertPoll(): void {
 
     const start = () => {
       if (timerRef.current) return;
-      void poll({ announceNew: primed });
+      void poll({ announceNew: primedByLocation.get(locationId) === true });
       timerRef.current = setInterval(() => {
         void poll({ announceNew: true });
       }, POLL_MS);

@@ -76,12 +76,18 @@ Android channels: `messages`, `calls`, `tasks`, `appointments`. A preview APK **
 
 Who gets the push:
 
-- Conversation assigned to a GHL user → that ORAIA account **and** agency admins
-- Unassigned, or the GHL user has no ORAIA login → everyone with access to that sub-account
+- Every active Oraia user with access to that sub-account (location-wide, like HighLevel’s app)
+
+Reliability notes:
+
+- Conversations tab reads GHL directly; the Notifications drawer is a Mongo feed filled by **InboundMessage** webhooks plus a **recent/unread GHL sync** backup.
+- Enable **InboundMessage** and **ConversationUnreadUpdate** in marketplace Advanced settings, URL `https://oraia-mobile-app.onrender.com/webhooks/ghl`.
+- `GET /health` includes `webhook.telemetry` (`lastReceivedAt` / `lastAcceptedAt`) so you can confirm GHL is reaching the API.
+- The app also raises **local** banners while open by force-syncing the notifications feed every 15s.
 
 The app registers an Expo push token per user (`POST /api/push-tokens/register`). Tokens follow the user across location switches.
 
-Set `PUSH_NOTIFICATIONS_ENABLED=false` on the API to accept webhooks without sending pushes.
+Set `PUSH_NOTIFICATIONS_ENABLED=false` on the API to accept webhooks without sending pushes (feed rows are still created).
 
 ### Free Render (important)
 

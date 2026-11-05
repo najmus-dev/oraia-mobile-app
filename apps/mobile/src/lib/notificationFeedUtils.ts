@@ -10,6 +10,7 @@ export function buildNotificationsQuery(input: {
   status?: NotificationStatus;
   cursor?: string;
   sync?: boolean;
+  forceSync?: boolean;
   limit?: number;
   tzOffset?: number;
 }): string {
@@ -18,6 +19,7 @@ export function buildNotificationsQuery(input: {
   if (input.status && input.status !== 'all') parts.push(`status=${encodeURIComponent(input.status)}`);
   if (input.cursor) parts.push(`cursor=${encodeURIComponent(input.cursor)}`);
   if (input.sync) parts.push('sync=1');
+  if (input.forceSync) parts.push('forceSync=1');
   const tz = input.tzOffset ?? -new Date().getTimezoneOffset();
   parts.push(`tzOffset=${tz}`);
   if (input.limit) parts.push(`limit=${input.limit}`);

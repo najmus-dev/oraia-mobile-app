@@ -1,140 +1,127 @@
 import cron from 'node-cron';
-import { normalizeConversationDate } from '../lib/conversationDates';
-import { ghlStyleNotificationCopy } from '../lib/inboundNotificationCopy';
 import { logger } from '../lib/logger';
 import { config } from '../config';
-import { conversationEventDedupeKey } from '../lib/notificationHelpers';
+import {
+  createPushPollGateState,
+  decidePushPollStart,
+  finishPushPoll,
+} from '../lib/pushPollGate';
 import { LocationToken } from '../models/LocationToken';
-import { PushDedup } from '../models/PushDedup';
 import { PushToken } from '../models/PushToken';
 import { User } from '../models/User';
 import { getLocationGhlClient } from '../services/tokenVault';
-import { sendConversationPush } from '../services/pushService';
-import { upsertNotification } from '../services/notificationService';
+import {
+  ingestConversationAlert,
+  mergeConversations,
+} from '../services/conversationAlertIngest';
 import type { GhlConversation } from '../services/ghl/types';
 
-const RECENT_MS = 30 * 60 * 1000;
-const POLL_DEDUP_WINDOW_MS = 12 * 60 * 1000;
-const MIN_POLL_GAP_MS = 40_000;
+const MIN_POLL_GAP_MS = 20_000;
 
-let lastPollAt = 0;
+const gate = createPushPollGateState();
 let pollInFlight: Promise<void> | null = null;
 
-function isRecent(isoOrEpoch?: string): boolean {
-  // Missing dates still notify — GHL sometimes omits lastMessageDate on call rows.
-  if (!isoOrEpoch) return true;
-  const at = new Date(isoOrEpoch).getTime();
-  if (!Number.isFinite(at)) return true;
-  return Date.now() - at <= RECENT_MS;
-}
-
-async function alreadyNotifiedRecently(conversationId: string): Promise<boolean> {
-  const since = new Date(Date.now() - POLL_DEDUP_WINDOW_MS);
-  const existing = await PushDedup.findOne({
-    conversationId,
-    createdAt: { $gte: since },
-  })
-    .select('_id')
-    .lean();
-  return Boolean(existing);
-}
-
-async function notifyConversation(locationId: string, convo: GhlConversation): Promise<number> {
-  if (!convo.id) return 0;
-  const occurredAt = normalizeConversationDate(convo.lastMessageDate);
-  if (!isRecent(occurredAt)) return 0;
-  if (await alreadyNotifiedRecently(convo.id)) return 0;
-
-  const copy = ghlStyleNotificationCopy({
-    contactName: convo.contactName || convo.fullName,
-    lastMessageType: convo.lastMessageType,
-    lastMessageBody: convo.lastMessageBody,
-    phone: convo.phone,
-  });
-  const stamp = occurredAt || copy.body.slice(0, 40) || convo.lastMessageType || 'event';
-
-  await upsertNotification({
-    locationId,
-    type: 'conversations',
-    title: copy.title,
-    body: copy.body,
-    dedupeKey: conversationEventDedupeKey(convo.id, stamp),
-    targetGhlUserId: convo.assignedTo,
-    occurredAt,
-    markUnread: true,
-    action: {
-      kind: 'conversation',
-      conversationId: convo.id,
-      contactId: convo.contactId,
-    },
-  });
-
-  return sendConversationPush({
-    locationId,
-    conversationId: convo.id,
-    contactId: convo.contactId,
-    messageId: `poll:${convo.id}:${stamp}`,
-    assignedTo: convo.assignedTo,
-    title: copy.title,
-    body: copy.body,
-    channel: copy.channel,
-  });
-}
-
-async function pollLocation(locationId: string): Promise<number> {
+async function collectRecentConversations(locationId: string): Promise<GhlConversation[]> {
   const ghl = getLocationGhlClient(locationId);
 
-  // Unread without direction filter — GHL frequently omits lastMessageDirection on SMS.
-  const [unread, calls] = await Promise.all([
+  // Unread + recent-all: Conversations tab shows all recent rows; GHL often clears
+  // unread before our sync runs (or omits status), so unread-only misses live SMS.
+  const [unread, calls, recent] = await Promise.all([
     ghl.searchConversations(locationId, {
-      limit: 25,
+      limit: 40,
       status: 'unread',
       sort: 'desc',
       sortBy: 'last_message_date',
     }),
     ghl.searchConversations(locationId, {
-      limit: 15,
+      limit: 20,
       status: 'unread',
       lastMessageType: 'TYPE_CALL',
       sort: 'desc',
       sortBy: 'last_message_date',
     }),
+    ghl.searchConversations(locationId, {
+      limit: 40,
+      sort: 'desc',
+      sortBy: 'last_message_date',
+    }),
   ]);
 
-  const byId = new Map<string, GhlConversation>();
-  for (const convo of [...(calls.conversations ?? []), ...(unread.conversations ?? [])]) {
-    if (!convo.id) continue;
-    const direction = (convo.lastMessageDirection ?? '').toLowerCase();
-    // Skip clear outbound auto-replies unless this row is a call/voicemail event.
-    const type = (convo.lastMessageType ?? '').toUpperCase();
-    const isCall = type.includes('CALL') || type.includes('VOICEMAIL');
-    if (direction === 'outbound' && !isCall) continue;
-    byId.set(convo.id, convo);
+  return mergeConversations(calls.conversations, unread.conversations, recent.conversations);
+}
+
+async function pollLocation(locationId: string): Promise<{ created: number; pushed: number }> {
+  const conversations = await collectRecentConversations(locationId);
+  let created = 0;
+  let pushed = 0;
+  for (const convo of conversations) {
+    const result = await ingestConversationAlert({
+      locationId,
+      convo,
+      source: 'poll',
+      sendPush: config.push.enabled,
+    });
+    if (result.created) created += 1;
+    pushed += result.pushed;
+  }
+  return { created, pushed };
+}
+
+/** Prefer locations with devices, but always include every provisioned location token. */
+async function resolvePollLocationIds(): Promise<string[]> {
+  const ids = new Set<string>();
+
+  const provisioned = await LocationToken.distinct('locationId');
+  for (const locationId of provisioned) {
+    if (typeof locationId === 'string' && locationId.trim()) ids.add(locationId.trim());
   }
 
-  let sent = 0;
-  for (const convo of byId.values()) {
-    sent += await notifyConversation(locationId, convo);
+  const tokens = await PushToken.find({}).select('userId locationId').lean();
+  for (const token of tokens) {
+    if (token.locationId?.trim()) ids.add(token.locationId.trim());
   }
-  return sent;
+
+  const userIds = [...new Set(tokens.map((token) => token.userId).filter(Boolean))];
+  if (userIds.length > 0) {
+    const users = await User.find({ _id: { $in: userIds } })
+      .select('role allowedLocationIds')
+      .lean();
+
+    let hasAdminDevice = false;
+    for (const user of users) {
+      if (user.role === 'agency_admin') {
+        hasAdminDevice = true;
+        continue;
+      }
+      for (const locationId of user.allowedLocationIds ?? []) {
+        if (typeof locationId === 'string' && locationId.trim()) ids.add(locationId.trim());
+      }
+    }
+
+    if (hasAdminDevice) {
+      for (const locationId of provisioned) {
+        if (typeof locationId === 'string' && locationId.trim()) ids.add(locationId.trim());
+      }
+    }
+  }
+
+  return [...ids];
 }
 
 export async function runUnreadPushPoll(source: string): Promise<number> {
-  if (!config.push.enabled) {
-    logger.info('Unread push poll skipped — push disabled', { source });
-    return 0;
-  }
-
   const locationIds = await resolvePollLocationIds();
   if (locationIds.length === 0) {
-    logger.info('Unread push poll — no registered devices', { source });
+    logger.info('Unread push poll — no provisioned locations', { source });
     return 0;
   }
 
-  let totalSent = 0;
+  let totalCreated = 0;
+  let totalPushed = 0;
   for (const locationId of locationIds) {
     try {
-      totalSent += await pollLocation(locationId);
+      const result = await pollLocation(locationId);
+      totalCreated += result.created;
+      totalPushed += result.pushed;
     } catch (err) {
       logger.warn('Unread push poll failed for location', {
         locationId,
@@ -147,56 +134,14 @@ export async function runUnreadPushPoll(source: string): Promise<number> {
   logger.info('Unread push poll completed', {
     source,
     locations: locationIds.length,
-    sent: totalSent,
+    created: totalCreated,
+    sent: totalPushed,
+    pushEnabled: config.push.enabled,
   });
-  return totalSent;
+  return totalPushed;
 }
 
-/** Last-registered location plus every location those device users can access. */
-async function resolvePollLocationIds(): Promise<string[]> {
-  const tokens = await PushToken.find({}).select('userId locationId').lean();
-  if (tokens.length === 0) return [];
-
-  const ids = new Set<string>();
-  for (const token of tokens) {
-    if (token.locationId?.trim()) ids.add(token.locationId.trim());
-  }
-
-  const userIds = [...new Set(tokens.map((token) => token.userId).filter(Boolean))];
-  const users = await User.find({ _id: { $in: userIds } })
-    .select('role allowedLocationIds')
-    .lean();
-
-  let hasAdminDevice = false;
-  for (const user of users) {
-    if (user.role === 'agency_admin') {
-      hasAdminDevice = true;
-      continue;
-    }
-    for (const locationId of user.allowedLocationIds ?? []) {
-      if (typeof locationId === 'string' && locationId.trim()) ids.add(locationId.trim());
-    }
-  }
-
-  if (hasAdminDevice) {
-    const provisioned = await LocationToken.distinct('locationId');
-    for (const locationId of provisioned) {
-      if (typeof locationId === 'string' && locationId.trim()) ids.add(locationId.trim());
-    }
-  }
-
-  return [...ids];
-}
-
-/**
- * Throttled entry point so /health, sync, and token register can wake the poller
- * on Render (which sleeps when idle — cron alone is not enough).
- */
-export function requestUnreadPushPoll(source: string): void {
-  const now = Date.now();
-  if (now - lastPollAt < MIN_POLL_GAP_MS) return;
-  if (pollInFlight) return;
-  lastPollAt = now;
+function startPoll(source: string): void {
   pollInFlight = runUnreadPushPoll(source)
     .then(() => undefined)
     .catch((err) => {
@@ -207,12 +152,29 @@ export function requestUnreadPushPoll(source: string): void {
     })
     .finally(() => {
       pollInFlight = null;
+      const next = finishPushPoll(gate);
+      if (next.action === 'start') {
+        startPoll(next.source);
+      }
     });
 }
 
 /**
+ * Throttled entry — queues follow-ups so /health, sync, and webhooks never drop a wake.
+ */
+export function requestUnreadPushPoll(source: string): void {
+  const decision = decidePushPollStart(gate, source, Date.now(), MIN_POLL_GAP_MS);
+  if (decision.action === 'skip') return;
+  if (decision.action === 'queue') {
+    logger.info('Unread push poll queued', { source: decision.source });
+    return;
+  }
+  startPoll(decision.source);
+}
+
+/**
  * Backup path when marketplace InboundMessage webhooks fail or are delayed.
- * Polls GHL unread conversations for locations that have Oraia push tokens.
+ * Creates Notifications drawer rows from GHL recent/unread conversations, then pushes.
  */
 export function startUnreadPushPollJob(): void {
   requestUnreadPushPoll('startup');

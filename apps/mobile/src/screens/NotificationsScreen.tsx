@@ -103,6 +103,7 @@ export function NotificationsScreen({ navigation }: Props) {
             status: statusFilter,
             cursor: opts?.cursor,
             sync: !isMore,
+            forceSync: Boolean(opts?.refresh) || !isMore,
           },
         );
         setUnreadCount(res.unreadCount);

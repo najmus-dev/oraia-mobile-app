@@ -19,7 +19,7 @@ import { param } from '../lib/params';
 
 export const notificationsRouter = Router();
 
-const syncThrottleMs = 60_000;
+const syncThrottleMs = 15_000;
 const lastSyncByKey = new Map<string, number>();
 
 async function maybeSyncNotifications(

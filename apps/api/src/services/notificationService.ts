@@ -1,20 +1,17 @@
 import type { UserDocument } from '../models/User';
 import { Notification, type NotificationDocument } from '../models/Notification';
 import type { CreateNotificationInput, NotificationType } from '../lib/notificationTypes';
-import { normalizeConversationDate } from '../lib/conversationDates';
 import {
   appointmentNotificationDedupeKey,
-  conversationEventDedupeKey,
   firstNotificationOccurredAt,
   notificationVisibilityFilter,
   resolveNotificationOccurredAt,
   taskNotificationDedupeKey,
 } from '../lib/notificationHelpers';
-import { ghlStyleNotificationCopy } from '../lib/inboundNotificationCopy';
 import { listAllCalendarEvents } from '../lib/ghlAggregates';
 import { localDayBounds } from '../lib/dashboardDayBounds';
 import type { GhlClient } from './ghl/ghlClient';
-import { sendConversationPush } from './pushService';
+import { ingestConversationAlert, mergeConversations } from './conversationAlertIngest';
 
 export type NotificationDto = {
   id: string;
@@ -244,9 +241,9 @@ export async function syncNotificationsFromGhl(input: {
 
   await backfillMissingOccurredAt(locationId);
 
-  // Location-wide unread feed like HighLevel. Do NOT require lastMessageDirection=inbound —
-  // GHL often omits it, which previously dropped brand-new SMS from Oraia's feed/push.
-  const [unreadConvos, callConvos, tasks, { start, end }] = await Promise.all([
+  // Match Conversations tab: unread + recent-all. Unread-only misses SMS that GHL
+  // already flipped to read, or rows where status filters behave inconsistently.
+  const [unreadConvos, callConvos, recentConvos, tasks, { start, end }] = await Promise.all([
     ghl.searchConversations(locationId, {
       limit: 40,
       status: 'unread',
@@ -260,6 +257,11 @@ export async function syncNotificationsFromGhl(input: {
       sort: 'desc',
       sortBy: 'last_message_date',
     }),
+    ghl.searchConversations(locationId, {
+      limit: 40,
+      sort: 'desc',
+      sortBy: 'last_message_date',
+    }),
     ghl.searchLocationTasks(locationId, {
       completed: false,
       limit: 40,
@@ -268,57 +270,20 @@ export async function syncNotificationsFromGhl(input: {
     Promise.resolve(localDayBounds(tzOffset)),
   ]);
 
-  const conversations = new Map<string, (typeof unreadConvos.conversations)[number]>();
-  for (const c of [...(callConvos.conversations ?? []), ...(unreadConvos.conversations ?? [])]) {
-    if (c.id) conversations.set(`${c.id}:${c.lastMessageDate ?? ''}:${c.lastMessageType ?? ''}`, c);
-  }
+  const conversations = mergeConversations(
+    callConvos.conversations,
+    unreadConvos.conversations,
+    recentConvos.conversations,
+  );
 
-  const recentCutoff = Date.now() - 30 * 60 * 1000;
-  for (const c of conversations.values()) {
-    if (!c.id) continue;
-    const occurredAt = normalizeConversationDate(c.lastMessageDate);
-    const copy = ghlStyleNotificationCopy({
-      contactName: c.contactName || c.fullName,
-      lastMessageType: c.lastMessageType,
-      lastMessageBody: c.lastMessageBody,
-      phone: c.phone,
-    });
-    const stamp = occurredAt || copy.body.slice(0, 40) || c.lastMessageType || 'event';
-    const dedupeKey = conversationEventDedupeKey(c.id, stamp);
-    const existed = await Notification.findOne({ dedupeKey }).select('_id').lean();
-    const result = await upsertNotification({
+  for (const c of conversations) {
+    const result = await ingestConversationAlert({
       locationId,
-      type: 'conversations',
-      title: copy.title,
-      body: copy.body.slice(0, 200),
-      dedupeKey,
-      // Leave untargeted so all location users see the row (GHL location feed).
-      occurredAt,
-      markUnread: true,
-      action: {
-        kind: 'conversation',
-        conversationId: c.id,
-        contactId: c.contactId,
-      },
+      convo: c,
+      source: 'sync',
+      sendPush: true,
     });
-    if (result) upserted += 1;
-
-    // If webhooks/poller missed it, push when the feed first learns about a fresh inbound.
-    if (!existed && result) {
-      const occurredMs = occurredAt ? new Date(occurredAt).getTime() : Date.now();
-      if (!Number.isFinite(occurredMs) || occurredMs >= recentCutoff) {
-        await sendConversationPush({
-          locationId,
-          conversationId: c.id,
-          contactId: c.contactId,
-          messageId: `sync:${c.id}:${stamp}`,
-          assignedTo: c.assignedTo,
-          title: copy.title,
-          body: copy.body,
-          channel: copy.channel,
-        }).catch(() => 0);
-      }
-    }
+    if (result.upserted) upserted += 1;
   }
 
   for (const t of tasks.tasks ?? []) {
