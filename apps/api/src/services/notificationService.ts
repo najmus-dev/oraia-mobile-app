@@ -244,12 +244,12 @@ export async function syncNotificationsFromGhl(input: {
 
   await backfillMissingOccurredAt(locationId);
 
-  // Location-wide feed like HighLevel (not assignee-only). Prefer inbound events.
-  const [inboundConvos, inboundCalls, tasks, { start, end }] = await Promise.all([
+  // Location-wide unread feed like HighLevel. Do NOT require lastMessageDirection=inbound —
+  // GHL often omits it, which previously dropped brand-new SMS from Oraia's feed/push.
+  const [unreadConvos, callConvos, tasks, { start, end }] = await Promise.all([
     ghl.searchConversations(locationId, {
       limit: 40,
       status: 'unread',
-      lastMessageDirection: 'inbound',
       sort: 'desc',
       sortBy: 'last_message_date',
     }),
@@ -257,7 +257,6 @@ export async function syncNotificationsFromGhl(input: {
       limit: 20,
       status: 'unread',
       lastMessageType: 'TYPE_CALL',
-      lastMessageDirection: 'inbound',
       sort: 'desc',
       sortBy: 'last_message_date',
     }),
@@ -269,8 +268,8 @@ export async function syncNotificationsFromGhl(input: {
     Promise.resolve(localDayBounds(tzOffset)),
   ]);
 
-  const conversations = new Map<string, (typeof inboundConvos.conversations)[number]>();
-  for (const c of [...(inboundCalls.conversations ?? []), ...(inboundConvos.conversations ?? [])]) {
+  const conversations = new Map<string, (typeof unreadConvos.conversations)[number]>();
+  for (const c of [...(callConvos.conversations ?? []), ...(unreadConvos.conversations ?? [])]) {
     if (c.id) conversations.set(`${c.id}:${c.lastMessageDate ?? ''}:${c.lastMessageType ?? ''}`, c);
   }
 

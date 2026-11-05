@@ -84,12 +84,11 @@ async function notifyConversation(locationId: string, convo: GhlConversation): P
 async function pollLocation(locationId: string): Promise<number> {
   const ghl = getLocationGhlClient(locationId);
 
-  // Inbound messages + inbound calls (after a missed call the last row is often outbound SMS).
-  const [inbound, inboundCalls] = await Promise.all([
+  // Unread without direction filter — GHL frequently omits lastMessageDirection on SMS.
+  const [unread, calls] = await Promise.all([
     ghl.searchConversations(locationId, {
       limit: 25,
       status: 'unread',
-      lastMessageDirection: 'inbound',
       sort: 'desc',
       sortBy: 'last_message_date',
     }),
@@ -97,15 +96,20 @@ async function pollLocation(locationId: string): Promise<number> {
       limit: 15,
       status: 'unread',
       lastMessageType: 'TYPE_CALL',
-      lastMessageDirection: 'inbound',
       sort: 'desc',
       sortBy: 'last_message_date',
     }),
   ]);
 
   const byId = new Map<string, GhlConversation>();
-  for (const convo of [...(inboundCalls.conversations ?? []), ...(inbound.conversations ?? [])]) {
-    if (convo.id) byId.set(convo.id, convo);
+  for (const convo of [...(calls.conversations ?? []), ...(unread.conversations ?? [])]) {
+    if (!convo.id) continue;
+    const direction = (convo.lastMessageDirection ?? '').toLowerCase();
+    // Skip clear outbound auto-replies unless this row is a call/voicemail event.
+    const type = (convo.lastMessageType ?? '').toUpperCase();
+    const isCall = type.includes('CALL') || type.includes('VOICEMAIL');
+    if (direction === 'outbound' && !isCall) continue;
+    byId.set(convo.id, convo);
   }
 
   let sent = 0;

@@ -6,6 +6,7 @@ import { LoginScreen } from '../screens/LoginScreen';
 import { SignUpScreen } from '../screens/SignUpScreen';
 import { PendingApprovalScreen } from '../screens/PendingApprovalScreen';
 import { LocationPickerScreen } from '../screens/LocationPickerScreen';
+import { useInboxAlertPoll } from '../hooks/useInboxAlertPoll';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { navigationRef } from '../lib/navigationRef';
 import { useAppState } from '../state/AppState';
@@ -43,6 +44,7 @@ export function AppNavigator() {
   const navTheme = useMemo(() => createNavTheme(theme), [theme]);
   const { token, user, locationId } = useAppState();
   usePushNotifications();
+  useInboxAlertPoll();
   useAuthNavigationSync(navigationRef, { token, user, locationId });
 
   const initialRoute = useMemo(

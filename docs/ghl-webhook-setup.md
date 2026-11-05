@@ -83,6 +83,21 @@ The app registers an Expo push token per user (`POST /api/push-tokens/register`)
 
 Set `PUSH_NOTIFICATIONS_ENABLED=false` on the API to accept webhooks without sending pushes.
 
+### Free Render (important)
+
+Free web services **sleep after 15 minutes** with no traffic. While asleep:
+
+- the in-process unread poller / cron does **not** run
+- GHL marketplace webhooks often **time out** during the ~1 minute cold start
+
+Mitigations already in this repo:
+
+1. `GET /health` triggers the unread → Expo push poll (and is safe to ping)
+2. GitHub Action `.github/workflows/keep-render-awake.yml` pings `/health` every 5 minutes
+3. The mobile app also raises **local** banners while open (needs Expo update / new APK)
+
+Enable the GitHub Action (Actions tab → allow workflows) after the first push. For production reliability, upgrade Render to a paid always-on plan.
+
 ### Local check (no ngrok)
 
 API running on port 3000, unsigned webhooks allowed in development. Use a **physical phone** (emulators do not get Expo pushes).
