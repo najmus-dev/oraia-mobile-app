@@ -194,6 +194,7 @@ export function requestUnreadPushPoll(source: string): void {
   if (pollInFlight) return;
   lastPollAt = now;
   pollInFlight = runUnreadPushPoll(source)
+    .then(() => undefined)
     .catch((err) => {
       logger.warn('Unread push poll request failed', {
         source,
