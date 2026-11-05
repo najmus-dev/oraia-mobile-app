@@ -32,6 +32,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.oraiacrm.app',
+    infoPlist: {
+      // Needed for Linking.canOpenURL to detect LeadConnector / HighLevel.
+      LSApplicationQueriesSchemes: ['leadconnector', 'gohighlevel', 'tel'],
+    },
   },
   android: {
     adaptiveIcon: {

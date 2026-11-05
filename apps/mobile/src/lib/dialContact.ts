@@ -19,10 +19,32 @@ const HIGHLEVEL_PLAY = 'https://play.google.com/store/apps/details?id=com.gohigh
  * 2) Open LeadConnector / HighLevel for LC Phone (location number + live ringing)
  */
 async function openHighLevelCallingApp(): Promise<void> {
-  // No public deep link into LC Phone dialer; open the store listing / app page.
-  const url = Platform.OS === 'ios' ? LEAD_CONNECTOR_APP_STORE : LEAD_CONNECTOR_PLAY;
+  // Prefer launching the installed app; fall back to store (no LC Phone dial deep link exists).
+  const launchCandidates =
+    Platform.OS === 'ios'
+      ? ['leadconnector://', 'gohighlevel://']
+      : [
+          'intent:#Intent;package=com.LeadConnector;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end',
+          'intent:#Intent;package=com.gohighlevel;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end',
+        ];
+  const storeFallback =
+    Platform.OS === 'ios' ? LEAD_CONNECTOR_APP_STORE : LEAD_CONNECTOR_PLAY;
+
+  for (const url of launchCandidates) {
+    try {
+      if (Platform.OS === 'ios') {
+        const can = await Linking.canOpenURL(url);
+        if (!can) continue;
+      }
+      await Linking.openURL(url);
+      return;
+    } catch {
+      /* try next */
+    }
+  }
+
   try {
-    await Linking.openURL(url);
+    await Linking.openURL(storeFallback);
   } catch {
     try {
       await Linking.openURL(Platform.OS === 'ios' ? LEAD_CONNECTOR_APP_STORE : HIGHLEVEL_PLAY);
