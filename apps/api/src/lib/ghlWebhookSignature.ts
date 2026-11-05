@@ -43,6 +43,17 @@ function parsePublicKey(raw: string): crypto.KeyObject {
   }
 }
 
+/** True when WEBHOOK_SIGNATURE_PUBLIC_KEY can be loaded by Node crypto. */
+export function isWebhookPublicKeyParsable(raw?: string | null): boolean {
+  if (!raw?.trim()) return false;
+  try {
+    parsePublicKey(raw);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Verifies GHL x-ghl-signature (Ed25519) against the raw request body. */
 export function verifyEd25519WebhookSignature(
   rawBody: Buffer,

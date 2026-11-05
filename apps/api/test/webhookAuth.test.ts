@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { describe, it } from 'node:test';
 import { assertGhlWebhookAuthorized } from '../src/lib/webhookAuth';
 import {
+  isWebhookPublicKeyParsable,
   normalizePemKey,
   verifyEd25519WebhookSignature,
   verifyRsaWebhookSignature,
@@ -19,6 +20,8 @@ describe('ghlWebhookSignature', () => {
     const envStyle = pem.replace(/\n/g, '\\n');
     assert.equal(envStyle.includes('\\n'), true);
     assert.equal(normalizePemKey(envStyle).includes('\n'), true);
+    assert.equal(isWebhookPublicKeyParsable(envStyle), true);
+    assert.equal(isWebhookPublicKeyParsable('not-a-key'), false);
     const rawBody = Buffer.from('{"type":"InboundMessage"}', 'utf8');
     const signature = crypto.sign(null, rawBody, privateKey).toString('base64');
     assert.equal(verifyEd25519WebhookSignature(rawBody, signature, envStyle), true);

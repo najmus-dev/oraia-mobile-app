@@ -5,11 +5,13 @@ import { connectDb } from './db/connect';
 import { logger } from './lib/logger';
 import { ensureBootstrapAdmin } from './services/authService';
 import { startTokenRefreshJob } from './jobs/tokenRefresh';
+import { startUnreadPushPollJob } from './jobs/unreadPushPoll';
 
 async function main(): Promise<void> {
   await connectDb();
   await ensureBootstrapAdmin();
   startTokenRefreshJob();
+  startUnreadPushPollJob();
 
   const app = createApp();
   const server = app.listen(config.port, '0.0.0.0', () => {

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
 import { GhlRefreshError } from '../lib/ghlTokenRefresh';
+import { isWebhookPublicKeyParsable } from '../lib/ghlWebhookSignature';
 import { tokenVault } from '../services/tokenVault';
 
 export const healthRouter = Router();
@@ -8,9 +9,19 @@ export const healthRouter = Router();
 healthRouter.get('/health', (_req, res) => {
   const dbState = mongoose.connection.readyState;
   const dbOk = dbState === 1;
+  const webhookKey = process.env.WEBHOOK_SIGNATURE_PUBLIC_KEY?.trim() ?? '';
+  const webhookRsaKey = process.env.WEBHOOK_PUBLIC_KEY?.trim() ?? '';
   res.status(dbOk ? 200 : 503).json({
     status: dbOk ? 'ok' : 'degraded',
     db: dbOk ? 'connected' : 'disconnected',
+    commit: process.env.RENDER_GIT_COMMIT?.slice(0, 7) || process.env.GIT_COMMIT?.slice(0, 7) || null,
+    webhook: {
+      ed25519Configured: Boolean(webhookKey),
+      ed25519Parsable: isWebhookPublicKeyParsable(webhookKey),
+      rsaConfigured: Boolean(webhookRsaKey),
+      rsaParsable: isWebhookPublicKeyParsable(webhookRsaKey),
+      sharedSecretConfigured: Boolean(process.env.GHL_WEBHOOK_SECRET?.trim()),
+    },
     timestamp: new Date().toISOString(),
   });
 });
