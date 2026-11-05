@@ -97,25 +97,27 @@ function buildListQuery(input: {
 
 export async function upsertNotification(input: CreateNotificationInput): Promise<NotificationDto | null> {
   const occurredAt = resolveNotificationOccurredAt(input.occurredAt);
-  const update: Record<string, unknown> = {
-    $set: {
-      locationId: input.locationId,
-      type: input.type,
-      title: input.title,
-      body: input.body,
-      targetGhlUserId: input.targetGhlUserId?.trim() || undefined,
-      action: input.action ?? { kind: 'none' },
-      occurredAt,
-    },
-    $setOnInsert: {
-      dedupeKey: input.dedupeKey,
-      status: 'unread',
-    },
+  // Never put the same path in both $set and $setOnInsert — Mongo rejects with
+  // "Updating the path 'status' would create a conflict at 'status'".
+  const $set: Record<string, unknown> = {
+    locationId: input.locationId,
+    type: input.type,
+    title: input.title,
+    body: input.body,
+    targetGhlUserId: input.targetGhlUserId?.trim() || undefined,
+    action: input.action ?? { kind: 'none' },
+    occurredAt,
   };
+  const $setOnInsert: Record<string, unknown> = {
+    dedupeKey: input.dedupeKey,
+  };
+  const update: Record<string, unknown> = { $set, $setOnInsert };
 
   if (input.markUnread) {
-    (update.$set as Record<string, unknown>).status = 'unread';
+    $set.status = 'unread';
     update.$unset = { readAt: '' };
+  } else {
+    $setOnInsert.status = 'unread';
   }
 
   const doc = await Notification.findOneAndUpdate({ dedupeKey: input.dedupeKey }, update, {
