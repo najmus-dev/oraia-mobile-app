@@ -34,7 +34,7 @@ GHL signs webhook payloads. Configure on the API:
 
 | Env var | Header | Scheme |
 |---------|--------|--------|
-| `WEBHOOK_SIGNATURE_PUBLIC_KEY` | `x-ghl-signature` | Ed25519 (preferred) |
+| `WEBHOOK_SIGNATURE_PUBLIC_KEY` | `x-ghl-signature` | Ed25519 (preferred). Literal `\n` in env values is normalized automatically. |
 | `WEBHOOK_PUBLIC_KEY` | `x-wh-signature` | RSA-SHA256 (legacy) |
 | `GHL_WEBHOOK_SECRET` | `x-ghl-webhook-secret` | Shared secret fallback |
 

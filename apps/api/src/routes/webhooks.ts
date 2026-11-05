@@ -131,11 +131,13 @@ webhooksRouter.post('/ghl', async (req, res, next) => {
     if (isConversationUnreadEvent(type)) {
       const unread = parseConversationUnread(body);
       if (unread?.locationId && unread.conversationId && unread.unreadCount > 0) {
+        const title = 'New message';
+        const bodyText = 'Unread conversation';
         await upsertNotification({
           locationId: unread.locationId,
           type: 'conversations',
-          title: 'New message',
-          body: 'Unread conversation',
+          title,
+          body: bodyText,
           dedupeKey: conversationNotificationDedupeKey(unread.conversationId),
           targetGhlUserId: unread.assignedTo,
           markUnread: true,
@@ -145,7 +147,18 @@ webhooksRouter.post('/ghl', async (req, res, next) => {
             contactId: unread.contactId,
           },
         });
-        res.json({ ok: true, action: 'conversation_unread_recorded' });
+        // Backup when InboundMessage is delayed/missing — dedupe shares conversation id window via messageId.
+        const sent = await sendConversationPush({
+          locationId: unread.locationId,
+          conversationId: unread.conversationId,
+          contactId: unread.contactId,
+          messageId: `unread:${unread.conversationId}:${unread.unreadCount}`,
+          assignedTo: unread.assignedTo,
+          title,
+          body: bodyText,
+          channel: 'messages',
+        });
+        res.json({ ok: true, action: 'conversation_unread_push', sent });
         return;
       }
       res.json({ ok: true, action: 'conversation_unread_ignored' });

@@ -179,7 +179,7 @@ export function SettingsScreen({ navigation }: Props) {
               onPress={() =>
                 Alert.alert(
                   'SMS & call alerts',
-                  'Inbound SMS, missed calls, and voicemail notify this phone like HighLevel. Live ringing still uses the HighLevel LC Phone app.',
+                  'Inbound SMS, missed calls, voicemail, and email notify this phone like HighLevel. Outbound Call opens your phone dialer — live ringing and calling from the GHL number still use the HighLevel LC Phone app.',
                 )
               }
               last

@@ -156,6 +156,19 @@ describe('ghlWebhookEvents', () => {
     assert.equal(preview, 'Order confirmed');
   });
 
+  it('titles inbound email alerts', () => {
+    const copy = inboundNotificationCopy({
+      locationId: 'loc_1',
+      conversationId: 'convo_1',
+      messageType: 'Email',
+      from: 'Ada',
+      subject: 'Quote ready',
+    });
+    assert.equal(copy.title, 'Email from Ada');
+    assert.equal(copy.body, 'Quote ready');
+    assert.equal(copy.channel, 'messages');
+  });
+
   it('parses conversation unread updates', () => {
     const parsed = parseConversationUnread({
       type: 'ConversationUnreadUpdate',

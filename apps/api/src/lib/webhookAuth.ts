@@ -1,6 +1,7 @@
 import type { Request } from 'express';
 import { config } from '../config';
 import { AppError } from './errors';
+import { logger } from './logger';
 import { verifyEd25519WebhookSignature, verifyRsaWebhookSignature } from './ghlWebhookSignature';
 
 function headerValue(req: Request, name: string): string | undefined {
@@ -60,6 +61,12 @@ export function assertGhlWebhookAuthorized(req: Request, rawBody: Buffer): void 
   if (signatureValid) return;
 
   if (hasSigHeader && hasSignatureConfig()) {
+    logger.warn('GHL webhook signature rejected', {
+      hasEd25519Header: Boolean(headerValue(req, 'x-ghl-signature')),
+      hasRsaHeader: Boolean(headerValue(req, 'x-wh-signature')),
+      rawBodyBytes: rawBody.length,
+      contentType: headerValue(req, 'content-type') ?? null,
+    });
     throw new AppError(401, 'Invalid webhook signature', 'WEBHOOK_UNAUTHORIZED');
   }
 
@@ -67,6 +74,11 @@ export function assertGhlWebhookAuthorized(req: Request, rawBody: Buffer): void 
 
   if (config.isProduction) {
     if (hasSignatureConfig() || configuredSecret) {
+      logger.warn('GHL webhook unauthorized in production', {
+        hasSigHeader,
+        hasSecretHeader: Boolean(providedSecret),
+        rawBodyBytes: rawBody.length,
+      });
       throw new AppError(401, 'Invalid webhook credentials', 'WEBHOOK_UNAUTHORIZED');
     }
     throw new AppError(

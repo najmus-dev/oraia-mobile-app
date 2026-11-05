@@ -8,8 +8,21 @@ function decodeSignature(signature: string): Buffer {
   return Buffer.from(trimmed, 'base64');
 }
 
+/**
+ * Render / dotenv often store PEMs with literal `\n` instead of real newlines.
+ * Node's crypto rejects those keys, which made every signed GHL webhook return 401.
+ */
+export function normalizePemKey(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\r')
+    .trim();
+}
+
 function parsePublicKey(raw: string): crypto.KeyObject {
-  const trimmed = raw.trim();
+  const trimmed = normalizePemKey(raw);
   if (trimmed.includes('BEGIN')) {
     return crypto.createPublicKey(trimmed);
   }

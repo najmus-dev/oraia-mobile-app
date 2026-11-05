@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { describe, it } from 'node:test';
 import { assertGhlWebhookAuthorized } from '../src/lib/webhookAuth';
 import {
+  normalizePemKey,
   verifyEd25519WebhookSignature,
   verifyRsaWebhookSignature,
 } from '../src/lib/ghlWebhookSignature';
@@ -12,6 +13,17 @@ function mockReq(headers: Record<string, string> = {}) {
 }
 
 describe('ghlWebhookSignature', () => {
+  it('normalizes literal \\n PEM keys from env vars', () => {
+    const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
+    const pem = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+    const envStyle = pem.replace(/\n/g, '\\n');
+    assert.equal(envStyle.includes('\\n'), true);
+    assert.equal(normalizePemKey(envStyle).includes('\n'), true);
+    const rawBody = Buffer.from('{"type":"InboundMessage"}', 'utf8');
+    const signature = crypto.sign(null, rawBody, privateKey).toString('base64');
+    assert.equal(verifyEd25519WebhookSignature(rawBody, signature, envStyle), true);
+  });
+
   it('verifies Ed25519 signatures', () => {
     const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
     const rawBody = Buffer.from('{"type":"InboundMessage"}', 'utf8');

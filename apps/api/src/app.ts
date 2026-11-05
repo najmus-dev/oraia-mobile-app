@@ -33,9 +33,10 @@ export function createApp() {
   app.use(cors({ origin: corsOrigin }));
 
   // GHL webhooks must verify signatures against the raw body before JSON parsing.
+  // Accept charset / vendor content-types so the body stays a Buffer for Ed25519 verify.
   app.use(
     '/webhooks',
-    express.raw({ type: 'application/json', limit: '1mb' }),
+    express.raw({ type: (req) => /json/i.test(String(req.headers['content-type'] ?? '')), limit: '1mb' }),
     webhooksRouter,
   );
 

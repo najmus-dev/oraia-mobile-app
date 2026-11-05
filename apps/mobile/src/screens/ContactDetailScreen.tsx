@@ -34,6 +34,7 @@ import {
   navigateToScheduleForContact,
 } from '../lib/navigation';
 import { finishWizardFlow, popWizardBack } from '../lib/stackNavigation';
+import { dialContactPhone } from '../lib/dialContact';
 import { formatError } from '../lib/errors';
 import { useFullScreenBottomInset } from '../lib/safeArea';
 import { useTheme, useThemedStyles } from '../hooks/useTheme';
@@ -223,13 +224,8 @@ export function ContactDetailScreen({ navigation, route }: Props) {
         icon: 'call-outline' as const,
         disabled: !contact?.phone?.trim(),
         onPress: () => {
-          const phone = contact?.phone?.trim();
-          if (!phone) {
-            Alert.alert('Call', 'No phone number on file.');
-            return;
-          }
           // eslint-disable-next-line @typescript-eslint/no-floating-promises
-          Linking.openURL(`tel:${phone}`);
+          dialContactPhone(contact?.phone ?? '');
         },
       },
       {
@@ -413,7 +409,10 @@ export function ContactDetailScreen({ navigation, route }: Props) {
               <View style={styles.contactLines}>
                 {contact.phone?.trim() ? (
                   <Pressable
-                    onPress={() => Linking.openURL(`tel:${contact.phone!.trim()}`)}
+                    onPress={() => {
+                      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+                      dialContactPhone(contact.phone!);
+                    }}
                     hitSlop={4}
                   >
                     <Text style={styles.profileLink}>{contact.phone.trim()}</Text>

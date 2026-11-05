@@ -274,6 +274,9 @@ export function inboundNotificationCopy(msg: InboundMessageWebhook): {
   if (channel === 'sms') {
     return { title: `SMS from ${from}`, body: inboundMessagePreview(msg), channel: 'messages' };
   }
+  if (channel === 'email') {
+    return { title: `Email from ${from}`, body: inboundMessagePreview(msg), channel: 'messages' };
+  }
   return {
     title: `Message from ${from}`,
     body: inboundMessagePreview(msg),
