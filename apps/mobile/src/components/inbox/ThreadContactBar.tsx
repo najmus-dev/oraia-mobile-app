@@ -1,7 +1,7 @@
 import React from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { dialContactPhone } from '../../lib/dialContact';
+import { presentCallContact } from '../../lib/dialContact';
 import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import type { OraiaTheme } from '../../theme';
 
@@ -23,8 +23,7 @@ export function ThreadContactBar({ phone, email, onViewContact }: Props) {
         <Pressable
           style={styles.chip}
           onPress={() => {
-            // eslint-disable-next-line @typescript-eslint/no-floating-promises
-            dialContactPhone(phone!);
+            presentCallContact(phone!);
           }}
         >
           <Ionicons name="call-outline" size={14} color={theme.colors.link} />

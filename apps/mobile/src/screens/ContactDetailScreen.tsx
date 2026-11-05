@@ -34,7 +34,7 @@ import {
   navigateToScheduleForContact,
 } from '../lib/navigation';
 import { finishWizardFlow, popWizardBack } from '../lib/stackNavigation';
-import { dialContactPhone } from '../lib/dialContact';
+import { presentCallContact } from '../lib/dialContact';
 import { formatError } from '../lib/errors';
 import { useFullScreenBottomInset } from '../lib/safeArea';
 import { useTheme, useThemedStyles } from '../hooks/useTheme';
@@ -224,8 +224,7 @@ export function ContactDetailScreen({ navigation, route }: Props) {
         icon: 'call-outline' as const,
         disabled: !contact?.phone?.trim(),
         onPress: () => {
-          // eslint-disable-next-line @typescript-eslint/no-floating-promises
-          dialContactPhone(contact?.phone ?? '');
+          presentCallContact(contact?.phone ?? '', { contactName: displayName });
         },
       },
       {
@@ -410,8 +409,7 @@ export function ContactDetailScreen({ navigation, route }: Props) {
                 {contact.phone?.trim() ? (
                   <Pressable
                     onPress={() => {
-                      // eslint-disable-next-line @typescript-eslint/no-floating-promises
-                      dialContactPhone(contact.phone!);
+                      presentCallContact(contact.phone!, { contactName: displayName });
                     }}
                     hitSlop={4}
                   >

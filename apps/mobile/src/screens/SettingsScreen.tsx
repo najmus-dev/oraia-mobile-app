@@ -179,7 +179,7 @@ export function SettingsScreen({ navigation }: Props) {
               onPress={() =>
                 Alert.alert(
                   'SMS & call alerts',
-                  'Inbound SMS, missed calls, voicemail, and email notify this phone like HighLevel. Outbound Call opens your phone dialer — live ringing and calling from the GHL number still use the HighLevel LC Phone app.',
+                  'Inbound SMS, missed calls, voicemail, and email notify this phone like HighLevel.\n\nCall in Oraia offers: (1) Call with this phone’s SIM, or (2) Open HighLevel / LeadConnector for LC Phone (GHL location number + live ringing). HighLevel does not allow marketplace apps to embed LC Phone.',
                 )
               }
               last

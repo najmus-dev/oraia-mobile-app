@@ -1,7 +1,7 @@
 import React from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { dialContactPhone } from '../../lib/dialContact';
+import { presentCallContact } from '../../lib/dialContact';
 import { useHeaderTopPadding } from '../../lib/safeArea';
 import { useTheme, useThemedStyles } from '../../hooks/useTheme';
 import type { OraiaTheme } from '../../theme';
@@ -35,8 +35,7 @@ export function ConversationThreadHeader({
   const hasPhone = Boolean(contactPhone?.trim());
 
   function dial() {
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    dialContactPhone(contactPhone ?? '');
+    presentCallContact(contactPhone ?? '', { contactName });
   }
 
   function mail() {
