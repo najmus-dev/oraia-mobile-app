@@ -89,55 +89,23 @@ webhooksRouter.post('/ghl', async (req, res, next) => {
       return;
     }
 
+    // Ack quickly so GHL does not retry/timeout while Expo + Mongo work runs.
     if (isInboundMessageEvent(type)) {
       const inbound = parseInboundMessage(body);
-      if (inbound?.locationId && inbound.conversationId && isInboundDirection(inbound.direction)) {
-        const channel = classifyInboundChannel(inbound);
-        const copy = ghlStyleNotificationCopy({
-          contactName: inbound.contactName || inbound.from,
-          lastMessageType:
-            inbound.messageTypeString ||
-            inbound.messageType ||
-            (channel === 'call' ? 'TYPE_CALL' : channel === 'voicemail' ? 'TYPE_VOICEMAIL' : channel === 'email' ? 'TYPE_EMAIL' : 'TYPE_SMS'),
-          lastMessageBody: inboundMessagePreview(inbound),
-          phone: inbound.from,
+      if (!inbound?.locationId || !inbound.conversationId || !isInboundDirection(inbound.direction)) {
+        res.json({
+          ok: true,
+          action: 'inbound_message_ignored',
+          reason: inbound && !isInboundDirection(inbound.direction) ? 'outbound' : 'missing ids',
         });
-        const stamp =
-          inbound.messageId?.trim() ||
-          inbound.dateAdded?.trim() ||
-          copy.body.slice(0, 40) ||
-          'inbound';
-        await upsertNotification({
-          locationId: inbound.locationId,
-          type: 'conversations',
-          title: copy.title,
-          body: copy.body,
-          dedupeKey: conversationEventDedupeKey(inbound.conversationId, stamp),
-          occurredAt: inbound.dateAdded,
-          markUnread: true,
-          action: {
-            kind: 'conversation',
-            conversationId: inbound.conversationId,
-            contactId: inbound.contactId,
-          },
-        });
-        const sent = await sendConversationPush({
-          locationId: inbound.locationId,
-          conversationId: inbound.conversationId,
-          contactId: inbound.contactId,
-          messageId: stamp,
-          assignedTo: inbound.assignedTo,
-          title: copy.title,
-          body: copy.body,
-          channel: copy.channel,
-        });
-        res.json({ ok: true, action: 'inbound_message_push', sent });
         return;
       }
-      res.json({
-        ok: true,
-        action: 'inbound_message_ignored',
-        reason: inbound && !isInboundDirection(inbound.direction) ? 'outbound' : 'missing ids',
+      res.json({ ok: true, action: 'inbound_message_accepted' });
+      void handleInboundMessagePush(inbound).catch((err) => {
+        logger.error('Inbound message push failed after ack', {
+          conversationId: inbound.conversationId,
+          message: err instanceof Error ? err.message : String(err),
+        });
       });
       return;
     }
@@ -145,9 +113,8 @@ webhooksRouter.post('/ghl', async (req, res, next) => {
     if (isConversationUnreadEvent(type)) {
       const unread = parseConversationUnread(body);
       if (unread?.locationId && unread.conversationId && unread.unreadCount > 0) {
-        // Prefer the richer InboundMessage path; this wakes the poller as a backup.
-        requestUnreadPushPoll('conversation-unread-webhook');
         res.json({ ok: true, action: 'conversation_unread_poll_requested' });
+        requestUnreadPushPoll('conversation-unread-webhook');
         return;
       }
       res.json({ ok: true, action: 'conversation_unread_ignored' });
@@ -156,71 +123,33 @@ webhooksRouter.post('/ghl', async (req, res, next) => {
 
     if (isAppointmentCreateEvent(type)) {
       const appt = parseAppointmentCreate(body);
-      if (appt?.locationId && appt.appointmentId) {
-        const title = appt.title?.trim() || 'New appointment';
-        const startLabel = appt.startTime ? new Date(appt.startTime).toLocaleString() : 'Scheduled';
-        await upsertNotification({
-          locationId: appt.locationId,
-          type: 'appointments',
-          title,
-          body: startLabel,
-          dedupeKey: appointmentNotificationDedupeKey(appt.appointmentId),
-          targetGhlUserId: appt.assignedUserId,
-          markUnread: true,
-          action: {
-            kind: 'appointment',
-            appointmentId: appt.appointmentId,
-            contactId: appt.contactId,
-          },
-        });
-        const sent = await sendAppointmentPush({
-          locationId: appt.locationId,
-          appointmentId: appt.appointmentId,
-          contactId: appt.contactId,
-          assignedTo: appt.assignedUserId,
-          title,
-          body: startLabel,
-        });
-        res.json({ ok: true, action: 'appointment_create_notification', sent });
+      if (!appt?.locationId || !appt.appointmentId) {
+        res.json({ ok: true, action: 'appointment_create_ignored', reason: 'missing ids' });
         return;
       }
-      res.json({ ok: true, action: 'appointment_create_ignored', reason: 'missing ids' });
+      res.json({ ok: true, action: 'appointment_create_accepted' });
+      void handleAppointmentPush(appt).catch((err) => {
+        logger.error('Appointment push failed after ack', {
+          appointmentId: appt.appointmentId,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      });
       return;
     }
 
     if (isTaskCreateEvent(type)) {
       const task = parseTaskCreate(body);
-      if (task?.locationId && task.taskId) {
-        const title = task.title?.trim() || 'New task';
-        const bodyText =
-          task.body?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || 'Task assigned';
-        await upsertNotification({
-          locationId: task.locationId,
-          type: 'tasks',
-          title,
-          body: bodyText.slice(0, 200),
-          dedupeKey: taskNotificationDedupeKey(task.taskId),
-          targetGhlUserId: task.assignedTo,
-          markUnread: true,
-          action: {
-            kind: 'task',
-            taskId: task.taskId,
-            taskContactId: task.contactId,
-            contactId: task.contactId,
-          },
-        });
-        const sent = await sendTaskPush({
-          locationId: task.locationId,
-          taskId: task.taskId,
-          contactId: task.contactId,
-          assignedTo: task.assignedTo,
-          title,
-          body: bodyText.slice(0, 200),
-        });
-        res.json({ ok: true, action: 'task_create_notification', sent });
+      if (!task?.locationId || !task.taskId) {
+        res.json({ ok: true, action: 'task_create_ignored', reason: 'missing ids' });
         return;
       }
-      res.json({ ok: true, action: 'task_create_ignored', reason: 'missing ids' });
+      res.json({ ok: true, action: 'task_create_accepted' });
+      void handleTaskPush(task).catch((err) => {
+        logger.error('Task push failed after ack', {
+          taskId: task.taskId,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      });
       return;
     }
 
@@ -229,3 +158,115 @@ webhooksRouter.post('/ghl', async (req, res, next) => {
     next(err);
   }
 });
+
+async function handleInboundMessagePush(
+  inbound: NonNullable<ReturnType<typeof parseInboundMessage>>,
+): Promise<void> {
+  const channel = classifyInboundChannel(inbound);
+  const copy = ghlStyleNotificationCopy({
+    contactName: inbound.contactName || inbound.from,
+    lastMessageType:
+      inbound.messageTypeString ||
+      inbound.messageType ||
+      (channel === 'call'
+        ? 'TYPE_CALL'
+        : channel === 'voicemail'
+          ? 'TYPE_VOICEMAIL'
+          : channel === 'email'
+            ? 'TYPE_EMAIL'
+            : 'TYPE_SMS'),
+    lastMessageBody: inboundMessagePreview(inbound),
+    phone: inbound.from,
+  });
+  const stamp =
+    inbound.messageId?.trim() ||
+    inbound.dateAdded?.trim() ||
+    copy.body.slice(0, 40) ||
+    'inbound';
+  await upsertNotification({
+    locationId: inbound.locationId!,
+    type: 'conversations',
+    title: copy.title,
+    body: copy.body,
+    dedupeKey: conversationEventDedupeKey(inbound.conversationId!, stamp),
+    occurredAt: inbound.dateAdded,
+    markUnread: true,
+    action: {
+      kind: 'conversation',
+      conversationId: inbound.conversationId!,
+      contactId: inbound.contactId,
+    },
+  });
+  const sent = await sendConversationPush({
+    locationId: inbound.locationId!,
+    conversationId: inbound.conversationId!,
+    contactId: inbound.contactId,
+    messageId: stamp,
+    assignedTo: inbound.assignedTo,
+    title: copy.title,
+    body: copy.body,
+    channel: copy.channel,
+  });
+  logger.info('Inbound message push completed', {
+    conversationId: inbound.conversationId,
+    sent,
+  });
+}
+
+async function handleAppointmentPush(
+  appt: NonNullable<ReturnType<typeof parseAppointmentCreate>>,
+): Promise<void> {
+  const title = appt.title?.trim() || 'New appointment';
+  const startLabel = appt.startTime ? new Date(appt.startTime).toLocaleString() : 'Scheduled';
+  await upsertNotification({
+    locationId: appt.locationId,
+    type: 'appointments',
+    title,
+    body: startLabel,
+    dedupeKey: appointmentNotificationDedupeKey(appt.appointmentId),
+    targetGhlUserId: appt.assignedUserId,
+    markUnread: true,
+    action: {
+      kind: 'appointment',
+      appointmentId: appt.appointmentId,
+      contactId: appt.contactId,
+    },
+  });
+  await sendAppointmentPush({
+    locationId: appt.locationId,
+    appointmentId: appt.appointmentId,
+    contactId: appt.contactId,
+    assignedTo: appt.assignedUserId,
+    title,
+    body: startLabel,
+  });
+}
+
+async function handleTaskPush(task: NonNullable<ReturnType<typeof parseTaskCreate>>): Promise<void> {
+  const title = task.title?.trim() || 'New task';
+  const bodyText =
+    task.body?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || 'Task assigned';
+  await upsertNotification({
+    locationId: task.locationId,
+    type: 'tasks',
+    title,
+    body: bodyText.slice(0, 200),
+    dedupeKey: taskNotificationDedupeKey(task.taskId),
+    targetGhlUserId: task.assignedTo,
+    markUnread: true,
+    action: {
+      kind: 'task',
+      taskId: task.taskId,
+      taskContactId: task.contactId,
+      contactId: task.contactId,
+    },
+  });
+  await sendTaskPush({
+    locationId: task.locationId,
+    taskId: task.taskId,
+    contactId: task.contactId,
+    assignedTo: task.assignedTo,
+    title,
+    body: bodyText.slice(0, 200),
+  });
+}

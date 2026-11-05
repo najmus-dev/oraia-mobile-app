@@ -4,8 +4,10 @@ import { ghlStyleNotificationCopy } from '../lib/inboundNotificationCopy';
 import { logger } from '../lib/logger';
 import { config } from '../config';
 import { conversationEventDedupeKey } from '../lib/notificationHelpers';
+import { LocationToken } from '../models/LocationToken';
 import { PushDedup } from '../models/PushDedup';
 import { PushToken } from '../models/PushToken';
+import { User } from '../models/User';
 import { getLocationGhlClient } from '../services/tokenVault';
 import { sendConversationPush } from '../services/pushService';
 import { upsertNotification } from '../services/notificationService';
@@ -119,7 +121,7 @@ export async function runUnreadPushPoll(source: string): Promise<number> {
     return 0;
   }
 
-  const locationIds = await PushToken.distinct('locationId');
+  const locationIds = await resolvePollLocationIds();
   if (locationIds.length === 0) {
     logger.info('Unread push poll — no registered devices', { source });
     return 0;
@@ -127,9 +129,8 @@ export async function runUnreadPushPoll(source: string): Promise<number> {
 
   let totalSent = 0;
   for (const locationId of locationIds) {
-    if (typeof locationId !== 'string' || !locationId.trim()) continue;
     try {
-      totalSent += await pollLocation(locationId.trim());
+      totalSent += await pollLocation(locationId);
     } catch (err) {
       logger.warn('Unread push poll failed for location', {
         locationId,
@@ -145,6 +146,42 @@ export async function runUnreadPushPoll(source: string): Promise<number> {
     sent: totalSent,
   });
   return totalSent;
+}
+
+/** Last-registered location plus every location those device users can access. */
+async function resolvePollLocationIds(): Promise<string[]> {
+  const tokens = await PushToken.find({}).select('userId locationId').lean();
+  if (tokens.length === 0) return [];
+
+  const ids = new Set<string>();
+  for (const token of tokens) {
+    if (token.locationId?.trim()) ids.add(token.locationId.trim());
+  }
+
+  const userIds = [...new Set(tokens.map((token) => token.userId).filter(Boolean))];
+  const users = await User.find({ _id: { $in: userIds } })
+    .select('role allowedLocationIds')
+    .lean();
+
+  let hasAdminDevice = false;
+  for (const user of users) {
+    if (user.role === 'agency_admin') {
+      hasAdminDevice = true;
+      continue;
+    }
+    for (const locationId of user.allowedLocationIds ?? []) {
+      if (typeof locationId === 'string' && locationId.trim()) ids.add(locationId.trim());
+    }
+  }
+
+  if (hasAdminDevice) {
+    const provisioned = await LocationToken.distinct('locationId');
+    for (const locationId of provisioned) {
+      if (typeof locationId === 'string' && locationId.trim()) ids.add(locationId.trim());
+    }
+  }
+
+  return [...ids];
 }
 
 /**

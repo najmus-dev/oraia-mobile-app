@@ -135,7 +135,21 @@ async function deliverPush(
 
   for (const chunk of chunks) {
     const tickets = await expo.sendPushNotificationsAsync(chunk);
-    sent += tickets.filter((ticket) => ticket.status === 'ok').length;
+    for (let i = 0; i < tickets.length; i += 1) {
+      const ticket = tickets[i];
+      if (ticket.status === 'ok') {
+        sent += 1;
+        continue;
+      }
+      logger.warn('Expo push ticket error', {
+        to: typeof chunk[i]?.to === 'string' ? chunk[i].to.slice(0, 28) : null,
+        status: ticket.status,
+        message: 'message' in ticket ? ticket.message : undefined,
+        error: ticket.details?.error,
+        channel: payload.channel,
+        type: payload.data.type,
+      });
+    }
     staleTokens.push(...collectStaleTokensFromTickets(chunk, tickets));
   }
 
